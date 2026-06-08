@@ -22,8 +22,8 @@ param(
     [string] $ClientId    = '<BC API Service Principal AppId>',
     [string] $SecretTarget= 'BC_Telemetry_BCAPI',     # Credential Manager target (SP secret)
     [string] $Environment = 'Production',
-    [string] $Company     = 'AXIMA_CZ_ESHOP',
-    [string] $ServiceName = 'ChangeLogEntries',         # publikovaný web service
+    [string[]] $Companies = @(),                          # prázdné = VŠECHNY firmy (auto-list)
+    [string] $ServiceName = 'ChangelogEntry',           # publikovaný web service (přesný název z BC)
     [string] $SqlServer   = 'localhost',
     [string] $SqlDatabase = 'BC_Telemetry'
 )
@@ -46,39 +46,50 @@ $conn = New-Object System.Data.SqlClient.SqlConnection
 $conn.ConnectionString = "Server=$SqlServer;Database=$SqlDatabase;Integrated Security=True;TrustServerCertificate=True"
 $conn.Open()
 try {
-    $cmdMax = $conn.CreateCommand(); $cmdMax.CommandText = "SELECT ISNULL(MAX(EntryNo),0) FROM dbo.BCChangeLog"
-    $lastEntry = [int64]$cmdMax.ExecuteScalar()
-
-    # ── OData stránkování od watermarku ─────────────────────────────────────
     $base = "https://api.businesscentral.dynamics.com/v2.0/$TenantId/$Environment/ODataV4"
-    $url  = "$base/Company('$Company')/$ServiceName`?`$filter=entryNo gt $lastEntry&`$orderby=entryNo&`$top=5000"
+
+    # Seznam firem — prázdný param = VŠECHNY (Change Log je per-firma, EntryNo je per-firma sekvence)
+    $companyList = if ($Companies.Count) { $Companies } else {
+        (Invoke-RestMethod -Headers $headers -Uri "$base/Company?`$select=Name").value | ForEach-Object { $_.Name }
+    }
+    Write-Host "Firmy ($($companyList.Count)): $($companyList -join ', ')"
+
     $inserted = 0
-    while ($url) {
-        $resp = Invoke-RestMethod -Headers $headers -Uri $url
-        foreach ($e in $resp.value) {
-            # ⚠ MAPOVÁNÍ POLÍ — ověřit proti $metadata; níže typické názvy z Page 405:
-            $c = $conn.CreateCommand()
-            $c.CommandText = @"
+    foreach ($company in $companyList) {
+        # per-firma watermark
+        $cmdMax = $conn.CreateCommand()
+        $cmdMax.CommandText = "SELECT ISNULL(MAX(EntryNo),0) FROM dbo.BCChangeLog WHERE CompanyName=@c"
+        $cmdMax.Parameters.AddWithValue('@c', $company) | Out-Null
+        $lastEntry = [int64]$cmdMax.ExecuteScalar()
+
+        $url = "$base/Company('$company')/$ServiceName`?`$filter=entryNo gt $lastEntry&`$orderby=entryNo&`$top=5000"
+        while ($url) {
+            $resp = Invoke-RestMethod -Headers $headers -Uri $url
+            foreach ($e in $resp.value) {
+                # ⚠ MAPOVÁNÍ POLÍ — ověřit proti $metadata; níže typické názvy z Page 405:
+                $c = $conn.CreateCommand()
+                $c.CommandText = @"
 INSERT INTO dbo.BCChangeLog (EntryNo,ChangedAt,UserId,CompanyName,TableNo,TableName,FieldNo,FieldName,ChangeType,PrimaryKey,OldValue,NewValue)
 VALUES (@EntryNo,@ChangedAt,@UserId,@Company,@TableNo,@TableName,@FieldNo,@FieldName,@ChangeType,@PK,@Old,@New)
 "@
-            $c.Parameters.AddWithValue('@EntryNo',   [int64]$e.entryNo)                | Out-Null
-            $c.Parameters.AddWithValue('@ChangedAt', [datetime]("$($e.changeDate) $($e.changeTime)")) | Out-Null
-            $c.Parameters.AddWithValue('@UserId',    "$($e.userID)")                  | Out-Null
-            $c.Parameters.AddWithValue('@Company',   $Company)                        | Out-Null
-            $c.Parameters.AddWithValue('@TableNo',   [int]$e.tableNo)                 | Out-Null
-            $c.Parameters.AddWithValue('@TableName', "$($e.tableCaption)")            | Out-Null
-            $c.Parameters.AddWithValue('@FieldNo',   [int]$e.fieldNo)                 | Out-Null
-            $c.Parameters.AddWithValue('@FieldName', "$($e.fieldCaption)")            | Out-Null
-            $c.Parameters.AddWithValue('@ChangeType',"$($e.typeOfChange)")            | Out-Null
-            $c.Parameters.AddWithValue('@PK',        "$($e.primaryKey)")              | Out-Null
-            $c.Parameters.AddWithValue('@Old',       "$($e.oldValue)")               | Out-Null
-            $c.Parameters.AddWithValue('@New',       "$($e.newValue)")               | Out-Null
-            try { $c.ExecuteNonQuery() | Out-Null; $inserted++ } catch { } # UX index = dedup
+                $c.Parameters.AddWithValue('@EntryNo',   [int64]$e.entryNo)                | Out-Null
+                $c.Parameters.AddWithValue('@ChangedAt', [datetime]("$($e.changeDate) $($e.changeTime)")) | Out-Null
+                $c.Parameters.AddWithValue('@UserId',    "$($e.userID)")                  | Out-Null
+                $c.Parameters.AddWithValue('@Company',   $company)                        | Out-Null
+                $c.Parameters.AddWithValue('@TableNo',   [int]$e.tableNo)                 | Out-Null
+                $c.Parameters.AddWithValue('@TableName', "$($e.tableCaption)")            | Out-Null
+                $c.Parameters.AddWithValue('@FieldNo',   [int]$e.fieldNo)                 | Out-Null
+                $c.Parameters.AddWithValue('@FieldName', "$($e.fieldCaption)")            | Out-Null
+                $c.Parameters.AddWithValue('@ChangeType',"$($e.typeOfChange)")            | Out-Null
+                $c.Parameters.AddWithValue('@PK',        "$($e.primaryKey)")              | Out-Null
+                $c.Parameters.AddWithValue('@Old',       "$($e.oldValue)")               | Out-Null
+                $c.Parameters.AddWithValue('@New',       "$($e.newValue)")               | Out-Null
+                try { $c.ExecuteNonQuery() | Out-Null; $inserted++ } catch { } # UX index = dedup
+            }
+            $url = $resp.'@odata.nextLink'
         }
-        $url = $resp.'@odata.nextLink'
     }
-    Write-Host "Change Log: vloženo $inserted nových záznamů (od EntryNo $lastEntry)."
+    Write-Host "Change Log: vloženo $inserted nových záznamů napříč $($companyList.Count) firmami."
 
     $cmdP = $conn.CreateCommand(); $cmdP.CommandText = 'EXEC dbo.usp_BCChangeLog_Purge @RetentionMonths=24'
     $cmdP.ExecuteNonQuery() | Out-Null

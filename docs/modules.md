@@ -41,11 +41,17 @@ jména volitelně korelací s Entra sign-in logy ([reakce](oponentury/2026-06-08
 
 ### Ingest
 [scripts/BC_ChangeLog_Import.ps1](../scripts/BC_ChangeLog_Import.ps1) — OAuth2 client-credentials
-(scope `https://api.businesscentral.dynamics.com/.default`) → GET OData s `$filter=entryNo gt <watermark>`
-→ `dbo.BCChangeLog`. Watermark přes `MAX(EntryNo)`.
+(scope `https://api.businesscentral.dynamics.com/.default`) → **projde VŠECHNY firmy** (auto-list
+přes `/ODataV4/Company`) → GET `…/Company('X')/ChangelogEntry?$filter=entryNo gt <watermark>` → `dbo.BCChangeLog`.
 
-> ⚠ Tvar OData polí (entryNo, changeType, oldValue…) **ověřit na publikovaném web service** před
-> finalizací — stejně jako jsme validovali App Insights schéma.
+> **Per-firma:** Change Log je company-bound, `EntryNo` je samostatná sekvence v každé firmě →
+> watermark `MAX(EntryNo) WHERE CompanyName=…` a dedup unikát na **(CompanyName, EntryNo)**.
+
+> **Auth:** browser na OData endpoint ukáže Basic-auth dialog (BC online ho přes prohlížeč neudělá) →
+> ověření a běh **jen přes Service Principal** (client-credentials). Browser test = Zrušit.
+
+> ⚠ Názvy OData polí (entryNo, changeType, oldValue…) **ověřit proti `$metadata`** přes SP před
+> produkčním během — stejně jako jsme validovali App Insights schéma.
 
 ## Modul C — Permission errors (RT0031)
 

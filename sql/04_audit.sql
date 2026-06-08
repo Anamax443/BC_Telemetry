@@ -24,8 +24,9 @@ IF OBJECT_ID('dbo.BCChangeLog', 'U') IS NULL
         ImportDatum DATETIME2(3)      NOT NULL DEFAULT SYSUTCDATETIME()
     );
 GO
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_BCChangeLog_EntryNo')
-    CREATE UNIQUE INDEX UX_BCChangeLog_EntryNo ON dbo.BCChangeLog (EntryNo);   -- idempotentní import
+-- EntryNo je per-firma sekvence → dedup na (CompanyName, EntryNo), ne jen EntryNo
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_BCChangeLog_Company_EntryNo')
+    CREATE UNIQUE INDEX UX_BCChangeLog_Company_EntryNo ON dbo.BCChangeLog (CompanyName, EntryNo);
 GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_BCChangeLog_User_Time')
     CREATE INDEX IX_BCChangeLog_User_Time ON dbo.BCChangeLog (UserId, ChangedAt DESC)
