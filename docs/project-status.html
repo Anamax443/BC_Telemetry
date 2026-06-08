@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BC_Telemetry — Project status</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#fff;--bg2:#f8f9fb;--bg3:#f1f3f7;--border:#dde1ea;--accent:#1d4ed8;--accent2:#2563eb;
+--green:#16a34a;--yellow:#b45309;--red:#dc2626;--gray:#64748b;--text:#0f172a;--text2:#334155;--text3:#64748b;
+--mono:'IBM Plex Mono',monospace;--sans:'IBM Plex Sans',sans-serif;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.6;}
+.wrap{max-width:1080px;margin:0 auto;padding:40px 32px 80px;}
+header.top{border-bottom:1px solid var(--border);padding-bottom:24px;margin-bottom:28px;}
+.tag{font-family:var(--mono);font-size:10px;letter-spacing:2px;color:var(--accent);text-transform:uppercase;}
+header.top h1{font-size:28px;font-weight:300;letter-spacing:-.5px;margin:6px 0 4px;}
+header.top h1 strong{font-weight:600;}
+.sub{color:var(--text2);font-size:14px;}
+.meta{display:flex;gap:20px;flex-wrap:wrap;margin-top:14px;font-family:var(--mono);font-size:11px;color:var(--text3);}
+.meta b{color:var(--text2);font-weight:600;}
+.meta a{color:var(--accent2);text-decoration:none;}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:32px;}
+.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px 18px;}
+.kpi .l{font-family:var(--mono);font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--text3);margin-bottom:6px;}
+.kpi .v{font-size:28px;font-weight:300;letter-spacing:-1px;}
+.kpi .v small{font-size:14px;color:var(--text3);}
+.progress{height:8px;background:var(--bg3);border-radius:5px;overflow:hidden;margin:18px 0 32px;}
+.progress .fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--green));}
+h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:uppercase;color:var(--text3);margin:0 0 16px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.ms{display:flex;gap:16px;padding:16px 0;border-bottom:1px solid var(--border);}
+.ms:last-child{border-bottom:none;}
+.ms-icon{width:30px;height:30px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;font-family:var(--mono);}
+.ms-body{flex:1;}
+.ms-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.ms-head h3{font-size:15px;font-weight:600;}
+.ms-id{font-family:var(--mono);font-size:11px;color:var(--text3);}
+.ms-desc{color:var(--text2);font-size:13px;margin:4px 0 8px;}
+.items{display:flex;flex-direction:column;gap:4px;margin-top:6px;}
+.item{font-size:12px;color:var(--text2);display:flex;gap:8px;align-items:flex-start;}
+.item .b{font-family:var(--mono);flex-shrink:0;}
+.pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:10px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.5px;}
+.p-done{background:rgba(34,197,94,.12);color:var(--green);border:1px solid rgba(34,197,94,.25);}
+.p-prog{background:rgba(37,99,235,.12);color:var(--accent2);border:1px solid rgba(37,99,235,.25);}
+.p-block{background:rgba(180,83,9,.12);color:var(--yellow);border:1px solid rgba(180,83,9,.3);}
+.p-todo{background:rgba(100,116,139,.1);color:var(--gray);border:1px solid var(--border);}
+.i-done{background:rgba(34,197,94,.12);color:var(--green);}
+.i-prog{background:rgba(37,99,235,.12);color:var(--accent2);}
+.i-block{background:rgba(180,83,9,.12);color:var(--yellow);}
+.i-todo{background:rgba(100,116,139,.1);color:var(--gray);}
+.section{margin-bottom:38px;}
+.dec{background:rgba(180,83,9,.05);border:1px solid rgba(180,83,9,.2);border-radius:10px;padding:14px 16px;margin-bottom:12px;}
+.dec h4{font-size:13px;margin-bottom:4px;}
+.dec p{font-size:12px;color:var(--text2);}
+.dec .opts{font-family:var(--mono);font-size:11px;color:var(--text3);margin-top:6px;}
+.timeline{display:flex;flex-direction:column;gap:0;}
+.tl{display:flex;gap:14px;padding:10px 0;border-bottom:1px solid var(--border);font-size:12px;}
+.tl:last-child{border-bottom:none;}
+.tl .sha{font-family:var(--mono);font-size:11px;color:var(--accent2);flex-shrink:0;width:64px;}
+.tl .msg{color:var(--text2);}
+.arch{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 20px;font-family:var(--mono);font-size:11px;color:var(--text2);line-height:1.9;white-space:pre;overflow-x:auto;}
+.foot{margin-top:48px;padding-top:20px;border-top:1px solid var(--border);font-family:var(--mono);font-size:11px;color:var(--text3);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;}
+@media(max-width:720px){.kpis{grid-template-columns:repeat(2,1fr);}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <span class="tag" id="brand"></span>
+    <h1>BC_Telemetry — <strong>Project status</strong></h1>
+    <div class="sub" id="subtitle"></div>
+    <div class="meta" id="meta"></div>
+  </header>
+
+  <div class="kpis" id="kpis"></div>
+  <div class="progress"><div class="fill" id="pfill"></div></div>
+
+  <div class="section">
+    <h2 class="sec">Milestones</h2>
+    <div id="milestones"></div>
+  </div>
+
+  <div class="section">
+    <h2 class="sec">Otevřená rozhodnutí (čeká na operatora)</h2>
+    <div id="decisions"></div>
+  </div>
+
+  <div class="section">
+    <h2 class="sec">Architektura</h2>
+    <div class="arch" id="arch"></div>
+  </div>
+
+  <div class="section">
+    <h2 class="sec">Changelog</h2>
+    <div class="timeline" id="timeline"></div>
+  </div>
+
+  <div class="foot">
+    <span id="footL"></span><span id="footR"></span>
+  </div>
+</div>
+
+<script id="data" type="application/json">
+{
+  "brand": "AXIMA · interní projekt",
+  "subtitle": "Telemetrie aktivity uživatelů Business Central → Azure → SQL → admin dashboard. Slouží k sestavení Permission Setů (kdo co reálně používá).",
+  "repo": "Anamax443/BC_Telemetry",
+  "repoUrl": "https://github.com/Anamax443/BC_Telemetry",
+  "host": "10.8.2.225 (B-S-W-SQL-04)",
+  "version": "1.1",
+  "generated": "2026-06-08",
+  "commit": "aef8e6f",
+  "activeProjectNo": 5,
+  "milestones": [
+    {
+      "id": "M1", "title": "Repo + dokumentace", "status": "done",
+      "desc": "Založení repa, technická dokumentace (mojibake opraveno), oponentura + strukturovaná reakce.",
+      "items": [
+        {"s":"done","t":"Private repo Anamax443/BC_Telemetry, README, .gitignore"},
+        {"s":"done","t":"docs/dokumentace.md v1.1 (čistá UTF-8)"},
+        {"s":"done","t":"Oponentura archiv + reakce (13 accept, 2 s výhradou, 1 defer)"},
+        {"s":"done","t":"BUILD.md — krok-za-krokem postup"}
+      ]
+    },
+    {
+      "id": "M2", "title": "SQL vrstva (raw + agregáty)", "status": "done",
+      "desc": "Raw log, indexy, dedup, retence + agregační vrstva která škáluje na miliony záznamů.",
+      "items": [
+        {"s":"done","t":"dbo.BCPageLog + indexy + UX dedup index + purge proc"},
+        {"s":"done","t":"dbo.BCPageDaily rollup (inkrementální, kumuluje navždy)"},
+        {"s":"done","t":"Dashboard pohledy vw_DashKPI / TrimCandidates / UserActivity / Trend"}
+      ]
+    },
+    {
+      "id": "M3", "title": "Import pipeline (PowerShell)", "status": "done",
+      "desc": "Inkrementální import z Azure App Insights do SQL, s opravami z oponentury.",
+      "items": [
+        {"s":"done","t":"Service Principal auth, dynamický watermark KQL"},
+        {"s":"done","t":"SqlBulkCopy → staging → MERGE (idempotentní), try/catch + transakce"},
+        {"s":"done","t":"Rollup + retence + retry; Register-ScheduledTask (LogonType Password)"},
+        {"s":"done","t":"Install-Prereqs.ps1 (Az moduly) — ověřeno lokálně"}
+      ]
+    },
+    {
+      "id": "M4", "title": "Admin dashboard", "status": "done",
+      "desc": "Webový dashboard pro adminy — KPI + 4 bloky, čte předagregovaný snapshot.",
+      "items": [
+        {"s":"done","t":"KPI dlaždice + Aktivita / Kandidáti / Migrace / Trend"},
+        {"s":"done","t":"Export-DashboardSnapshot.ps1 → data.json (malý i při milionech raw)"},
+        {"s":"done","t":"Filtr, řazení, sparkline; CSP-safe"}
+      ]
+    },
+    {
+      "id": "M5", "title": "Whitelist + Nastavení (port ITDashboard)", "status": "done",
+      "desc": "Editovatelný whitelist v záložce Nastavení — logika portovaná 1:1 z ITDashboardu.",
+      "items": [
+        {"s":"done","t":"web/server.js — ip-guard.ts + firewall.ts + routes verbatim"},
+        {"s":"done","t":"Záložka ⚙ Nastavení (textarea + Uložit + domain-profile banner)"},
+        {"s":"done","t":"Endpointy /access-check, /firewall/whitelist, /firewall/domain-profile"},
+        {"s":"done","t":"Smoke test: access-check + domain-profile 200"}
+      ]
+    },
+    {
+      "id": "M6", "title": "Deploy na 10.8.2.225", "status": "blocked",
+      "desc": "Připraveno, čeká na rozhodnutí operatora a běh na serveru.",
+      "items": [
+        {"s":"done","t":"install-service.cmd (Node+NSSM, LocalSystem) + firewall rule"},
+        {"s":"block","t":"Rozhodnout whitelist rozsah (/24 vs /16)"},
+        {"s":"block","t":"Vyjasnit umístění DB (localhost vs BSWNAV01)"},
+        {"s":"block","t":"GPO AllSigned — podpis PS skriptů (import/export)"},
+        {"s":"todo","t":"Spustit install-service.cmd + scheduler na serveru"}
+      ]
+    },
+    {
+      "id": "M7", "title": "Pilot + Permission Set workflow", "status": "todo",
+      "desc": "Sledovací období a sestavení rolí; fáze-2 ingest RT0031.",
+      "items": [
+        {"s":"todo","t":"3 měsíce sledování pod plným přístupem, akumulace dat"},
+        {"s":"todo","t":"Analýza → návrh rolí (Fakturace/Sklad/Reporting)"},
+        {"s":"todo","t":"Fáze-2: ingest RT0031 z AppTraces → BCAuthFailDaily"},
+        {"s":"todo","t":"Nasadit Permission Sety, sledovat permission errors"}
+      ]
+    }
+  ],
+  "decisions": [
+    {"h":"Whitelist rozsah","p":"Jaké lokální rozsahy povolit pro zobrazení stránky.","o":"10.8.2.0/24 (jen segment) · vs · 10.8.0.0/16 (širší) — default /16"},
+    {"h":"Umístění DB","p":"Kde je BC_Telemetry SQL databáze.","o":"localhost na 10.8.2.225 · vs · BSWNAV01 přes síť"},
+    {"h":"GPO AllSigned","p":"Jak spustit PS import/export na doménovém serveru s AllSigned.","o":"A: podepsat skripty · B: běh z jiného boxu · C: GPO výjimka"}
+  ],
+  "arch": "BC Cloud ──telemetrie──▶ Azure App Insights / Log Analytics\n                          │  DCR filtr: clientType == \"Web\"\n                          ▼\n   PowerShell (denně 02:00, Service Principal, inkrementálně)\n                          ▼\n   SQL 10.8.2.225:  dbo.BCPageLog (raw, miliony, retence 6 měs.)\n                          │  usp_BCPageLog_Rollup\n                          ▼\n   dbo.BCPageDaily + vw_Dash*  (agregáty — malé, kumulují navždy)\n                          │  Export-DashboardSnapshot.ps1\n                          ▼\n   data.json ──▶ služba BC_Telemetry_Web (Node+NSSM)\n                 ├─ dashboard (anonymně, bez loginu)\n                 └─ ⚙ Nastavení → whitelist (firewall rule, port ITDashboard)",
+  "timeline": [
+    {"sha":"787544b","msg":"chore: initial scaffold"},
+    {"sha":"815cb8a","msg":"feat: BC telemetry pipeline + admin dashboard (v1.1)"},
+    {"sha":"e8a23d5","msg":"feat(deploy): IIS hosting + IP whitelist (později nahrazeno)"},
+    {"sha":"0c10999","msg":"refactor(deploy): whitelist jako firewall rule (formální gate)"},
+    {"sha":"46f965d","msg":"feat(web): editovatelný whitelist v Nastavení + Node služba"},
+    {"sha":"aef8e6f","msg":"refactor(web): whitelist port 1:1 z ITDashboard"}
+  ]
+}
+</script>
+<script>
+const D = JSON.parse(document.getElementById('data').textContent);
+const ICON = {done:'✓',prog:'◐',block:'⚠',todo:'·'};
+const PILL = {done:'p-done',prog:'p-prog',block:'p-block',todo:'p-todo'};
+const PILLTXT = {done:'Hotovo',prog:'Probíhá',block:'Blokováno',todo:'Plánováno'};
+const ISTAT = {done:'i-done',prog:'i-prog',block:'i-block',todo:'i-todo'};
+const esc = s => (s==null?'':String(s)).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+document.getElementById('brand').textContent = D.brand;
+document.getElementById('subtitle').textContent = D.subtitle;
+document.getElementById('meta').innerHTML =
+  `<span><b>Repo:</b> <a href="${D.repoUrl}">${esc(D.repo)}</a></span>`+
+  `<span><b>Host:</b> ${esc(D.host)}</span>`+
+  `<span><b>Verze:</b> ${esc(D.version)}</span>`+
+  `<span><b>Commit:</b> ${esc(D.commit)}</span>`+
+  `<span><b>Aktualizováno:</b> ${esc(D.generated)}</span>`;
+
+const ms = D.milestones;
+const done = ms.filter(m=>m.status==='done').length;
+const pct = Math.round(100*done/ms.length);
+const blocked = ms.filter(m=>m.status==='block'||m.status==='blocked').length;
+const kpis = [
+  {l:'Milestones hotové',v:`${done}<small>/${ms.length}</small>`},
+  {l:'Dokončeno',v:`${pct}<small>%</small>`},
+  {l:'Otevřená rozhodnutí',v:D.decisions.length},
+  {l:'Aktivní maxferit projekt',v:`#${D.activeProjectNo}`}
+];
+document.getElementById('kpis').innerHTML = kpis.map(k=>`<div class="kpi"><div class="l">${k.l}</div><div class="v">${k.v}</div></div>`).join('');
+document.getElementById('pfill').style.width = pct+'%';
+
+document.getElementById('milestones').innerHTML = ms.map(m=>{
+  const st = m.status==='blocked'?'block':m.status;
+  const items = (m.items||[]).map(i=>`<div class="item"><span class="b" style="color:var(--${i.s==='done'?'green':i.s==='block'?'yellow':i.s==='prog'?'accent2':'gray'})">${ICON[i.s]||'·'}</span><span>${esc(i.t)}</span></div>`).join('');
+  return `<div class="ms">
+    <div class="ms-icon ${ISTAT[st]}">${ICON[st]}</div>
+    <div class="ms-body">
+      <div class="ms-head"><span class="ms-id">${m.id}</span><h3>${esc(m.title)}</h3><span class="pill ${PILL[st]}">${PILLTXT[st]}</span></div>
+      <div class="ms-desc">${esc(m.desc)}</div>
+      <div class="items">${items}</div>
+    </div></div>`;
+}).join('');
+
+document.getElementById('decisions').innerHTML = D.decisions.map(d=>
+  `<div class="dec"><h4>${esc(d.h)}</h4><p>${esc(d.p)}</p><div class="opts">${esc(d.o)}</div></div>`).join('');
+
+document.getElementById('arch').textContent = D.arch;
+
+document.getElementById('timeline').innerHTML = D.timeline.slice().reverse().map(t=>
+  `<div class="tl"><span class="sha">${esc(t.sha)}</span><span class="msg">${esc(t.msg)}</span></div>`).join('');
+
+document.getElementById('footL').textContent = `${D.repo} · v${D.version}`;
+document.getElementById('footR').textContent = `${done}/${ms.length} milestones · ${pct}% · ${D.generated}`;
+</script>
+</body>
+</html>

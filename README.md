@@ -32,6 +32,7 @@ whitelist je formální visibility gate přes Windows Firewall rule.
 
 | Cesta | Co |
 |---|---|
+| [docs/project-status.html](docs/project-status.html) | **Project status** — milestones + kde jsme (otevři v prohlížeči) |
 | [BUILD.md](BUILD.md) | **Krok-za-krokem jak to postavit** (Azure → BC → SQL → scheduler → dashboard) |
 | [docs/dokumentace.md](docs/dokumentace.md) | Technická dokumentace (v1.1) |
 | [docs/oponentury/](docs/oponentury/) | Archiv oponentury + strukturovaná reakce |
