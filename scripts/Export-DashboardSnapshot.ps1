@@ -14,7 +14,7 @@
 param(
     [string] $SqlServer   = 'BSWNAV01',
     [string] $SqlDatabase = 'BC_Telemetry',
-    [string] $OutPath     = 'C:\inetpub\bc-telemetry\data.json',
+    [string] $OutPath     = 'C:\Apps\BC_Telemetry_Web\public\data.json',
     [int]    $TopRows     = 5000   # strop řádků na sekci — chrání velikost snapshotu
 )
 

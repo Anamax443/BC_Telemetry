@@ -19,11 +19,14 @@ BC Cloud ──telemetrie──▶ Azure App Insights / Log Analytics
    dbo.BCPageDaily + vw_Dash*  (agregáty — malé, kumulují navždy)
                           │  Export-DashboardSnapshot.ps1
                           ▼
-   web/data.json ──▶ web/index.html  (IIS, interní, Windows auth, admin)
+   web/data.json ──▶ služba BC_Telemetry_Web (Node+NSSM na 10.8.2.225)
+                     ├─ dashboard (anonymně, bez loginu)
+                     └─ ⚙ Nastavení → whitelist (firewall rule, jako ITDashboard)
 ```
 
 Raw log se po retenci maže; **agregáty se kumulují** — dashboard čte jen z nich, takže je rychlý
-i při milionech raw záznamů.
+i při milionech raw záznamů. Web hostuje malá Node služba (kvůli editovatelnému whitelistu);
+whitelist je formální visibility gate přes Windows Firewall rule.
 
 ## Struktura repa
 
@@ -38,7 +41,11 @@ i při milionech raw záznamů.
 | [scripts/BC_PageLog_Import.ps1](scripts/BC_PageLog_Import.ps1) | Import z Azure → SQL (SP auth, staging+MERGE, rollup, retence) |
 | [scripts/Export-DashboardSnapshot.ps1](scripts/Export-DashboardSnapshot.ps1) | Agregáty → `web/data.json` |
 | [scripts/Register-ScheduledTask.ps1](scripts/Register-ScheduledTask.ps1) | Denní úloha 02:00 (LogonType Password) |
-| [web/index.html](web/index.html) | Admin dashboard — KPI + Aktivita / Kandidáti / Migrace / Trend |
+| [scripts/install-service.cmd](scripts/install-service.cmd) | Instalace web služby `BC_Telemetry_Web` (Node+NSSM) na 10.8.2.225 |
+| [scripts/Set-DashboardWhitelist.cmd](scripts/Set-DashboardWhitelist.cmd) | CLI změna whitelistu (firewall rule remoteip) |
+| [web/index.html](web/index.html) | Admin dashboard — KPI + Aktivita / Kandidáti / Migrace / Trend / ⚙ Nastavení |
+| [web/server.js](web/server.js) | Web služba — servíruje dashboard + whitelist API (čte/zapisuje firewall rule) |
+| [docs/deploy-10.8.2.225.md](docs/deploy-10.8.2.225.md) | Deploy na SQL box (Node služba, whitelist, GPO AllSigned) |
 
 ## Quick start
 

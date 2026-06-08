@@ -48,6 +48,24 @@ td.num{text-align:right;font-family:var(--mono);}
 .spark .col{flex:1;background:rgba(37,99,235,.3);border-radius:2px 2px 0 0;min-height:2px;position:relative;}
 .spark .col:hover{background:var(--accent);}
 .loading{padding:60px;text-align:center;color:var(--text3);font-family:var(--mono);font-size:12px;}
+.set-section{max-width:520px;}
+.set-section h3{font-size:16px;margin-bottom:4px;}
+.set-desc{font-size:12px;color:var(--text3);margin-bottom:16px;}
+.wl-banner{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:8px;font-size:12px;margin-bottom:16px;}
+.wl-banner.ok{background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.25);}
+.wl-banner.warn{background:rgba(180,83,9,.08);border:1px solid rgba(180,83,9,.3);}
+.wl-banner code{font-family:var(--mono);background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:1px 5px;display:inline-block;margin-top:4px;}
+.wl-ta{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:9px;font-family:var(--mono);font-size:12px;min-height:140px;resize:vertical;}
+.wl-row{display:flex;gap:12px;align-items:center;margin-top:10px;}
+.btn{font-family:var(--sans);font-size:13px;padding:8px 16px;border:none;border-radius:7px;background:var(--accent);color:#fff;cursor:pointer;}
+.btn:disabled{background:var(--text3);cursor:not-allowed;}
+.wl-msg.ok{color:var(--green);font-size:12px;}
+.wl-msg.err{color:var(--red);font-size:12px;}
+.wl-cur{margin-top:8px;font-size:11px;color:var(--text3);font-family:var(--mono);}
+.gate{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px;z-index:50;}
+.gate-card{max-width:520px;width:100%;border:1px solid var(--border);border-radius:12px;padding:28px;background:var(--bg2);}
+.gate-card h2{font-size:18px;margin-bottom:8px;}
+.gate-card p{font-size:13px;color:var(--text2);}
 </style>
 </head>
 <body>
@@ -64,6 +82,7 @@ td.num{text-align:right;font-family:var(--mono);}
       <button class="tab" data-panel="trim">Kandidáti na vyřazení</button>
       <button class="tab" data-panel="migration">Migrace SUPER→role</button>
       <button class="tab" data-panel="trend">Trend</button>
+      <button class="tab" data-panel="settings">⚙ Nastavení</button>
     </div>
 
     <section class="panel active" id="panel-activity">
@@ -109,6 +128,16 @@ td.num{text-align:right;font-family:var(--mono);}
         <th data-sort="DateKey">Datum</th><th data-sort="Hits">Otevření</th><th data-sort="Users">Aktivní uživatelé</th>
       </tr></thead><tbody></tbody></table>
     </section>
+
+    <section class="panel" id="panel-settings">
+      <div class="set-section">
+        <h3>Síťový whitelist</h3>
+        <p class="set-desc">Formální omezení zobrazení této stránky na vymezené IP adresy / rozsahy.
+        Zdroj pravdy je Windows Firewall rule <span class="mono">BC Telemetry Dashboard (8080)</span>.
+        Jedna IP nebo CIDR na řádek (např. <span class="mono">10.8.2.0/24</span>).</p>
+        <div id="wlHost"></div>
+      </div>
+    </section>
   </div>
 </main>
 
@@ -117,6 +146,7 @@ const fmt = n => (n==null?'—':Number(n).toLocaleString('cs-CZ'));
 const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const state = {};
 
+initAccessGate();
 fetch('./data.json',{cache:'no-store'})
   .then(r=>{if(!r.ok)throw new Error(r.status);return r.json();})
   .then(render)
@@ -148,6 +178,66 @@ function render(d){
     t.classList.add('active');
     document.getElementById('panel-'+t.dataset.panel).classList.add('active');
   }));
+
+  buildWhitelistEditor(document.getElementById('wlHost'));
+}
+
+// ── Whitelist editor (jako ITDashboard NetworkAccessSection) ─────────────────
+function buildWhitelistEditor(host){
+  if(!host) return;
+  host.innerHTML='<div class="wl-cur">načítám…</div>';
+  fetch('/api/whitelist').then(r=>{if(!r.ok)throw new Error(r.status);return r.json();})
+    .then(d=>renderWlEditor(host,d))
+    .catch(e=>{host.innerHTML='<div class="wl-banner warn"><span>⚠</span><div>Whitelist API není dostupné ('+esc(e.message)+'). Servis BC_Telemetry_Web neběží, nebo je stránka otevřená staticky. Whitelist lze mezitím měnit přes <span class="mono">Set-DashboardWhitelist.cmd</span>.</div></div>';});
+}
+
+function renderWlEditor(host, d){
+  const dp = d.domainProfile||{};
+  let banner='';
+  if(dp.enabled===false){
+    banner='<div class="wl-banner warn"><span>⚠</span><div><strong>Domain firewall profil je vyplý</strong> — whitelist je proto jen <strong>formální</strong> (rule je OS-level inertní, port odpoví komukoliv v doméně). Tvrdé vynucení: <code>Set-NetFirewallProfile -Profile Domain -Enabled True</code> (default inbound: '+esc(dp.defaultInboundAction||'—')+').</div></div>';
+  } else if(dp.enabled===true){
+    banner='<div class="wl-banner ok"><span>✓</span><div>Domain firewall profil je zapnutý — whitelist se reálně vynucuje.</div></div>';
+  } else {
+    banner='<div class="wl-banner warn"><span>⚠</span><div>Stav firewall profilu nelze přečíst'+(dp.error?': '+esc(dp.error):'')+'.</div></div>';
+  }
+  const cur=(d.ips||[]);
+  host.innerHTML = banner +
+    '<textarea class="wl-ta" id="wlTa" spellcheck="false"></textarea>' +
+    '<div class="wl-row"><button class="btn" id="wlApply" disabled>Uložit</button>' +
+    '<span class="wl-msg" id="wlMsg"></span></div>' +
+    '<div class="wl-cur">Aktuální ('+cur.length+'): '+(cur.map(esc).join(', ')||'—')+'</div>';
+  const ta=document.getElementById('wlTa'), btn=document.getElementById('wlApply'), msg=document.getElementById('wlMsg');
+  const orig=cur.join('\n'); ta.value=orig;
+  ta.addEventListener('input',()=>{btn.disabled=(ta.value.trim()===orig.trim());});
+  btn.addEventListener('click',()=>{
+    const ips=ta.value.split(/[\n,\s]+/).map(s=>s.trim()).filter(Boolean);
+    btn.disabled=true; msg.className='wl-msg'; msg.textContent='ukládám…';
+    fetch('/api/whitelist',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ips})})
+      .then(r=>r.json().then(j=>({ok:r.ok,j})))
+      .then(({ok,j})=>{
+        if(!ok)throw new Error(j.error||'chyba');
+        msg.className='wl-msg ok'; msg.textContent='✓ uloženo ('+j.ips.length+' položek)';
+        buildWhitelistEditor(host);
+      })
+      .catch(e=>{msg.className='wl-msg err'; msg.textContent='⚠ '+e.message; btn.disabled=false;});
+  });
+}
+
+// ── Access-check gate (formální visibility gate jako ITDashboard) ─────────────
+function initAccessGate(){
+  fetch('/api/access-check').then(r=>r.json()).then(a=>{
+    if(a && a.allowed===false) showGate(a.ip);
+  }).catch(()=>{}); // API nedostupné → neblokovat (formální)
+}
+function showGate(ip){
+  const g=document.createElement('div'); g.className='gate';
+  g.innerHTML='<div class="gate-card"><h2>Přístup omezen</h2>'+
+    '<p>Vaše IP <span class="mono">'+esc(ip||'?')+'</span> není ve whitelistu této stránky. '+
+    'Omezení je formální — můžete svou IP přidat níže a stránku načíst znovu.</p>'+
+    '<div id="gateWl" style="margin-top:16px"></div></div>';
+  document.body.appendChild(g);
+  buildWhitelistEditor(document.getElementById('gateWl'));
 }
 
 function maxHits(rows){return rows&&rows.length?Math.max(...rows.map(r=>r.TotalHits||0)):1;}
