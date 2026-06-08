@@ -60,18 +60,23 @@ SQL Server — BSWNAV01
 
 ## 05 · DCR filtr — pouze interaktivní uživatelé
 
-Data Collection Rule filtruje záznamy ještě před uložením do Log Analytics — zahazuje Job Queue,
-Web Services a API volání. Zachovává pouze akce reálných uživatelů v prohlížeči.
+Data Collection Rule by filtroval záznamy ještě před uložením do Log Analytics — zahazuje Job Queue,
+Web Services a API volání, zachovává jen interaktivní uživatele.
 
-**Navigace:** Azure Portal → Log Analytics Workspace → Settings → Tables → pravý klik → Create Transformation.
+> **v1.2 — DCR ODLOŽEN.** Reálný objem je hluboko pod 5 GB free tier → **náklady $0 i bez filtru**.
+> DCR transformace je navíc křehká (při chybě tiše zahazuje data). Proto **filtrujeme v importu**
+> (clientType whitelist v KQL, §09), což máme pod kontrolou. DCR zapneme jen kdyby se objem blížil 5 GB.
+
+> ⚠ **Oprava v1.2 (reálná data 2026-06-08):** hodnota pro prohlížeč je **`WebClient`/`Desktop`**, NE
+> „Web" (ten by nematchnul nic!). Interaktivní whitelist = `clientType in ("WebClient","Web","Desktop","Tablet","Phone")`.
+> To potvrdilo původní blacklist přístup z dokumentace v1.0 — oponentura #1 „== Web" byla pro tohle
+> prostředí mylná. Background (~95 %) se vyřazuje filtrem v importu.
 
 ```kql
+// až/pokud se DCR zapne — transformace na AppPageViews i AppTraces:
 source
-| where clientType == "Web"
+| where clientType in ("WebClient","Web","Desktop","Tablet","Phone")
 ```
-
-> ⚠ **Oprava v1.1 (oponentura #1):** jednotný whitelist `== "Web"` pro **AppTraces i AppPageViews**.
-> Původní blacklist `!in ("Background","WebService","ODataV4","Api")` u AppTraces propouštěl Mobile/Desktop/TeamMember.
 
 ## 06 · SQL schéma — dbo.BCPageLog
 
@@ -103,22 +108,28 @@ Raw log má miliony řádků a po retenci (6 měsíců) se maže. Agregáty `dbo
 a kumulují se navždy — dashboard čte jen z nich. Inkrementální rollup (`usp_BCPageLog_Rollup`)
 zpracuje jen nové raw řádky (Id > watermark). Detail viz [sql/02_aggregates.sql](../sql/02_aggregates.sql).
 
-## 09 · KQL dotaz
+## 09 · KQL dotaz (v1.2 — ověřeno na reálných datech 2026-06-08)
 
-Stahuje **jen nové** záznamy od watermarku (v1.1 — ne fixních 90 dní). Plná verze v importním skriptu.
+Import jede přes **Log Analytics workspace** → tabulka **`AppPageViews`** (ne classic `pageViews`),
+BC custom dimensions v **`Properties.*`** (ne `customDimensions`), identita uživatele v **`UserId`**
+(pseudonymní GUID; `UserAuthenticatedId`/`aadUserId` jsou prázdné/neexistují). Interaktivní klienti
+jsou **`Desktop`/`WebClient`** (NE „Web"). Stahuje jen nové záznamy od watermarku.
 
 ```kql
-pageViews
-| where timestamp > datetime(<lastTimestamp>)
-| where clientType == "Web"
-| extend userId      = tostring(customDimensions["aadUserId"])
-| extend userName    = tostring(customDimensions["aadUserName"])
-| extend pageId      = tostring(customDimensions["alObjectId"])
-| extend pageName    = tostring(customDimensions["alObjectName"])
-| extend companyName = tostring(customDimensions["companyName"])
-| project timestamp, userId, userName, pageId, pageName, companyName
+AppPageViews
+| where TimeGenerated > datetime(<lastTimestamp>)
+| where tostring(Properties.clientType) in ('WebClient','Web','Desktop','Tablet','Phone')
+| extend userId      = tostring(UserId)
+| extend userName    = tostring(UserId)
+| extend pageId      = tostring(Properties.alObjectId)
+| extend pageName    = tostring(Properties.alObjectName)
+| extend companyName = tostring(Properties.companyName)
+| project timestamp = TimeGenerated, userId, userName, pageId, pageName, companyName
 | order by timestamp asc
 ```
+
+> **userName = GUID** (jméno není v telemetrii). Mapování GUID→osoba se dělá korelací s Entra
+> sign-in logy do `dbo.BCUserMap`; pro role-mining stačí grupovat podle GUID. Viz §12 + [reakce](oponentury/2026-06-08-reakce.md).
 
 ## 10 · Import + scheduler
 

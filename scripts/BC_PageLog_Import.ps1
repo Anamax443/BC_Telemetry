@@ -97,16 +97,23 @@ try {
     # endregion
 
     # region ── 03 KQL — stahuje jen NOVÉ záznamy od watermarku ───────────────
+    # Log Analytics schéma (AppPageViews), ověřeno na reálných datech 2026-06-08:
+    #  - identita uživatele = UserId (pseudonymní GUID, NE AAD object id — Entra ho nezná,
+    #    ověřeno 404; UserAuthenticatedId prázdný, aadUserId neexistuje). Jméno NELZE získat
+    #    z Graphu; mapuje se korelací (Entra sign-in logy / marker page) do dbo.BCUserMap.
+    #    Do té doby UserName = GUID; pro role-mining stačí grupovat podle GUID.
+    #  - BC custom dimensions jsou v Properties.* (ne customDimensions)
+    #  - interaktivní klienti = Desktop / WebClient (NE "Web"); Background ap. vyřazeno
     $query = @"
-pageViews
-| where timestamp > datetime($lastIso)
-| where clientType == 'Web'
-| extend userId      = tostring(customDimensions['aadUserId'])
-| extend userName    = tostring(customDimensions['aadUserName'])
-| extend pageId      = tostring(customDimensions['alObjectId'])
-| extend pageName    = tostring(customDimensions['alObjectName'])
-| extend companyName = tostring(customDimensions['companyName'])
-| project timestamp, userId, userName, pageId, pageName, companyName
+AppPageViews
+| where TimeGenerated > datetime($lastIso)
+| where tostring(Properties.clientType) in ('WebClient','Web','Desktop','Tablet','Phone')
+| extend userId      = tostring(UserId)
+| extend userName    = tostring(UserId)
+| extend pageId      = tostring(Properties.alObjectId)
+| extend pageName    = tostring(Properties.alObjectName)
+| extend companyName = tostring(Properties.companyName)
+| project timestamp = TimeGenerated, userId, userName, pageId, pageName, companyName
 | order by timestamp asc
 "@
 
