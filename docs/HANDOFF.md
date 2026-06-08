@@ -58,3 +58,8 @@ Poslední update: **2026-06-08** · repo `Anamax443/BC_Telemetry`.
 - ⏰ **Monitor expirace SP secretu/certifikátu** v dashboardu (KPI/alert; current 2028-06-07) — operator request.
 - Modul B durable: vlastní AL API page místo deprecated UI-page web service.
 - Modul A jména: korelace GUID ↔ Entra sign-in logy → `dbo.BCUserMap`.
+- 📖 **Anonymizovaný public step-by-step návod** (na maxferit web, jako showcase/lead-gen) —
+  samostatný deliverable, **bez identifikace firmy**: nahradit AXIMA / company names / tenant+subscription
+  GUIDy / SP client ID / iKey / reálná jména (MTRNKA) / interní IP (10.8.2.225, BSWNAV01) za placeholdery
+  (`<tenant-id>`, `<company>`, `<server>`…). Interní docs proto píšeme sanitizovatelně (firemní hodnoty
+  v oddělených tabulkách „klíčové ID" + parametrech skriptů). Repo se celé nepublikuje.
