@@ -37,11 +37,12 @@ LocalSystem — má práva měnit firewall a nepotřebuje heslo (SQL nesahá, je
 - **Whitelist = jedna Windows Firewall rule** `"BC Telemetry Dashboard (8080)"`, jejíž `remoteip`
   seznam definuje povolené IP / rozsahy. Source of truth je ta rule — servis ji čte/zapisuje
   přes `Get/Set-NetFirewallRule -RemoteAddress` (1:1 jako ITDashboard `getAllowedIPs`/`setAllowedIPs`).
-- **Editace ze stránky:** záložka **⚙ Nastavení** → textarea (IP/CIDR na řádek) + Uložit → `PUT /firewall/whitelist`.
+- **Editace ze stránky:** záložka **⚙ Nastavení** → textarea (na řádek: IP, CIDR maska `x.x.x.x/n`, nebo rozsah `x.x.x.x-y.y.y.y`) + Uložit → `PUT /firewall/whitelist`.
   Banner ukazuje stav Domain firewall profilu (ta honest „firewall disabled = jen formální" hláška).
 - **Access-check gate:** při načtení servis porovná IP návštěvníka s whitelistem; mimo seznam se
   zobrazí překryv „Přístup omezen" s editorem (admin si přidá svou IP). API nedostupné → neblokuje.
-- **CLI fallback** (bez prohlížeče): `scripts\Set-DashboardWhitelist.cmd "10.8.2.0/24,10.9.0.0/16"`.
+- **CLI fallback** (bez prohlížeče): `scripts\Set-DashboardWhitelist.cmd "10.8.2.225,10.8.2.181,10.8.2.243"`
+  (default = stejná admin sada jako ITDashboard; lze i maska `10.8.2.0/24` nebo rozsah `10.8.2.180-10.8.2.200`).
 
 > **Je to formální / visibility gate, ne security boundary** — přesně jak to má ITDashboard
 > ve vlastním kódu okomentované. Firewall *allow* rule platí jen když je **Domain profil Enabled**.
@@ -87,7 +88,7 @@ Import i export sahají na `localhost` — žádný síťový hop, GRANT míří
 REM GPO-safe: scheduled task spousti podepsany skript primo (ne pres -Bypass)
 schtasks /create /tn "BC_Dashboard_Snapshot" /sc DAILY /st 02:30 ^
   /tr "powershell.exe -NonInteractive -File C:\Scripts\Export-DashboardSnapshot.ps1 -OutPath C:\Apps\BC_Telemetry_Web\public\data.json" ^
-  /ru "AXIMA\svc_bc_telemetry" /rp * /rl HIGHEST
+  /ru "AXINETWORK\svc-bc-telemetry" /rp * /rl HIGHEST
 ```
 (Spustit po importu — import 02:00, snapshot 02:30.)
 

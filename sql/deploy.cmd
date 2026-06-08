@@ -6,7 +6,7 @@ REM  sqlcmd.exe je nativni binarka -> NEpodleha GPO AllSigned (na rozdil od .ps1
 REM  takze tenhle deploy jde spustit i na domenovem serveru s AllSigned politikou.
 REM
 REM  Pouziti (jako admin na cilovem serveru, z adresare sql\):
-REM     deploy.cmd                              -> localhost, AXIMA\svc_bc_telemetry
+REM     deploy.cmd                              -> localhost, AXINETWORK\svc-bc-telemetry
 REM     deploy.cmd localhost  "DOMENA\ucet"     -> jiny servisni ucet
 REM     deploy.cmd BSWNAV01   "DOMENA\ucet"     -> jiny SQL server
 REM
@@ -16,7 +16,7 @@ REM ============================================================================
 set "SQLSERVER=%~1"
 if "%SQLSERVER%"=="" set "SQLSERVER=localhost"
 set "SVCACCT=%~2"
-if "%SVCACCT%"=="" set "SVCACCT=AXIMA\svc_bc_telemetry"
+if "%SVCACCT%"=="" set "SVCACCT=AXINETWORK\svc-bc-telemetry"
 set "DB=BC_Telemetry"
 set "HERE=%~dp0"
 

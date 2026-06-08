@@ -7,7 +7,7 @@
 
    Účet se předává jako sqlcmd proměnná:
      sqlcmd -d BC_Telemetry -v ServiceAccount="DOMENA\ucet" -i 05_grants.sql
-   (deploy.cmd to dělá automaticky; default AXIMA\svc_bc_telemetry.)
+   (deploy.cmd to dělá automaticky; default AXINETWORK\svc-bc-telemetry.)
 
    Idempotentní: vše se vytváří jen pokud chybí; GRANT/ALTER ROLE jsou no-op při opakování.
    ============================================================================ */

@@ -109,7 +109,7 @@ OData: `GET …/v2.0/<tenant>/<environment>/ODataV4/Company('<company>')/Changel
    ```bat
    cd C:\Scripts\sql
    deploy.cmd
-   REM   = deploy.cmd localhost "AXIMA\svc_bc_telemetry"  (defaulty)
+   REM   = deploy.cmd localhost "AXINETWORK\svc-bc-telemetry"  (defaulty)
    REM   jiny ucet:  deploy.cmd localhost "DOMENA\jiny_ucet"
    ```
    Idempotentně vytvoří DB `BC_Telemetry` a spustí `00_database` → `01_schema` → `02_aggregates` →
@@ -117,7 +117,7 @@ OData: `GET …/v2.0/<tenant>/<environment>/ODataV4/Company('<company>')/Changel
    Pozn.: `03` neexistuje (číslovací mezera); modul C je v `04_audit.sql`.
 3. **Servisní účet + secret** (Credential Manager je **per-user** → ulož v profilu servisního účtu):
    ```powershell
-   # v session/profilu uctu AXIMA\svc_bc_telemetry (napr. pres PsExec -u ...):
+   # v session/profilu uctu AXINETWORK\svc-bc-telemetry (napr. pres PsExec -u ...):
    New-StoredCredential -Target "BC_Telemetry_SP"    -UserName "<client-id>" -Password "<secret>" -Persist LocalMachine
    New-StoredCredential -Target "BC_Telemetry_BCAPI" -UserName "<client-id>" -Password "<secret>" -Persist LocalMachine
    ```

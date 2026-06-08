@@ -76,10 +76,11 @@ $p = Get-NetFirewallProfile -Profile Domain -ErrorAction Stop
 }
 
 async function setAllowedIPs(ips) {
-  // Validate input — only IPs and CIDRs allowed
+  // Validate input — single IP, CIDR mask (x.x.x.x/n) nebo rozsah (x.x.x.x-y.y.y.y).
+  // (Set-NetFirewallRule -RemoteAddress umí všechny tři formy; pomlčka = rozsah.)
   for (const ip of ips) {
-    if (!/^[\d.:a-fA-F/]+$/.test(ip)) {
-      throw new Error(`Invalid IP/CIDR: ${ip}`);
+    if (!/^[\d.:a-fA-F/-]+$/.test(ip)) {
+      throw new Error(`Invalid IP/CIDR/range: ${ip}`);
     }
   }
   if (ips.length === 0) {
@@ -121,6 +122,7 @@ function normalizeRequestIp(raw) {
 
 function matchesEntry(remoteIp, entry) {
   if (entry === remoteIp) return true;
+  // CIDR maska: x.x.x.x/n
   if (entry.includes('/')) {
     const [base, bitsStr] = entry.split('/');
     const bits = Number(bitsStr);
@@ -131,6 +133,15 @@ function matchesEntry(remoteIp, entry) {
     if (bits === 0) return true;
     const mask = bits === 32 ? 0xFFFFFFFF : (0xFFFFFFFF << (32 - bits)) >>> 0;
     return (baseInt & mask) === (ipInt & mask);
+  }
+  // Rozsah: x.x.x.x-y.y.y.y (inkluzivně)
+  if (entry.includes('-')) {
+    const [startStr, endStr] = entry.split('-');
+    const startInt = ipv4ToInt((startStr ?? '').trim());
+    const endInt = ipv4ToInt((endStr ?? '').trim());
+    const ipInt = ipv4ToInt(remoteIp);
+    if (startInt === null || endInt === null || ipInt === null) return false;
+    return ipInt >= startInt && ipInt <= endInt;
   }
   return false;
 }

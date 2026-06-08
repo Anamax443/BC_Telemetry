@@ -20,7 +20,10 @@ set PUBLIC=%APPDIR%\public
 set LOGS=%APPDIR%\logs
 set NSSM=C:\Tools\nssm\nssm.exe
 set RULE=BC Telemetry Dashboard (%PORT%)
-set WHITELIST=10.8.0.0/16
+REM Default whitelist = stejna sada admin IP jako ITDashboard (10.8.2.213/181/243),
+REM jen localhost = vlastni server 10.8.2.225. remoteip umi i CIDR masku a rozsah:
+REM   maska:  10.8.2.0/24    rozsah: 10.8.2.180-10.8.2.200    (lze kombinovat carkou)
+set WHITELIST=10.8.2.225,10.8.2.181,10.8.2.243
 
 REM Node.exe - uprav, pokud je jinde
 for /f "delims=" %%i in ('where node 2^>nul') do set NODE=%%i

@@ -15,7 +15,7 @@
       #7 retence     -> volání usp_BCPageLog_Purge po úspěšném importu
 
     Umístění:  C:\Scripts\BC_PageLog_Import.ps1
-    Spouští:   Task Scheduler jako AXIMA\svc_bc_telemetry (viz Register-ScheduledTask.ps1)
+    Spouští:   Task Scheduler jako AXINETWORK\svc-bc-telemetry (viz Register-ScheduledTask.ps1)
 
 .NOTES
     Vyžaduje moduly: Az.Accounts, Az.OperationalInsights

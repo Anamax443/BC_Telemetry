@@ -76,7 +76,7 @@ Jeden idempotentní, **GPO-safe** deploy (přes nativní `sqlcmd.exe`, nepodléh
 ```bat
 cd sql
 deploy.cmd
-REM  = deploy.cmd localhost "AXIMA\svc_bc_telemetry"   (defaulty)
+REM  = deploy.cmd localhost "AXINETWORK\svc-bc-telemetry"   (defaulty)
 REM  jiny ucet/server: deploy.cmd <SqlServer> "DOMENA\ucet"
 ```
 
@@ -105,10 +105,10 @@ Pozn.: `sql/03` neexistuje (číslovací mezera); modul C je v `04_audit.sql`.
 
 ```powershell
 # spustit jako admin na serveru
-scripts\Register-ScheduledTask.ps1 -RunAs "AXIMA\svc_bc_telemetry"
+scripts\Register-ScheduledTask.ps1 -RunAs "AXINETWORK\svc-bc-telemetry"
 #   → vyžádá heslo, registruje denní úlohu 02:00
 ```
-Doplnit právo **Log on as batch job** pro `AXIMA\svc_bc_telemetry` (gpedit → Local Policies → User Rights Assignment).
+Doplnit právo **Log on as batch job** pro `AXINETWORK\svc-bc-telemetry` (gpedit → Local Policies → User Rights Assignment).
 
 ## Fáze 7 — Dashboard (IIS, interní, admin)
 

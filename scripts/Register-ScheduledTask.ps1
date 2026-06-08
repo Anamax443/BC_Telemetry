@@ -16,7 +16,7 @@ param(
     [string] $TaskName   = 'BC_PageLog_Import',
     [string] $ScriptPath = 'C:\Scripts\BC_PageLog_Import.ps1',
     [string] $LogPath    = 'C:\Scripts\Logs\BC_PageLog_Import.log',
-    [string] $RunAs      = 'AXIMA\svc_bc_telemetry'
+    [string] $RunAs      = 'AXINETWORK\svc-bc-telemetry'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -36,7 +36,7 @@ $settings = New-ScheduledTaskSettingsSet `
     -RestartInterval (New-TimeSpan -Minutes 15) `
     -StartWhenAvailable
 
-# LogonType Password — správně pro doménový účet AXIMA\svc_bc_telemetry (oponentura #8)
+# LogonType Password — správně pro doménový účet AXINETWORK\svc-bc-telemetry (oponentura #8)
 Register-ScheduledTask `
     -TaskName    $TaskName `
     -Description 'Stahuje BC telemetrii z Azure AppInsights do SQL (inkrementálně).' `
@@ -50,10 +50,5 @@ Register-ScheduledTask `
 
 Write-Host "Úloha '$TaskName' zaregistrována (LogonType Password, denně 02:00)."
 
-<#  ── Alternativa: gMSA (bez uloženého hesla) ──────────────────────────────
-    $principal = New-ScheduledTaskPrincipal -UserId 'AXIMA\svc_bc_tel$' `
-        -LogonType Password -RunLevel Highest   # gMSA: -LogonType Password, account končí '$'
-    Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
-        -Settings $settings -Principal $principal -Force
-    Pozn.: ITDashboard zůstal u regular doménového účtu, ne gMSA — stejný pattern lze zvolit i zde.
-#>
+# Pozn.: regular doménový účet (AXINETWORK\svc-bc-telemetry), stejně jako ITDashboard.
+# gMSA se NEpoužívá (rozhodnutí operatora).

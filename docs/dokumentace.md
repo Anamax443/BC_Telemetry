@@ -137,7 +137,7 @@ AppPageViews
 - [scripts/Register-ScheduledTask.ps1](../scripts/Register-ScheduledTask.ps1) — denní úloha 02:00, LogonType **Password** (doménový účet).
 - [scripts/Export-DashboardSnapshot.ps1](../scripts/Export-DashboardSnapshot.ps1) — agregáty → `web/data.json`.
 
-## 11 · RBAC — servisní účet `AXIMA\svc_bc_telemetry`
+## 11 · RBAC — servisní účet `AXINETWORK\svc-bc-telemetry`
 
 | Oprávnění | Kde |
 |---|---|
