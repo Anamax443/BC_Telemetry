@@ -62,28 +62,28 @@ try {
         $cmdMax.Parameters.AddWithValue('@c', $company) | Out-Null
         $lastEntry = [int64]$cmdMax.ExecuteScalar()
 
-        $url = "$base/Company('$company')/$ServiceName`?`$filter=entryNo gt $lastEntry&`$orderby=entryNo&`$top=5000"
+        $url = "$base/Company('$company')/$ServiceName`?`$filter=Entry_No gt $lastEntry&`$orderby=Entry_No&`$top=5000"
         while ($url) {
             $resp = Invoke-RestMethod -Headers $headers -Uri $url
             foreach ($e in $resp.value) {
-                # ⚠ MAPOVÁNÍ POLÍ — ověřit proti $metadata; níže typické názvy z Page 405:
+                # Pole ověřena na reálném OData 2026-06-08 (Page 405 ChangelogEntry):
                 $c = $conn.CreateCommand()
                 $c.CommandText = @"
 INSERT INTO dbo.BCChangeLog (EntryNo,ChangedAt,UserId,CompanyName,TableNo,TableName,FieldNo,FieldName,ChangeType,PrimaryKey,OldValue,NewValue)
 VALUES (@EntryNo,@ChangedAt,@UserId,@Company,@TableNo,@TableName,@FieldNo,@FieldName,@ChangeType,@PK,@Old,@New)
 "@
-                $c.Parameters.AddWithValue('@EntryNo',   [int64]$e.entryNo)                | Out-Null
-                $c.Parameters.AddWithValue('@ChangedAt', [datetime]("$($e.changeDate) $($e.changeTime)")) | Out-Null
-                $c.Parameters.AddWithValue('@UserId',    "$($e.userID)")                  | Out-Null
+                $c.Parameters.AddWithValue('@EntryNo',   [int64]$e.Entry_No)              | Out-Null
+                $c.Parameters.AddWithValue('@ChangedAt', [datetime]$e.Date_and_Time)      | Out-Null
+                $c.Parameters.AddWithValue('@UserId',    "$($e.User_ID)")                 | Out-Null
                 $c.Parameters.AddWithValue('@Company',   $company)                        | Out-Null
-                $c.Parameters.AddWithValue('@TableNo',   [int]$e.tableNo)                 | Out-Null
-                $c.Parameters.AddWithValue('@TableName', "$($e.tableCaption)")            | Out-Null
-                $c.Parameters.AddWithValue('@FieldNo',   [int]$e.fieldNo)                 | Out-Null
-                $c.Parameters.AddWithValue('@FieldName', "$($e.fieldCaption)")            | Out-Null
-                $c.Parameters.AddWithValue('@ChangeType',"$($e.typeOfChange)")            | Out-Null
-                $c.Parameters.AddWithValue('@PK',        "$($e.primaryKey)")              | Out-Null
-                $c.Parameters.AddWithValue('@Old',       "$($e.oldValue)")               | Out-Null
-                $c.Parameters.AddWithValue('@New',       "$($e.newValue)")               | Out-Null
+                $c.Parameters.AddWithValue('@TableNo',   [int]$e.Table_No)               | Out-Null
+                $c.Parameters.AddWithValue('@TableName', "$($e.Table_Caption)")           | Out-Null
+                $c.Parameters.AddWithValue('@FieldNo',   [int]$e.Field_No)               | Out-Null
+                $c.Parameters.AddWithValue('@FieldName', "$($e.Field_Caption)")           | Out-Null
+                $c.Parameters.AddWithValue('@ChangeType',"$($e.Type_of_Change)")          | Out-Null
+                $c.Parameters.AddWithValue('@PK',        "$($e.Primary_Key)")             | Out-Null
+                $c.Parameters.AddWithValue('@Old',       "$($e.Old_Value)")               | Out-Null
+                $c.Parameters.AddWithValue('@New',       "$($e.New_Value)")               | Out-Null
                 try { $c.ExecuteNonQuery() | Out-Null; $inserted++ } catch { } # UX index = dedup
             }
             $url = $resp.'@odata.nextLink'

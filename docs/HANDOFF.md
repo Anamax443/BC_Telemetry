@@ -27,14 +27,17 @@ Poslední update: **2026-06-08** · repo `Anamax443/BC_Telemetry`.
 | BC telemetrie | Production → ON (connection string vložen, bez restartu) — **data tečou** |
 | Change Log | **zapnutý**, web service `ChangelogEntry` (Page 405) publikovaný; loguje i Access Control |
 | Service Principal | `BC_Telemetry_SP`, client ID `4eda9e64-ead7-4aac-9631-ef4703c10135`; secret **expiruje 2028-06-07** |
+| **SP → BC API (S2S)** | ✅ funguje: Redirect URI `OAuthLanding.htm` + **API.ReadWrite.All** (Application) + admin consent + BC app user (`8de43095-…`, sady D365 BUS PREMIUM) Enabled. OData čte **všech 12 firem**. Detail [SETUP-STEP-BY-STEP.md](SETUP-STEP-BY-STEP.md). |
 
 ## Ověřená realita (POZOR — docs v1.0 i oponentura byly mylné)
 - Import sahá na **Log Analytics** → tabulka **`AppPageViews`** (NE classic `pageViews`), BC dims v **`Properties.*`**.
 - Uživatel telemetrie = **`UserId`** = **pseudonymní GUID** (NE AAD object id — Entra 404). Jméno jen korelací s Entra sign-in logy.
 - Interaktivní klienti = **`Desktop`/`WebClient`** (hodnota „Web" NEexistuje → starý filtr by nematchnul nic).
-- Change Log naopak má **reálné jméno** (MTRNKA) → modul B jména řeší nativně.
+- Change Log naopak má **reálné jméno** (User_ID = LSOKOL…) → modul B jména řeší nativně.
 - DCR filtr **odložen** (free tier $0; filtruje import).
 - BC SaaS NEMÁ Windows eventlog → „kdo co smazal" jen přes Change Log.
+- **S2S pasti (vyřešené):** (1) Redirect URI `OAuthLanding.htm` nutné pro BC Grant Consent (jinak AADSTS500113); (2) **API.ReadWrite.All + admin consent** nutné, jinak token má `roles` prázdné → **401** i s BC permission sety; (3) SUPER/SUPER(DATA) NELZE přiřadit Entra app userovi.
+- **Change Log OData pole** (Page 405): `Entry_No`, `Date_and_Time`, `User_ID`, `Table_No/Caption`, `Field_No/Caption`, `Type_of_Change`, `Old_Value`/`New_Value`, `Primary_Key`. Per-firma `Entry_No` sekvence. Import opraven na tato pole 2026-06-08.
 
 ## Hotovo
 - Repo, 3 moduly (SQL + skripty + dashboard záložky A/B/C), dokumentace, oponentura+reakce, status HTML (dark mode + Push #).
@@ -44,10 +47,12 @@ Poslední update: **2026-06-08** · repo `Anamax443/BC_Telemetry`.
 ## Další kroky (pořadí)
 1. ~~Workspace ID~~ ✅ `484e3038-…` doplněn do skriptů.
 2. ~~Azure: SP → Log Analytics Reader na workspace~~ ✅ (moduly A/C mají auth).
-3. **BC Admin Center → Microsoft Entra Apps** → registrovat client ID `4eda9e64-…` + permission set (čtení Change Log) + Enabled (modul B). ← **PŘÍŠTÍ KROK**
-4. **Ověřit OData pole** přes SP (`ChangelogEntry?$top=3`, `$metadata`) → doladit mapování v BC_ChangeLog_Import.ps1 (pozn.: primární klíč rozdělen do 3 polí).
-5. **SQL na 10.8.2.225** — vytvořit DB + spustit `sql/01..04` + práva pro SP/servisní účet.
-6. **Spustit importy** + scheduler; **dashboard** přes Node službu (install-service.cmd).
+3. ~~SP → BC API (S2S): Redirect URI + API.ReadWrite.All + consent + BC app user~~ ✅ (modul B čte OData).
+4. ~~Ověřit OData pole + doladit BC_ChangeLog_Import~~ ✅ (pole Entry_No/Date_and_Time/User_ID/… opravena).
+5. **SQL na 10.8.2.225** — vytvořit DB + spustit `sql/01..04` + práva pro SP/servisní účet. ← **PŘÍŠTÍ KROK**
+6. **Naplnit secret** do Credential Manageru na serveru (cíl `BC_Telemetry_SP` / `BC_Telemetry_BCAPI`).
+7. **Spustit importy** (3 moduly) + scheduler; **dashboard** přes Node službu (install-service.cmd).
+8. Volitelně: zúžit BC permission set z D365 BUS PREMIUM na custom read (least-privilege); vlastní AL API page místo deprecated UI-page web service.
 
 ## Otevřená rozhodnutí (operator)
 - Whitelist rozsah dashboardu: `/24` vs `/16`.

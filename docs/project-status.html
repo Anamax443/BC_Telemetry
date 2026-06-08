@@ -218,11 +218,11 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
       "id": "M8", "title": "Modul B — Audit změn (Change Log)", "status": "prog",
       "desc": "Kdo vytvořil / změnil / SMAZAL záznam — s reálným jménem (BC Change Log → API/OData).",
       "items": [
-        {"s":"done","t":"SQL dbo.BCChangeLog + view + retence (24 měs.)"},
-        {"s":"done","t":"Ingest skript BC_ChangeLog_Import.ps1 (OAuth + OData) + dashboard záložka Audit"},
-        {"s":"todo","t":"Operátor: zapnout Change Log v BC + vybrat tabulky (Insert/Modify/Delete)"},
-        {"s":"todo","t":"Operátor: publikovat Page 405 jako web service + registrovat SP pro BC API"},
-        {"s":"todo","t":"Ověřit OData pole proti $metadata, pak produkční běh"}
+        {"s":"done","t":"SQL dbo.BCChangeLog (per-firma dedup) + view + retence; ingest + dashboard záložka Audit"},
+        {"s":"done","t":"Change Log zapnutý v BC + web service ChangelogEntry (Page 405)"},
+        {"s":"done","t":"SP → BC API S2S funguje: Redirect URI + API.ReadWrite.All + consent + app user; OData čte všech 12 firem"},
+        {"s":"done","t":"OData pole ověřena (Entry_No/Date_and_Time/User_ID=reálné jméno/…), import opraven"},
+        {"s":"todo","t":"SQL deploy + produkční běh (společné s moduly A/C)"}
       ]
     },
     {
