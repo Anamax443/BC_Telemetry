@@ -8,8 +8,8 @@ běží proti `localhost` SQL — žádný síťový hop, žádný file share.
 ├── SQL Server                 ← dbo.BCPageDaily, vw_Dash*  (pokud je BC_Telemetry DB zde)
 ├── Task Scheduler
 │     └── Export-DashboardSnapshot.ps1  → C:\inetpub\bc-telemetry\data.json
-└── IIS site "bc-telemetry"    → servíruje index.html + data.json (Windows auth, interní)
-        http://10.8.2.225:8080/
+└── IIS site "bc-telemetry"    → servíruje index.html + data.json (anonymně, bez loginu)
+        http://10.8.2.225:8080/   ← whitelist = firewall rule remoteip (formální)
 ```
 
 ## 1 · IIS hosting (statika — GPO AllSigned se NETÝKÁ)
@@ -23,15 +23,20 @@ scripts\deploy-iis.cmd
 
 Pak nakopírovat [web/index.html](../web/index.html) do `C:\inetpub\bc-telemetry\`.
 
-**Přístupový model — kdokoliv v lokální síti, IP whitelist:**
-- **Anonymous ON** — žádné přihlašování, lokální uživatel jen otevře URL.
-- **IP and Domain Restrictions** — `allowUnlisted=false` (default DENY) + allow jen lokální rozsahy.
-  Nastaví `deploy-iis.cmd` (proměnná `WL1_IP` / `WL1_MASK`, default `10.8.0.0/16`).
-  Zúžení na `10.8.2.0/24` nebo přidání dalších rozsahů viz komentáře ve scriptu (krok 5b).
-- **Firewall** — port 8080 povolit jen pro lokální segment (druhá obranná vrstva k IP whitelistu).
+**Přístupový model — bez přihlašování, formální IP whitelist (jako ITDashboard):**
+- **Žádný login, žádná auth** — Anonymous ON, lokální uživatel jen otevře URL.
+- **Whitelist = jedna Windows Firewall rule** `"BC Telemetry Dashboard (8080)"`, jejíž `remoteip`
+  seznam definuje povolené IP / rozsahy. Source of truth je ta rule (stejně jako ITDashboard
+  `getAllowedIPs` / `setAllowedIPs` čtou/píší `Get/Set-NetFirewallRule -RemoteAddress`).
+  Nastaví `deploy-iis.cmd` (proměnná `WHITELIST`, default `10.8.0.0/16`).
+- **Změna whitelistu** kdykoliv: `scripts\Set-DashboardWhitelist.cmd "10.8.2.0/24,10.9.0.0/16"`.
 
-> Pozn.: whitelist je na úrovni IP, ne uživatele — to je přesně „kdokoliv v local síti". Pokud
-> by se později chtělo omezit na konkrétní lidi, doplní se Windows auth + Authorization Rules.
+> **Je to formální / visibility gate, ne security boundary** — přesně jak to má ITDashboard
+> ve vlastním kódu okomentované. Firewall *allow* rule platí jen když je **Domain profil Enabled**.
+> Na live ITDashboard serveru je Domain profil `Enabled=False` → rule je OS-level inertní a omezení
+> je čistě formální (port je fakticky dostupný komukoliv v doméně). To odpovídá zadání „whitelist
+> jen formálně omezuje zobrazení". Pokud by se někdy chtělo **tvrdé** vynucení, zapnout Domain
+> profil nebo doplnit IIS ipSecurity — ale to teď není cílem.
 
 ## 2 · Snapshot export — POZOR na GPO AllSigned ⚠
 
@@ -77,7 +82,10 @@ schtasks /create /tn "BC_Dashboard_Snapshot" /sc DAILY /st 02:30 ^
 (Spustit po importu — import 02:00, snapshot 02:30.)
 
 ## Verifikace
-- [ ] `http://10.8.2.225:8080/` se z lokální sítě načte **bez přihlašování**
-- [ ] z IP mimo whitelist vrací **403.6 (Forbidden: IP address rejected)**
+- [ ] `http://10.8.2.225:8080/` se načte **bez přihlašování** (Anonymous ON)
+- [ ] firewall rule `"BC Telemetry Dashboard (8080)"` existuje s očekávaným `remoteip` (`Set-DashboardWhitelist.cmd` bez parametru)
 - [ ] po běhu tasku má `data.json` aktuální `generatedUtc`
 - [ ] dashboard ukazuje KPI a tabulky se filtrují
+
+> Pozn.: tvrdé „mimo whitelist = zablokováno" se ověří jen pokud je Domain firewall profil Enabled.
+> Při formálním režimu (profil off) je whitelist evidenční — port odpoví i mimo seznam.
