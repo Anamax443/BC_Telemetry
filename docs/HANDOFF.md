@@ -49,15 +49,20 @@ Poslední update: **2026-06-08** · repo `Anamax443/BC_Telemetry`.
 2. ~~Azure: SP → Log Analytics Reader na workspace~~ ✅ (moduly A/C mají auth).
 3. ~~SP → BC API (S2S): Redirect URI + API.ReadWrite.All + consent + BC app user~~ ✅ (modul B čte OData).
 4. ~~Ověřit OData pole + doladit BC_ChangeLog_Import~~ ✅ (pole Entry_No/Date_and_Time/User_ID/… opravena).
-5. **SQL na 10.8.2.225** — vytvořit DB + spustit `sql/01..04` + práva pro SP/servisní účet. ← **PŘÍŠTÍ KROK**
-6. **Naplnit secret** do Credential Manageru na serveru (cíl `BC_Telemetry_SP` / `BC_Telemetry_BCAPI`).
-7. **Spustit importy** (3 moduly) + scheduler; **dashboard** přes Node službu (install-service.cmd).
+5. **SQL na 10.8.2.225** — ✅ deploy **připraven**: `sql/deploy.cmd` (GPO-safe, přes nativní `sqlcmd.exe`)
+   vytvoří DB + spustí `00`→`01`→`02`→`04`→`05_grants` idempotentně. ← **SPUSTIT na serveru jako admin:**
+   `cd sql & deploy.cmd` (default `localhost` + `AXIMA\svc_bc_telemetry`). DB **co-located** na 10.8.2.225.
+6. **Založit servisní účet** `AXIMA\svc_bc_telemetry` (doménový, regular — jako ITDashboard, ne gMSA) +
+   **naplnit secret** do Credential Manageru **v profilu toho účtu** (cíl `BC_Telemetry_SP` i `BC_Telemetry_BCAPI`,
+   stejná hodnota) — Cred Manager je per-user, takže přes `PsExec -u AXIMA\svc_bc_telemetry` nebo jednorázové přihlášení.
+7. **Spustit importy** (3 moduly) + scheduler (`Register-ScheduledTask.ps1`); **dashboard** přes Node službu (install-service.cmd).
 8. Volitelně: zúžit BC permission set z D365 BUS PREMIUM na custom read (least-privilege); vlastní AL API page místo deprecated UI-page web service.
 
 ## Otevřená rozhodnutí (operator)
+- ~~BC_Telemetry DB: 10.8.2.225 (localhost) vs BSWNAV01~~ ✅ **localhost (co-located na 10.8.2.225)** — všechny importy sjednoceny na `localhost`, GRANT míří na lokální Windows účet.
 - Whitelist rozsah dashboardu: `/24` vs `/16`.
-- BC_Telemetry DB: na 10.8.2.225 (localhost) vs BSWNAV01.
-- GPO AllSigned: podpis PS skriptů vs jiný box vs GPO výjimka.
+- GPO AllSigned: podpis PS skriptů vs jiný box vs GPO výjimka. (SQL deploy už AllSigned obchází přes `sqlcmd.exe`; týká se ještě importních `.ps1` v Task Scheduleru.)
+- Servisní účet: navrženo `AXIMA\svc_bc_telemetry` (dedikovaný doménový) — operator ho zatím nemá, čeká na založení.
 
 ## Plánované featury
 - ⏰ **Monitor expirace SP secretu/certifikátu** v dashboardu (KPI/alert; current 2028-06-07) — operator request.

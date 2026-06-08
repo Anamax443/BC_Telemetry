@@ -1,6 +1,6 @@
 /* ============================================================================
    BC_Telemetry — SQL schéma
-   Databáze: BC_Telemetry  (SQL Server BSWNAV01)
+   Databáze: BC_Telemetry  (SQL Server 10.8.2.225 / B-S-W-SQL-04, co-located)
    Tabulka:  dbo.BCPageLog — append log page views interaktivních uživatelů BC
 
    Verze: 1.1 (zapracována oponentura 2026-06-08)

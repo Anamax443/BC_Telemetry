@@ -72,15 +72,14 @@ Set-AuthenticodeSignature -FilePath C:\Scripts\Export-DashboardSnapshot.ps1 -Cer
 ```
 Cert vydavatele musí být v **Trusted Publishers** na serveru (GPO / certlm.msc).
 
-## 3 · Kde je BC_Telemetry databáze?
+## 3 · Kde je BC_Telemetry databáze? — ✅ ROZHODNUTO: 10.8.2.225 (co-located)
 
-Export skript se připojuje parametrem `-SqlServer`:
+DB **BC_Telemetry je na 10.8.2.225** (localhost), co-located se SQL serverem i dashboardem.
+Import i export sahají na `localhost` — žádný síťový hop, GRANT míří na lokální Windows účet.
 
-- **DB na 10.8.2.225** (co-located): `-SqlServer "localhost"` nebo `-SqlServer ".\INSTANCE"`
-- **DB na BSWNAV01** (dle původní dokumentace): `-SqlServer "BSWNAV01"` — export běží na 10.8.2.225 a sahá na BSWNAV01 přes síť (servisní účet potřebuje práva tam).
-
-> Vyjasnit: je BC_Telemetry SQL DB na 10.8.2.225, nebo zůstává na BSWNAV01 a na 225 je jen web?
-> Podle toho se nastaví `-SqlServer` a kde poběží import.
+- Default ve všech skriptech: `-SqlServer "localhost"` (sjednoceno 2026-06-08; pojmenovaná instance: `".\INSTANCE"`).
+- SQL deploy: `sql\deploy.cmd` (vytvoří DB + schema + agregáty + audit + práva, idempotentně, GPO-safe přes `sqlcmd.exe`).
+- Varianta BSWNAV01 (DB přes síť) je opuštěná; kdyby se obnovila, stačí `deploy.cmd BSWNAV01 "DOMENA\ucet"` a `-SqlServer "BSWNAV01"` v importech (účet pak potřebuje práva na BSWNAV01).
 
 ## 4 · Task Scheduler na 10.8.2.225
 

@@ -69,22 +69,25 @@ New-StoredCredential -Target "BC_Telemetry_SP" -UserName "<appId>" -Password "<s
 3. **Restart prostředí mimo pracovní dobu** (nastavení Connection String to vyžaduje).
 4. Ověření: data v App Insights do ~5 minut (`pageViews | take 10`).
 
-## Fáze 4 — SQL (BSWNAV01)
+## Fáze 4 — SQL (10.8.2.225 / B-S-W-SQL-04, co-located)
 
-```sql
--- 1) databáze
-CREATE DATABASE BC_Telemetry;
--- 2) schéma + indexy + dedup + retence + analytický view
-:r sql\01_schema.sql
--- 3) agregační vrstva (rollup tabulky, proc, dashboard views)
-:r sql\02_aggregates.sql
--- 4) práva servisního účtu
-CREATE USER [AXIMA\svc_bc_telemetry] FOR LOGIN [AXIMA\svc_bc_telemetry];
-ALTER ROLE db_datareader ADD MEMBER [AXIMA\svc_bc_telemetry];
-ALTER ROLE db_datawriter ADD MEMBER [AXIMA\svc_bc_telemetry];
-GRANT EXECUTE ON dbo.usp_BCPageLog_Rollup TO [AXIMA\svc_bc_telemetry];
-GRANT EXECUTE ON dbo.usp_BCPageLog_Purge  TO [AXIMA\svc_bc_telemetry];
+Jeden idempotentní, **GPO-safe** deploy (přes nativní `sqlcmd.exe`, nepodléhá AllSigned):
+
+```bat
+cd sql
+deploy.cmd
+REM  = deploy.cmd localhost "AXIMA\svc_bc_telemetry"   (defaulty)
+REM  jiny ucet/server: deploy.cmd <SqlServer> "DOMENA\ucet"
 ```
+
+Spustí v pořadí: `00_database` (CREATE DATABASE) → `01_schema` → `02_aggregates` → `04_audit`
+(moduly B+C) → `05_grants` (login + user + db_datareader/writer + EXECUTE na **všechny** ETL procy:
+`usp_BCPageLog_Rollup`, `usp_BCPageLog_Purge`, `usp_BCChangeLog_Purge`, `usp_BCAuthFail_Rollup`).
+Pozn.: `sql/03` neexistuje (číslovací mezera); modul C je v `04_audit.sql`.
+
+> ⚠ Tato Fáze 4 je aktuální; ostatní fáze BUILD.md jsou ještě v1.1 a místy zastaralé proti
+> [SETUP-STEP-BY-STEP.md](docs/SETUP-STEP-BY-STEP.md) (ten drží ověřenou realitu: `AppPageViews`
+> ne classic `pageViews`, klient `Desktop`/`WebClient` ne `Web`, telemetrie bez restartu).
 
 ## Fáze 5 — Import + rollup (PowerShell)
 

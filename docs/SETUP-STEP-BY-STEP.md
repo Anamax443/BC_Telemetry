@@ -98,7 +98,32 @@ OData: `GET …/v2.0/<tenant>/<environment>/ODataV4/Company('<company>')/Changel
 - **Per-firma:** `Entry_No` je samostatná sekvence v každé firmě → filtr `Entry_No gt <watermark>`, watermark per company, dedup (CompanyName, Entry_No).
 - Filtr nového od watermarku: `?$filter=Entry_No gt <n>&$orderby=Entry_No`.
 
-# Fáze 7 (zbývá) — SQL + běh
-SQL na `<server>` → `sql/01..04` + práva → naplnit `$WorkspaceId`/`$ClientId` + secret do Credential Manageru →
-spustit importy ([BC_PageLog_Import](../scripts/BC_PageLog_Import.ps1), [BC_ChangeLog_Import](../scripts/BC_ChangeLog_Import.ps1),
-[BC_AuthFail_Import](../scripts/BC_AuthFail_Import.ps1)) + scheduler → dashboard (Node služba, install-service.cmd).
+# Fáze 7 — SQL deploy (DB co-located na 10.8.2.225)
+
+> DB rozhodnutá: **localhost na 10.8.2.225** (B-S-W-SQL-04, co-located s dashboardem). Všechny
+> importy mají default `-SqlServer localhost`. Deploy je **GPO-safe** — `sqlcmd.exe` je nativní
+> binárka a NEpodléhá AllSigned (na rozdíl od `.ps1`), takže ho lze spustit i na serveru s AllSigned.
+
+1. Nakopíruj složku `sql\` na server (např. `C:\Scripts\sql\`).
+2. Spusť jako **administrator**:
+   ```bat
+   cd C:\Scripts\sql
+   deploy.cmd
+   REM   = deploy.cmd localhost "AXIMA\svc_bc_telemetry"  (defaulty)
+   REM   jiny ucet:  deploy.cmd localhost "DOMENA\jiny_ucet"
+   ```
+   Idempotentně vytvoří DB `BC_Telemetry` a spustí `00_database` → `01_schema` → `02_aggregates` →
+   `04_audit` → `05_grants` (login + user + db_datareader/writer + EXECUTE na všechny ETL procy).
+   Pozn.: `03` neexistuje (číslovací mezera); modul C je v `04_audit.sql`.
+3. **Servisní účet + secret** (Credential Manager je **per-user** → ulož v profilu servisního účtu):
+   ```powershell
+   # v session/profilu uctu AXIMA\svc_bc_telemetry (napr. pres PsExec -u ...):
+   New-StoredCredential -Target "BC_Telemetry_SP"    -UserName "<client-id>" -Password "<secret>" -Persist LocalMachine
+   New-StoredCredential -Target "BC_Telemetry_BCAPI" -UserName "<client-id>" -Password "<secret>" -Persist LocalMachine
+   ```
+   (Stejná secret hodnota pro oba targety — `BC_Telemetry_SP` = Azure auth moduly A/C, `BC_Telemetry_BCAPI` = BC API modul B.)
+4. **Spustit importy** + scheduler:
+   [BC_PageLog_Import](../scripts/BC_PageLog_Import.ps1), [BC_ChangeLog_Import](../scripts/BC_ChangeLog_Import.ps1),
+   [BC_AuthFail_Import](../scripts/BC_AuthFail_Import.ps1) → [Register-ScheduledTask](../scripts/Register-ScheduledTask.ps1).
+   (Importní `.ps1` v Task Scheduleru AllSigned ŘEŠÍ samostatně — viz [deploy-10.8.2.225.md](deploy-10.8.2.225.md) §2.)
+5. **Dashboard** — Node služba (`scripts/install-service.cmd`).

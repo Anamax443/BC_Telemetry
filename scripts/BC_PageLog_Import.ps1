@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     Stáhne page views interaktivních uživatelů (Web client) z Application Insights /
-    Log Analytics Workspace a vloží nové záznamy do dbo.BCPageLog na BSWNAV01.
+    Log Analytics Workspace a vloží nové záznamy do dbo.BCPageLog (DB co-located na 10.8.2.225).
 
     Verze 1.1 — zapracována oponentura 2026-06-08:
       #2 watermark   -> dynamický KQL `where timestamp > lastTs`, dedup přes MERGE
@@ -29,7 +29,7 @@ param(
     [string] $WorkspaceId  = '484e3038-d41f-4c92-991c-cb71ecb54590',  # DefaultWorkspace-…-WEU
     [string] $TenantId     = '2ecd5815-0eb9-4e9a-93be-ac58545cdca6',
     [string] $ClientId     = '4eda9e64-ead7-4aac-9631-ef4703c10135',  # BC_Telemetry_SP
-    [string] $SqlServer    = 'BSWNAV01',
+    [string] $SqlServer    = 'localhost',   # DB co-located na 10.8.2.225 (B-S-W-SQL-04)
     [string] $SqlDatabase  = 'BC_Telemetry',
     # Cílový generic credential v Windows Credential Manageru, který drží SP client secret.
     # Vytvoření: cmdkey /generic:BC_Telemetry_SP /user:<ClientId> /pass:<secret>
