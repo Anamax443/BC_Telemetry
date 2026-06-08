@@ -10,8 +10,9 @@ běží proti `localhost` SQL — žádný síťový hop, žádný file share.
 │     └── Export-DashboardSnapshot.ps1  → C:\Apps\BC_Telemetry_Web\public\data.json
 └── Windows služba BC_Telemetry_Web (Node + NSSM, LocalSystem)
         ├── servíruje index.html + data.json (anonymně, bez loginu)
-        ├── /api/whitelist (GET/PUT) ← čte/zapisuje firewall rule
-        └── /api/access-check        ← formální visibility gate
+        ├── /firewall/whitelist (GET/PUT) ← čte/zapisuje firewall rule (jako ITDashboard)
+        ├── /firewall/domain-profile      ← stav Domain firewall profilu
+        └── /access-check                 ← formální visibility gate
         http://10.8.2.225:8080/
 ```
 
@@ -36,7 +37,7 @@ LocalSystem — má práva měnit firewall a nepotřebuje heslo (SQL nesahá, je
 - **Whitelist = jedna Windows Firewall rule** `"BC Telemetry Dashboard (8080)"`, jejíž `remoteip`
   seznam definuje povolené IP / rozsahy. Source of truth je ta rule — servis ji čte/zapisuje
   přes `Get/Set-NetFirewallRule -RemoteAddress` (1:1 jako ITDashboard `getAllowedIPs`/`setAllowedIPs`).
-- **Editace ze stránky:** záložka **⚙ Nastavení** → textarea (IP/CIDR na řádek) + Uložit → `PUT /api/whitelist`.
+- **Editace ze stránky:** záložka **⚙ Nastavení** → textarea (IP/CIDR na řádek) + Uložit → `PUT /firewall/whitelist`.
   Banner ukazuje stav Domain firewall profilu (ta honest „firewall disabled = jen formální" hláška).
 - **Access-check gate:** při načtení servis porovná IP návštěvníka s whitelistem; mimo seznam se
   zobrazí překryv „Přístup omezen" s editorem (admin si přidá svou IP). API nedostupné → neblokuje.
@@ -95,7 +96,7 @@ schtasks /create /tn "BC_Dashboard_Snapshot" /sc DAILY /st 02:30 ^
 - [ ] služba `BC_Telemetry_Web` běží (`sc query BC_Telemetry_Web` → RUNNING)
 - [ ] `http://10.8.2.225:8080/` se načte **bez přihlašování**
 - [ ] záložka **⚙ Nastavení** ukáže whitelist + stav firewall profilu; Uložit zapíše do rule
-- [ ] `GET /api/whitelist` vrací očekávaný `remoteip`
+- [ ] `GET /firewall/whitelist` vrací očekávaný `remoteip`
 - [ ] po běhu tasku má `data.json` aktuální `generatedUtc`
 - [ ] dashboard ukazuje KPI a tabulky se filtrují
 

@@ -183,16 +183,19 @@ function render(d){
 }
 
 // ── Whitelist editor (jako ITDashboard NetworkAccessSection) ─────────────────
+// Endpointy 1:1 z ITDashboard firewall.ts: GET /firewall/whitelist a /firewall/domain-profile.
 function buildWhitelistEditor(host){
   if(!host) return;
   host.innerHTML='<div class="wl-cur">načítám…</div>';
-  fetch('/api/whitelist').then(r=>{if(!r.ok)throw new Error(r.status);return r.json();})
-    .then(d=>renderWlEditor(host,d))
+  Promise.all([
+    fetch('/firewall/whitelist').then(r=>{if(!r.ok)throw new Error(r.status);return r.json();}),
+    fetch('/firewall/domain-profile').then(r=>r.ok?r.json():null).catch(()=>null)
+  ]).then(([wl,dp])=>renderWlEditor(host,wl.ips||[],dp||{}))
     .catch(e=>{host.innerHTML='<div class="wl-banner warn"><span>⚠</span><div>Whitelist API není dostupné ('+esc(e.message)+'). Servis BC_Telemetry_Web neběží, nebo je stránka otevřená staticky. Whitelist lze mezitím měnit přes <span class="mono">Set-DashboardWhitelist.cmd</span>.</div></div>';});
 }
 
-function renderWlEditor(host, d){
-  const dp = d.domainProfile||{};
+function renderWlEditor(host, cur, dp){
+  dp = dp||{};
   let banner='';
   if(dp.enabled===false){
     banner='<div class="wl-banner warn"><span>⚠</span><div><strong>Domain firewall profil je vyplý</strong> — whitelist je proto jen <strong>formální</strong> (rule je OS-level inertní, port odpoví komukoliv v doméně). Tvrdé vynucení: <code>Set-NetFirewallProfile -Profile Domain -Enabled True</code> (default inbound: '+esc(dp.defaultInboundAction||'—')+').</div></div>';
@@ -201,7 +204,6 @@ function renderWlEditor(host, d){
   } else {
     banner='<div class="wl-banner warn"><span>⚠</span><div>Stav firewall profilu nelze přečíst'+(dp.error?': '+esc(dp.error):'')+'.</div></div>';
   }
-  const cur=(d.ips||[]);
   host.innerHTML = banner +
     '<textarea class="wl-ta" id="wlTa" spellcheck="false"></textarea>' +
     '<div class="wl-row"><button class="btn" id="wlApply" disabled>Uložit</button>' +
@@ -213,7 +215,7 @@ function renderWlEditor(host, d){
   btn.addEventListener('click',()=>{
     const ips=ta.value.split(/[\n,\s]+/).map(s=>s.trim()).filter(Boolean);
     btn.disabled=true; msg.className='wl-msg'; msg.textContent='ukládám…';
-    fetch('/api/whitelist',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ips})})
+    fetch('/firewall/whitelist',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ips})})
       .then(r=>r.json().then(j=>({ok:r.ok,j})))
       .then(({ok,j})=>{
         if(!ok)throw new Error(j.error||'chyba');
@@ -226,7 +228,7 @@ function renderWlEditor(host, d){
 
 // ── Access-check gate (formální visibility gate jako ITDashboard) ─────────────
 function initAccessGate(){
-  fetch('/api/access-check').then(r=>r.json()).then(a=>{
+  fetch('/access-check').then(r=>r.json()).then(a=>{
     if(a && a.allowed===false) showGate(a.ip);
   }).catch(()=>{}); // API nedostupné → neblokovat (formální)
 }
