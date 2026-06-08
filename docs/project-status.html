@@ -138,8 +138,9 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
         {"s":"done","t":"Resource Group rg-bc-telemetry + App Insights appinsights-bc-production (West Europe, workspace-based)"},
         {"s":"done","t":"Retence 31d workspace / 90d App Insights (free) + Daily cap 0,5 GB/den"},
         {"s":"done","t":"BC Admin Center → Production → telemetrie ON (connection string, bez restartu)"},
-        {"s":"prog","t":"Ověřit nátok pageViews (App Insights → Logs)"},
-        {"s":"todo","t":"DCR filtr clientType == \"Web\" (až tabulky existují)"},
+        {"s":"done","t":"Data tečou + schéma validováno: AppPageViews / Properties / UserId (GUID), klienti Desktop+WebClient"},
+        {"s":"done","t":"DCR filtr ODLOŽEN — free tier $0; filtr řeší import (clientType whitelist)"},
+        {"s":"todo","t":"Mapování GUID→jméno přes Entra sign-in logy → dbo.BCUserMap (GUID je pseudonym, ne AAD id)"},
         {"s":"todo","t":"Service Principal + role Log Analytics Reader (pro import)"}
       ]
     },
