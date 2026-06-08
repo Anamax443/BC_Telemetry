@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BC_Telemetry — Project status</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#fff;--bg2:#f8f9fb;--bg3:#f1f3f7;--border:#dde1ea;--accent:#1d4ed8;--accent2:#2563eb;
@@ -112,6 +113,19 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
   "commit": "aef8e6f",
   "activeProjectNo": 5,
   "milestones": [
+    {
+      "id": "M0", "title": "Azure + BC onboarding (LIVE rozjezd)", "status": "prog",
+      "desc": "Azure předplatné + App Insights + zapnutá BC telemetrie. Data se rozjíždějí.",
+      "items": [
+        {"s":"done","t":"Azure subscription (Pay-as-you-go, role Owner) — sub 4313b649…"},
+        {"s":"done","t":"Resource Group rg-bc-telemetry + App Insights appinsights-bc-production (West Europe, workspace-based)"},
+        {"s":"done","t":"Retence 31d workspace / 90d App Insights (free) + Daily cap 0,5 GB/den"},
+        {"s":"done","t":"BC Admin Center → Production → telemetrie ON (connection string, bez restartu)"},
+        {"s":"prog","t":"Ověřit nátok pageViews (App Insights → Logs)"},
+        {"s":"todo","t":"DCR filtr clientType == \"Web\" (až tabulky existují)"},
+        {"s":"todo","t":"Service Principal + role Log Analytics Reader (pro import)"}
+      ]
+    },
     {
       "id": "M1", "title": "Repo + dokumentace", "status": "done",
       "desc": "Založení repa, technická dokumentace (mojibake opraveno), oponentura + strukturovaná reakce.",
