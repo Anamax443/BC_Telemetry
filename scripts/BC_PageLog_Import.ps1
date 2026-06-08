@@ -26,7 +26,7 @@
 
 [CmdletBinding()]
 param(
-    [string] $WorkspaceId  = '<Log Analytics Workspace GUID>',
+    [string] $WorkspaceId  = '484e3038-d41f-4c92-991c-cb71ecb54590',  # DefaultWorkspace-…-WEU
     [string] $TenantId     = '2ecd5815-0eb9-4e9a-93be-ac58545cdca6',
     [string] $ClientId     = '4eda9e64-ead7-4aac-9631-ef4703c10135',  # BC_Telemetry_SP
     [string] $SqlServer    = 'BSWNAV01',

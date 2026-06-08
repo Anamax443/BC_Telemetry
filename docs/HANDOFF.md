@@ -21,8 +21,9 @@ Poslední update: **2026-06-08** · repo `Anamax443/BC_Telemetry`.
 | Tenant | `2ecd5815-0eb9-4e9a-93be-ac58545cdca6` (axima.cz) |
 | Resource Group | `rg-bc-telemetry` (West Europe) |
 | App Insights | `appinsights-bc-production` (workspace-based); iKey `06cb351f-…`, AppId `03c2f43a-…` |
-| Log Analytics workspace | `DefaultWorkspace-4313b649-…-WEU` (retence 31d/90d-AI free, daily cap 0,5 GB) |
-| **Workspace ID (GUID)** | ⚠ **JEŠTĚ ZÍSKAT** (workspace → Overview → Workspace ID) — do importu modul A/C |
+| Log Analytics workspace | `DefaultWorkspace-4313b649-…-WEU` (RG `DefaultResourceGroup-WEU`, retence 31d/90d-AI free, daily cap 0,5 GB) |
+| **Workspace ID (GUID)** | `484e3038-d41f-4c92-991c-cb71ecb54590` (do `-WorkspaceId` v modulech A/C) ✅ |
+| SP role (Azure) | **Log Analytics Reader** na workspace přiřazena `BC_Telemetry_SP` ✅ (SP object id `d578b3a2-…`) |
 | BC telemetrie | Production → ON (connection string vložen, bez restartu) — **data tečou** |
 | Change Log | **zapnutý**, web service `ChangelogEntry` (Page 405) publikovaný; loguje i Access Control |
 | Service Principal | `BC_Telemetry_SP`, client ID `4eda9e64-ead7-4aac-9631-ef4703c10135`; secret **expiruje 2028-06-07** |
@@ -41,13 +42,12 @@ Poslední update: **2026-06-08** · repo `Anamax443/BC_Telemetry`.
 - Import KQL ověřen na reálných datech a opraven (AppPageViews/UserId/Desktop).
 
 ## Další kroky (pořadí)
-1. **Workspace ID** — získat GUID z workspace Overview → doplnit do importních skriptů (modul A/C).
-2. **Zmocnit SP:**
-   - Azure: workspace → Access control (IAM) → role **Log Analytics Reader** → `BC_Telemetry_SP` (modul A/C).
-   - BC Admin Center → **Microsoft Entra Apps** → registrovat client ID `4eda9e64-…` + permission set (čtení Change Log) + Enabled (modul B).
-3. **Ověřit OData pole** přes SP (`ChangelogEntry?$top=3`, `$metadata`) → doladit mapování v BC_ChangeLog_Import.ps1 (pozn.: primární klíč rozdělen do 3 polí).
-4. **SQL na 10.8.2.225** — vytvořit DB + spustit `sql/01..04` + práva pro SP/servisní účet.
-5. **Spustit importy** + scheduler; **dashboard** přes Node službu (install-service.cmd).
+1. ~~Workspace ID~~ ✅ `484e3038-…` doplněn do skriptů.
+2. ~~Azure: SP → Log Analytics Reader na workspace~~ ✅ (moduly A/C mají auth).
+3. **BC Admin Center → Microsoft Entra Apps** → registrovat client ID `4eda9e64-…` + permission set (čtení Change Log) + Enabled (modul B). ← **PŘÍŠTÍ KROK**
+4. **Ověřit OData pole** přes SP (`ChangelogEntry?$top=3`, `$metadata`) → doladit mapování v BC_ChangeLog_Import.ps1 (pozn.: primární klíč rozdělen do 3 polí).
+5. **SQL na 10.8.2.225** — vytvořit DB + spustit `sql/01..04` + práva pro SP/servisní účet.
+6. **Spustit importy** + scheduler; **dashboard** přes Node službu (install-service.cmd).
 
 ## Otevřená rozhodnutí (operator)
 - Whitelist rozsah dashboardu: `/24` vs `/16`.
