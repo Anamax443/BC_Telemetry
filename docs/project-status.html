@@ -120,7 +120,7 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
 <script id="data" type="application/json">
 {
   "brand": "AXIMA · interní projekt",
-  "subtitle": "Telemetrie aktivity uživatelů Business Central → Azure → SQL → admin dashboard. Slouží k sestavení Permission Setů (kdo co reálně používá).",
+  "subtitle": "3 moduly nad Business Central: A) využití stránek (Permission Set mining), B) audit změn — kdo co vytvořil/změnil/smazal (reálné jméno), C) permission errors RT0031. → SQL → admin dashboard.",
   "repo": "Anamax443/BC_Telemetry",
   "repoUrl": "https://github.com/Anamax443/BC_Telemetry",
   "host": "10.8.2.225 (B-S-W-SQL-04)",
@@ -209,8 +209,26 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
       "items": [
         {"s":"todo","t":"3 měsíce sledování pod plným přístupem, akumulace dat"},
         {"s":"todo","t":"Analýza → návrh rolí (Fakturace/Sklad/Reporting)"},
-        {"s":"todo","t":"Fáze-2: ingest RT0031 z AppTraces → BCAuthFailDaily"},
         {"s":"todo","t":"Nasadit Permission Sety, sledovat permission errors"}
+      ]
+    },
+    {
+      "id": "M8", "title": "Modul B — Audit změn (Change Log)", "status": "prog",
+      "desc": "Kdo vytvořil / změnil / SMAZAL záznam — s reálným jménem (BC Change Log → API/OData).",
+      "items": [
+        {"s":"done","t":"SQL dbo.BCChangeLog + view + retence (24 měs.)"},
+        {"s":"done","t":"Ingest skript BC_ChangeLog_Import.ps1 (OAuth + OData) + dashboard záložka Audit"},
+        {"s":"todo","t":"Operátor: zapnout Change Log v BC + vybrat tabulky (Insert/Modify/Delete)"},
+        {"s":"todo","t":"Operátor: publikovat Page 405 jako web service + registrovat SP pro BC API"},
+        {"s":"todo","t":"Ověřit OData pole proti $metadata, pak produkční běh"}
+      ]
+    },
+    {
+      "id": "M9", "title": "Modul C — Permission errors (RT0031)", "status": "prog",
+      "desc": "Kdo narazil na chybějící oprávnění — z AppTraces (reuse App Insights infra).",
+      "items": [
+        {"s":"done","t":"SQL BCAuthFailRaw + rollup + dashboard záložka; ingest BC_AuthFail_Import.ps1"},
+        {"s":"todo","t":"Ověřit RT0031 schéma v AppTraces (vznikne až po odebrání plného přístupu)"}
       ]
     }
   ],

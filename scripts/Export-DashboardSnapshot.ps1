@@ -50,6 +50,7 @@ try {
         trimCandidates = Invoke-Sql $conn "SELECT TOP ($TopRows) * FROM dbo.vw_DashTrimCandidates ORDER BY UserName, PageName"
         trend          = Invoke-Sql $conn 'SELECT * FROM dbo.vw_DashTrend ORDER BY DateKey'
         authFails      = Invoke-Sql $conn "SELECT TOP ($TopRows) DateKey, UserName, ObjectId, ObjectName, Failures FROM dbo.BCAuthFailDaily ORDER BY DateKey DESC, Failures DESC"
+        changeLog      = Invoke-Sql $conn "SELECT TOP ($TopRows) CONVERT(varchar(19),ChangedAt,120) AS ChangedAt, UserId, ChangeType, TableName, FieldName, PrimaryKey, OldValue, NewValue FROM dbo.vw_DashAudit"
     }
 
     $json = $snapshot | ConvertTo-Json -Depth 6 -Compress

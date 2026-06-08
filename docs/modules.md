@@ -1,0 +1,65 @@
+# BC_Telemetry — 3 moduly
+
+Projekt sbírá tři různé pohledy na BC, každý z **jiného zdroje** a s jinou identitou uživatele.
+
+| Modul | Otázka | Zdroj | Identita | Stav |
+|---|---|---|---|---|
+| **A · Využití stránek** | Co kdo otevírá → Permission Set mining | App Insights `AppPageViews` | pseudonymní GUID (`UserId`) | **LIVE** |
+| **B · Audit změn** | Kdo vytvořil / změnil / **smazal** záznam | **BC Change Log** přes API/OData | **reálný uživatel** (UPN) | nový |
+| **C · Permission errors** | Kdo narazil na chybějící oprávnění (RT0031) | App Insights `AppTraces` | pseudonymní GUID | scaffold |
+
+```
+                 ┌─ App Insights ─ AppPageViews ──▶ [A] dbo.BCPageLog → BCPageDaily
+BC Cloud ────────┤                 AppTraces(RT0031) ▶ [C] dbo.BCAuthFailDaily
+(Production)     │
+                 └─ BC API/OData ─ ChangeLogEntries ─▶ [B] dbo.BCChangeLog
+                                                        ▼
+                              SQL (10.8.2.225) → snapshot → dashboard (záložky A/B/C)
+```
+
+---
+
+## Modul A — Využití stránek (LIVE)
+App Insights telemetrie, ověřená pipeline. Viz [dokumentace.md](dokumentace.md). Identita = pseudonymní GUID;
+jména volitelně korelací s Entra sign-in logy ([reakce](oponentury/2026-06-08-reakce.md)).
+
+## Modul B — Audit změn (BC Change Log)
+
+**Reálný uživatel** — Change Log loguje INSERT/MODIFY/DELETE s BC User ID (mapovatelný na osobu).
+
+### Operátorské kroky (jednorázově v BC)
+1. **Zapnout Change Log:** v BC vyhledej *„Change Log Setup"* → zaškrtni **Change Log Activated**.
+2. **Vybrat tabulky:** *„Tables"* → pro citlivé tabulky zaškrtni **Log Insertion / Modification / Deletion**
+   (selektivně — ne všechno; každá sledovaná změna = zápis navíc). Doporučeno: doklady, položky,
+   nastavení, uživatelé/oprávnění.
+3. **Publikovat jako web service:** vyhledej *„Web Services"* → New → Object Type **Page**,
+   Object ID **405** (Change Log Entries), Service Name např. `ChangeLogEntries`, **Published = ON**.
+   → vznikne OData URL `…/ODataV4/Company('AXIMA_CZ_ESHOP')/ChangeLogEntries`.
+4. **Přístup pro Service Principal k BC API:** BC Admin Center → **Microsoft Entra Apps** → New →
+   Client ID = náš SP `03c2f43a…`? (pozn.: BC API SP = App registration, ne AI ApplicationId) →
+   přiřadit permission set (např. `D365 BASIC` + read na Change Log) → **State = Enabled**.
+
+### Ingest
+[scripts/BC_ChangeLog_Import.ps1](../scripts/BC_ChangeLog_Import.ps1) — OAuth2 client-credentials
+(scope `https://api.businesscentral.dynamics.com/.default`) → GET OData s `$filter=entryNo gt <watermark>`
+→ `dbo.BCChangeLog`. Watermark přes `MAX(EntryNo)`.
+
+> ⚠ Tvar OData polí (entryNo, changeType, oldValue…) **ověřit na publikovaném web service** před
+> finalizací — stejně jako jsme validovali App Insights schéma.
+
+## Modul C — Permission errors (RT0031)
+
+RT0031 = *Authorization Failed* v `AppTraces`. **Vzniká až po odebrání plného přístupu** a nasazení
+omezených rolí — teď (pod plným přístupem) žádné nejsou. Ingest reuse App Insights infra (stejný SP / Log Analytics).
+
+[scripts/BC_AuthFail_Import.ps1](../scripts/BC_AuthFail_Import.ps1) — `AppTraces | where Properties.eventId == 'RT0031'`
+→ `dbo.BCAuthFailDaily`. Identita = pseudonymní GUID (jako modul A).
+
+> ⚠ Pole RT0031 v `AppTraces` (eventId, alObjectId, UserId) ověřit, až nějaké RT0031 vzniknou.
+
+---
+
+## Společné
+- **Auth:** moduly A/C přes Service Principal + Log Analytics Reader (workspace). Modul B přes SP + BC API access (Entra Apps v BC Admin Center) — jiné oprávnění, stejná App registration.
+- **Hosting/dashboard:** vše do SQL na 10.8.2.225, snapshot → dashboard se záložkami A/B/C.
+- **Retence:** raw moduly mažeme (A 6 měs.), agregáty/audit držíme dle potřeby (audit může mít delší retenci kvůli compliance).

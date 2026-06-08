@@ -80,7 +80,8 @@ td.num{text-align:right;font-family:var(--mono);}
     <div class="tabs">
       <button class="tab active" data-panel="activity">Aktivita uživatelů</button>
       <button class="tab" data-panel="trim">Kandidáti na vyřazení</button>
-      <button class="tab" data-panel="migration">Migrace SUPER→role</button>
+      <button class="tab" data-panel="audit">Audit změn</button>
+      <button class="tab" data-panel="migration">Permission errors (RT0031)</button>
       <button class="tab" data-panel="trend">Trend</button>
       <button class="tab" data-panel="settings">⚙ Nastavení</button>
     </div>
@@ -119,6 +120,19 @@ td.num{text-align:right;font-family:var(--mono);}
         <th data-sort="DateKey">Datum</th><th data-sort="UserName">Uživatel</th>
         <th data-sort="ObjectId">Objekt</th><th data-sort="ObjectName">Název</th>
         <th data-sort="Failures">RT0031</th>
+      </tr></thead><tbody></tbody></table>
+    </section>
+
+    <section class="panel" id="panel-audit">
+      <div class="toolbar">
+        <input type="text" id="searchAudit" placeholder="Filtr: uživatel / tabulka / pole…">
+        <span class="count" id="countAudit"></span>
+      </div>
+      <table id="tblAudit"><thead><tr>
+        <th data-sort="ChangedAt">Kdy</th><th data-sort="UserId">Kdo</th>
+        <th data-sort="ChangeType">Akce</th><th data-sort="TableName">Tabulka</th>
+        <th data-sort="FieldName">Pole</th><th data-sort="PrimaryKey">Klíč</th>
+        <th data-sort="OldValue">Stará</th><th data-sort="NewValue">Nová</th>
       </tr></thead><tbody></tbody></table>
     </section>
 
@@ -170,6 +184,7 @@ function render(d){
   setupTable('Activity',d.userActivity||[],activityRow,['UserName','PageName'],maxHits(d.userActivity));
   setupTable('Trim',d.trimCandidates||[],trimRow,['UserName','PageName']);
   setupTable('Mig',d.authFails||[],migRow,['UserName','ObjectName']);
+  setupTable('Audit',d.changeLog||[],auditRow,['UserId','TableName','FieldName','PrimaryKey']);
   renderTrend(d.trend||[]);
 
   document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
@@ -260,6 +275,13 @@ function migRow(r){
   return `<tr><td class="num">${esc(r.DateKey)}</td><td>${esc(r.UserName)}</td>
   <td><span class="mono">${esc(r.ObjectId)}</span></td><td>${esc(r.ObjectName)}</td>
   <td class="num"><span class="pill pill-red">${fmt(r.Failures)}</span></td></tr>`;
+}
+function auditRow(r){
+  const ct=String(r.ChangeType||''); const pc=/Delet/i.test(ct)?'pill-red':/Insert/i.test(ct)?'pill-blue':'pill-gray';
+  return `<tr><td class="num">${esc(r.ChangedAt)}</td><td>${esc(r.UserId)}</td>
+  <td><span class="pill ${pc}">${esc(ct)}</span></td><td>${esc(r.TableName)}</td>
+  <td>${esc(r.FieldName)}</td><td><span class="mono">${esc(r.PrimaryKey)}</span></td>
+  <td>${esc(r.OldValue)}</td><td>${esc(r.NewValue)}</td></tr>`;
 }
 
 function setupTable(key,rows,rowFn,searchFields,max){

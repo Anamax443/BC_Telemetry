@@ -33,6 +33,10 @@ whitelist je formální visibility gate přes Windows Firewall rule.
 | Cesta | Co |
 |---|---|
 | [docs/project-status.html](docs/project-status.html) | **Project status** — milestones + kde jsme (otevři v prohlížeči) |
+| [docs/modules.md](docs/modules.md) | **3 moduly** — A využití stránek (live), B audit změn (Change Log), C permission errors (RT0031) |
+| [sql/04_audit.sql](sql/04_audit.sql) | Modul B (dbo.BCChangeLog) + Modul C (RT0031 raw+rollup) |
+| [scripts/BC_ChangeLog_Import.ps1](scripts/BC_ChangeLog_Import.ps1) | Modul B — BC Change Log přes OData → SQL (reálný uživatel) |
+| [scripts/BC_AuthFail_Import.ps1](scripts/BC_AuthFail_Import.ps1) | Modul C — RT0031 z AppTraces → SQL |
 | [BUILD.md](BUILD.md) | **Krok-za-krokem jak to postavit** (Azure → BC → SQL → scheduler → dashboard) |
 | [docs/dokumentace.md](docs/dokumentace.md) | Technická dokumentace (v1.1) |
 | [docs/oponentury/](docs/oponentury/) | Archiv oponentury + strukturovaná reakce |
