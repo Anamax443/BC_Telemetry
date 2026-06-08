@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BC Telemetrie — Admin dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#fff;--bg2:#f8f9fb;--bg3:#f1f3f7;--border:#dde1ea;--accent:#1d4ed8;--accent2:#2563eb;
+--green:#16a34a;--yellow:#b45309;--red:#dc2626;--text:#0f172a;--text2:#334155;--text3:#64748b;
+--mono:'IBM Plex Mono',monospace;--sans:'IBM Plex Sans',sans-serif;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.6;}
+header{border-bottom:1px solid var(--border);padding:24px 32px;display:flex;align-items:center;justify-content:space-between;background:var(--bg2);}
+header .tag{font-family:var(--mono);font-size:10px;letter-spacing:2px;color:var(--accent);text-transform:uppercase;display:block;margin-bottom:4px;}
+header h1{font-size:19px;font-weight:600;}
+header .meta{font-family:var(--mono);font-size:11px;color:var(--text3);text-align:right;}
+main{padding:28px 32px;max-width:1200px;margin:0 auto;}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:28px;}
+.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 20px;}
+.kpi .label{font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--text3);margin-bottom:8px;}
+.kpi .val{font-size:30px;font-weight:300;letter-spacing:-1px;}
+.kpi.warn .val{color:var(--red);}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:20px;}
+.tab{padding:9px 16px;font-size:13px;color:var(--text2);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;font-family:var(--sans);}
+.tab:hover{color:var(--text);}
+.tab.active{color:var(--accent2);border-bottom-color:var(--accent);font-weight:600;}
+.panel{display:none;}
+.panel.active{display:block;}
+.toolbar{display:flex;gap:12px;align-items:center;margin-bottom:14px;}
+.toolbar input{font-family:var(--sans);font-size:13px;padding:7px 12px;border:1px solid var(--border);border-radius:7px;width:280px;color:var(--text);}
+.toolbar .count{font-family:var(--mono);font-size:11px;color:var(--text3);}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th{background:var(--bg3);color:var(--text3);font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:9px 12px;text-align:left;border-bottom:1px solid var(--border);cursor:pointer;user-select:none;}
+th:hover{color:var(--text);}
+td{padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text2);vertical-align:middle;}
+tr:hover td{background:var(--bg2);}
+td.num{text-align:right;font-family:var(--mono);}
+.mono{font-family:var(--mono);font-size:11px;background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:1px 6px;color:var(--accent2);}
+.bar{position:relative;background:var(--bg3);border-radius:4px;height:18px;min-width:40px;overflow:hidden;}
+.bar .fill{position:absolute;left:0;top:0;bottom:0;background:rgba(37,99,235,.25);border-right:2px solid var(--accent);}
+.bar span{position:relative;font-family:var(--mono);font-size:11px;padding:0 6px;line-height:18px;color:var(--text2);}
+.pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-family:var(--mono);}
+.pill-red{background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.2);}
+.pill-gray{background:rgba(100,116,139,.1);color:var(--text3);border:1px solid var(--border);}
+.empty{padding:40px;text-align:center;color:var(--text3);font-size:13px;}
+.spark{display:flex;align-items:flex-end;gap:2px;height:120px;padding:16px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;margin-bottom:20px;}
+.spark .col{flex:1;background:rgba(37,99,235,.3);border-radius:2px 2px 0 0;min-height:2px;position:relative;}
+.spark .col:hover{background:var(--accent);}
+.loading{padding:60px;text-align:center;color:var(--text3);font-family:var(--mono);font-size:12px;}
+</style>
+</head>
+<body>
+<header>
+  <div><span class="tag">AXIMA · interní</span><h1>BC Telemetrie — Admin dashboard</h1></div>
+  <div class="meta" id="meta">načítám…</div>
+</header>
+<main>
+  <div class="loading" id="loading">Načítám data.json…</div>
+  <div id="app" hidden>
+    <div class="kpis" id="kpis"></div>
+    <div class="tabs">
+      <button class="tab active" data-panel="activity">Aktivita uživatelů</button>
+      <button class="tab" data-panel="trim">Kandidáti na vyřazení</button>
+      <button class="tab" data-panel="migration">Migrace SUPER→role</button>
+      <button class="tab" data-panel="trend">Trend</button>
+    </div>
+
+    <section class="panel active" id="panel-activity">
+      <div class="toolbar">
+        <input type="text" id="searchActivity" placeholder="Filtr: uživatel / stránka…">
+        <span class="count" id="countActivity"></span>
+      </div>
+      <table id="tblActivity"><thead><tr>
+        <th data-sort="UserName">Uživatel</th><th data-sort="PageId">Page ID</th>
+        <th data-sort="PageName">Stránka</th><th data-sort="CompanyName">Firma</th>
+        <th data-sort="TotalHits">Otevření</th><th data-sort="LastUsed">Naposledy</th>
+      </tr></thead><tbody></tbody></table>
+    </section>
+
+    <section class="panel" id="panel-trim">
+      <div class="toolbar">
+        <input type="text" id="searchTrim" placeholder="Filtr: uživatel / stránka…">
+        <span class="count" id="countTrim"></span>
+      </div>
+      <p style="display:none"></p>
+      <table id="tblTrim"><thead><tr>
+        <th data-sort="UserName">Uživatel</th><th data-sort="PageId">Page ID</th>
+        <th data-sort="PageName">Stránka</th><th data-sort="CompanyName">Firma</th>
+        <th data-sort="TotalHits">Otevření</th><th data-sort="LastUsed">Naposledy</th>
+      </tr></thead><tbody></tbody></table>
+    </section>
+
+    <section class="panel" id="panel-migration">
+      <div class="toolbar">
+        <input type="text" id="searchMig" placeholder="Filtr: uživatel / objekt…">
+        <span class="count" id="countMig"></span>
+      </div>
+      <table id="tblMig"><thead><tr>
+        <th data-sort="DateKey">Datum</th><th data-sort="UserName">Uživatel</th>
+        <th data-sort="ObjectId">Objekt</th><th data-sort="ObjectName">Název</th>
+        <th data-sort="Failures">RT0031</th>
+      </tr></thead><tbody></tbody></table>
+    </section>
+
+    <section class="panel" id="panel-trend">
+      <div class="spark" id="spark"></div>
+      <table id="tblTrend"><thead><tr>
+        <th data-sort="DateKey">Datum</th><th data-sort="Hits">Otevření</th><th data-sort="Users">Aktivní uživatelé</th>
+      </tr></thead><tbody></tbody></table>
+    </section>
+  </div>
+</main>
+
+<script>
+const fmt = n => (n==null?'—':Number(n).toLocaleString('cs-CZ'));
+const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const state = {};
+
+fetch('./data.json',{cache:'no-store'})
+  .then(r=>{if(!r.ok)throw new Error(r.status);return r.json();})
+  .then(render)
+  .catch(e=>{document.getElementById('loading').textContent='Chyba načtení data.json: '+e.message;});
+
+function render(d){
+  document.getElementById('loading').hidden=true;
+  document.getElementById('app').hidden=false;
+  document.getElementById('meta').textContent='snapshot '+(d.generatedUtc||'?')+' UTC';
+
+  const k=d.kpi||{};
+  const kpis=[
+    {label:'Aktivní uživatelé · 30d',val:fmt(k.ActiveUsers30d)},
+    {label:'Použité stránky · 30d',val:fmt(k.DistinctPages30d)},
+    {label:'Otevření · 30d',val:fmt(k.Hits30d)},
+    {label:'RT0031 chyby · 14d',val:fmt(k.AuthFails14d),warn:(k.AuthFails14d>0)},
+  ];
+  document.getElementById('kpis').innerHTML=kpis.map(x=>
+    `<div class="kpi${x.warn?' warn':''}"><div class="label">${x.label}</div><div class="val">${x.val}</div></div>`).join('');
+
+  setupTable('Activity',d.userActivity||[],activityRow,['UserName','PageName'],maxHits(d.userActivity));
+  setupTable('Trim',d.trimCandidates||[],trimRow,['UserName','PageName']);
+  setupTable('Mig',d.authFails||[],migRow,['UserName','ObjectName']);
+  renderTrend(d.trend||[]);
+
+  document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('panel-'+t.dataset.panel).classList.add('active');
+  }));
+}
+
+function maxHits(rows){return rows&&rows.length?Math.max(...rows.map(r=>r.TotalHits||0)):1;}
+
+function activityRow(r,max){
+  return `<tr><td>${esc(r.UserName)}</td><td><span class="mono">${esc(r.PageId)}</span></td>
+  <td>${esc(r.PageName)}</td><td>${esc(r.CompanyName)}</td>
+  <td class="num"><div class="bar" data-pct="${Math.round(100*(r.TotalHits||0)/(max||1))}"><span>${fmt(r.TotalHits)}</span></div></td>
+  <td class="num">${esc(r.LastUsed)}</td></tr>`;
+}
+function trimRow(r){
+  return `<tr><td>${esc(r.UserName)}</td><td><span class="mono">${esc(r.PageId)}</span></td>
+  <td>${esc(r.PageName)}</td><td>${esc(r.CompanyName)}</td>
+  <td class="num"><span class="pill pill-gray">${fmt(r.TotalHits)}×</span></td>
+  <td class="num">${esc(r.LastUsed)}</td></tr>`;
+}
+function migRow(r){
+  return `<tr><td class="num">${esc(r.DateKey)}</td><td>${esc(r.UserName)}</td>
+  <td><span class="mono">${esc(r.ObjectId)}</span></td><td>${esc(r.ObjectName)}</td>
+  <td class="num"><span class="pill pill-red">${fmt(r.Failures)}</span></td></tr>`;
+}
+
+function setupTable(key,rows,rowFn,searchFields,max){
+  state[key]={rows,rowFn,searchFields,max,sortKey:null,sortDir:1,filter:''};
+  const search=document.getElementById('search'+key);
+  if(search)search.addEventListener('input',e=>{state[key].filter=e.target.value.toLowerCase();draw(key);});
+  document.querySelectorAll('#tbl'+key+' th[data-sort]').forEach(th=>th.addEventListener('click',()=>{
+    const s=state[key]; const col=th.dataset.sort;
+    s.sortDir=(s.sortKey===col)?-s.sortDir:1; s.sortKey=col; draw(key);
+  }));
+  draw(key);
+}
+
+function draw(key){
+  const s=state[key];
+  let rows=s.rows.slice();
+  if(s.filter){rows=rows.filter(r=>s.searchFields.some(f=>String(r[f]||'').toLowerCase().includes(s.filter)));}
+  if(s.sortKey){rows.sort((a,b)=>{const x=a[s.sortKey],y=b[s.sortKey];
+    return (x<y?-1:x>y?1:0)*s.sortDir;});}
+  const tbody=document.querySelector('#tbl'+key+' tbody');
+  if(!rows.length){tbody.innerHTML=`<tr><td colspan="6"><div class="empty">Žádná data</div></td></tr>`;}
+  else{tbody.innerHTML=rows.map(r=>s.rowFn(r,s.max)).join('');}
+  // CSP-safe: šířky barů nastavit přes IDL setter, ne inline style atribut
+  tbody.querySelectorAll('.bar[data-pct]').forEach(b=>{
+    const f=document.createElement('div');f.className='fill';f.style.width=b.dataset.pct+'%';
+    b.insertBefore(f,b.firstChild);
+  });
+  const c=document.getElementById('count'+key);
+  if(c)c.textContent=rows.length+' / '+s.rows.length+' řádků';
+}
+
+function renderTrend(trend){
+  const spark=document.getElementById('spark');
+  const max=trend.length?Math.max(...trend.map(t=>t.Hits||0)):1;
+  spark.innerHTML=trend.map(t=>`<div class="col" data-pct="${Math.round(100*(t.Hits||0)/(max||1))}" title="${esc(t.DateKey)}: ${fmt(t.Hits)} otevření / ${fmt(t.Users)} uživatelů"></div>`).join('');
+  spark.querySelectorAll('.col[data-pct]').forEach(c=>{c.style.height=Math.max(2,c.dataset.pct)+'%';});
+  const tbody=document.querySelector('#tblTrend tbody');
+  tbody.innerHTML=trend.slice().reverse().map(t=>
+    `<tr><td class="num">${esc(t.DateKey)}</td><td class="num">${fmt(t.Hits)}</td><td class="num">${fmt(t.Users)}</td></tr>`).join('')
+    ||`<tr><td colspan="3"><div class="empty">Žádná data</div></td></tr>`;
+}
+</script>
+</body>
+</html>
