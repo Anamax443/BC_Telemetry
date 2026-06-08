@@ -10,10 +10,21 @@
 :root{--bg:#fff;--bg2:#f8f9fb;--bg3:#f1f3f7;--border:#dde1ea;--accent:#1d4ed8;--accent2:#2563eb;
 --green:#16a34a;--yellow:#b45309;--red:#dc2626;--gray:#64748b;--text:#0f172a;--text2:#334155;--text3:#64748b;
 --mono:'IBM Plex Mono',monospace;--sans:'IBM Plex Sans',sans-serif;}
+:root[data-theme="dark"]{
+--bg:#0f172a;--bg2:#161f2e;--bg3:#1e293b;--border:#293548;
+--accent:#3b82f6;--accent2:#60a5fa;--green:#22c55e;--yellow:#d99a3a;--red:#f05252;--gray:#94a3b8;
+--text:#e6edf6;--text2:#c4d0de;--text3:#8b9bb0;}
 *{box-sizing:border-box;margin:0;padding:0;}
+html{transition:background .2s,color .2s;}
 body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.6;}
 .wrap{max-width:1080px;margin:0 auto;padding:40px 32px 80px;}
-header.top{border-bottom:1px solid var(--border);padding-bottom:24px;margin-bottom:28px;}
+header.top{border-bottom:1px solid var(--border);padding-bottom:24px;margin-bottom:28px;position:relative;}
+.controls{position:absolute;top:0;right:0;display:flex;align-items:center;gap:8px;}
+.push{font-family:var(--mono);font-size:11px;color:var(--accent2);text-decoration:none;border:1px solid var(--border);border-radius:7px;padding:5px 11px;background:var(--bg2);display:inline-flex;align-items:center;gap:6px;}
+.push:hover{border-color:var(--accent);}
+.push b{color:var(--text);font-weight:600;}
+.tbtn{font-size:14px;line-height:1;background:var(--bg2);border:1px solid var(--border);border-radius:7px;padding:6px 9px;cursor:pointer;color:var(--text);}
+.tbtn:hover{border-color:var(--accent);}
 .tag{font-family:var(--mono);font-size:10px;letter-spacing:2px;color:var(--accent);text-transform:uppercase;}
 header.top h1{font-size:28px;font-weight:300;letter-spacing:-.5px;margin:6px 0 4px;}
 header.top h1 strong{font-weight:600;}
@@ -63,10 +74,15 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
 .foot{margin-top:48px;padding-top:20px;border-top:1px solid var(--border);font-family:var(--mono);font-size:11px;color:var(--text3);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;}
 @media(max-width:720px){.kpis{grid-template-columns:repeat(2,1fr);}}
 </style>
+<script>(function(){var t=localStorage.getItem('bct-theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 </head>
 <body>
 <div class="wrap">
   <header class="top">
+    <div class="controls">
+      <a class="push" id="pushLink" target="_blank" rel="noreferrer" title="Otevřít commit na GitHubu"></a>
+      <button class="tbtn" id="themeBtn" title="Přepnout světlý / tmavý motiv">🌙</button>
+    </div>
     <span class="tag" id="brand"></span>
     <h1>BC_Telemetry — <strong>Project status</strong></h1>
     <div class="sub" id="subtitle"></div>
@@ -111,6 +127,7 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
   "version": "1.1",
   "generated": "2026-06-08",
   "commit": "c691d9e",
+  "pushNo": 9,
   "activeProjectNo": 5,
   "milestones": [
     {
@@ -219,6 +236,22 @@ const PILL = {done:'p-done',prog:'p-prog',block:'p-block',todo:'p-todo'};
 const PILLTXT = {done:'Hotovo',prog:'Probíhá',block:'Blokováno',todo:'Plánováno'};
 const ISTAT = {done:'i-done',prog:'i-prog',block:'i-block',todo:'i-todo'};
 const esc = s => (s==null?'':String(s)).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+// Push číslo + commit (jako topbar v ITDashboardu)
+const pushLink = document.getElementById('pushLink');
+pushLink.href = D.repoUrl + '/commit/' + D.commit;
+pushLink.innerHTML = '⬆ Push <b>#' + D.pushNo + '</b> · ' + esc(D.commit);
+
+// Dark / light přepínač (perzistentní v localStorage)
+const themeBtn = document.getElementById('themeBtn');
+function applyThemeLabel(){ themeBtn.textContent = (document.documentElement.getAttribute('data-theme')==='dark') ? '☀' : '🌙'; }
+applyThemeLabel();
+themeBtn.addEventListener('click', ()=>{
+  const next = document.documentElement.getAttribute('data-theme')==='dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('bct-theme', next);
+  applyThemeLabel();
+});
 
 document.getElementById('brand').textContent = D.brand;
 document.getElementById('subtitle').textContent = D.subtitle;
