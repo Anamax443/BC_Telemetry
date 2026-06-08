@@ -126,8 +126,8 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
   "host": "10.8.2.225 (B-S-W-SQL-04)",
   "version": "1.1",
   "generated": "2026-06-08",
-  "commit": "5b39f2e",
-  "pushNo": 24,
+  "commit": "b36146e",
+  "pushNo": 25,
   "activeProjectNo": 5,
   "milestones": [
     {
@@ -161,7 +161,8 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
       "items": [
         {"s":"done","t":"dbo.BCPageLog + indexy + UX dedup index + purge proc"},
         {"s":"done","t":"dbo.BCPageDaily rollup (inkrementální, kumuluje navždy)"},
-        {"s":"done","t":"Dashboard pohledy vw_DashKPI / TrimCandidates / UserActivity / Trend"}
+        {"s":"done","t":"Dashboard pohledy vw_DashKPI / TrimCandidates / UserActivity / Trend"},
+        {"s":"done","t":"GPO-safe deploy: deploy.cmd (sqlcmd) + 00_database + 05_grants (login/role/EXECUTE na 4 ETL procy)"}
       ]
     },
     {
@@ -199,10 +200,12 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
       "desc": "Připraveno, čeká na rozhodnutí operatora a běh na serveru.",
       "items": [
         {"s":"done","t":"install-service.cmd (Node+NSSM, LocalSystem) + firewall rule"},
+        {"s":"done","t":"Umístění DB rozhodnuto: localhost na 10.8.2.225 (co-located) — skripty sjednoceny"},
+        {"s":"done","t":"SQL deploy připraven: sql/deploy.cmd (GPO-safe, sqlcmd) — spustit na serveru jako admin"},
         {"s":"block","t":"Rozhodnout whitelist rozsah (/24 vs /16)"},
-        {"s":"block","t":"Vyjasnit umístění DB (localhost vs BSWNAV01)"},
-        {"s":"block","t":"GPO AllSigned — podpis PS skriptů (import/export)"},
-        {"s":"todo","t":"Spustit install-service.cmd + scheduler na serveru"}
+        {"s":"block","t":"GPO AllSigned — podpis importních/export PS skriptů (SQL deploy už obchází přes sqlcmd)"},
+        {"s":"todo","t":"Založit AXIMA\\svc_bc_telemetry + secret do Cred Manageru (per-user profil)"},
+        {"s":"todo","t":"Spustit deploy.cmd + importy + install-service.cmd + scheduler na serveru"}
       ]
     },
     {
@@ -222,7 +225,8 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
         {"s":"done","t":"Change Log zapnutý v BC + web service ChangelogEntry (Page 405)"},
         {"s":"done","t":"SP → BC API S2S funguje: Redirect URI + API.ReadWrite.All + consent + app user; OData čte všech 12 firem"},
         {"s":"done","t":"OData pole ověřena (Entry_No/Date_and_Time/User_ID=reálné jméno/…), import opraven"},
-        {"s":"todo","t":"SQL deploy + produkční běh (společné s moduly A/C)"}
+        {"s":"done","t":"SQL deploy připraven (deploy.cmd zahrnuje BCChangeLog + purge)"},
+        {"s":"todo","t":"Produkční běh na serveru (společné s moduly A/C)"}
       ]
     },
     {
@@ -236,7 +240,7 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
   ],
   "decisions": [
     {"h":"Whitelist rozsah","p":"Jaké lokální rozsahy povolit pro zobrazení stránky.","o":"10.8.2.0/24 (jen segment) · vs · 10.8.0.0/16 (širší) — default /16"},
-    {"h":"Umístění DB","p":"Kde je BC_Telemetry SQL databáze.","o":"localhost na 10.8.2.225 · vs · BSWNAV01 přes síť"},
+    {"h":"Umístění DB ✅","p":"Kde je BC_Telemetry SQL databáze.","o":"ROZHODNUTO: localhost na 10.8.2.225 (co-located) — skripty sjednoceny, GRANT na lokální Windows účet"},
     {"h":"GPO AllSigned","p":"Jak spustit PS import/export na doménovém serveru s AllSigned.","o":"A: podepsat skripty · B: běh z jiného boxu · C: GPO výjimka"}
   ],
   "arch": "BC Cloud ──telemetrie──▶ Azure App Insights / Log Analytics\n                          │  DCR filtr: clientType == \"Web\"\n                          ▼\n   PowerShell (denně 02:00, Service Principal, inkrementálně)\n                          ▼\n   SQL 10.8.2.225:  dbo.BCPageLog (raw, miliony, retence 6 měs.)\n                          │  usp_BCPageLog_Rollup\n                          ▼\n   dbo.BCPageDaily + vw_Dash*  (agregáty — malé, kumulují navždy)\n                          │  Export-DashboardSnapshot.ps1\n                          ▼\n   data.json ──▶ služba BC_Telemetry_Web (Node+NSSM)\n                 ├─ dashboard (anonymně, bez loginu)\n                 └─ ⚙ Nastavení → whitelist (firewall rule, port ITDashboard)",
@@ -246,7 +250,8 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
     {"sha":"e8a23d5","msg":"feat(deploy): IIS hosting + IP whitelist (později nahrazeno)"},
     {"sha":"0c10999","msg":"refactor(deploy): whitelist jako firewall rule (formální gate)"},
     {"sha":"46f965d","msg":"feat(web): editovatelný whitelist v Nastavení + Node služba"},
-    {"sha":"aef8e6f","msg":"refactor(web): whitelist port 1:1 z ITDashboard"}
+    {"sha":"aef8e6f","msg":"refactor(web): whitelist port 1:1 z ITDashboard"},
+    {"sha":"b36146e","msg":"feat(sql): GPO-safe deploy.cmd + 00_database + 05_grants; DB co-located na localhost"}
   ]
 }
 </script>
