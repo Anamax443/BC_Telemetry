@@ -32,6 +32,7 @@ whitelist je formální visibility gate přes Windows Firewall rule.
 
 | Cesta | Co |
 |---|---|
+| [docs/HANDOFF.md](docs/HANDOFF.md) | **Rolling handoff** — aktuální stav, klíčové ID, další kroky (start tady) |
 | [docs/project-status.html](docs/project-status.html) | **Project status** — milestones + kde jsme (otevři v prohlížeči) |
 | [docs/modules.md](docs/modules.md) | **3 moduly** — A využití stránek (live), B audit změn (Change Log), C permission errors (RT0031) |
 | [sql/04_audit.sql](sql/04_audit.sql) | Modul B (dbo.BCChangeLog) + Modul C (RT0031 raw+rollup) |

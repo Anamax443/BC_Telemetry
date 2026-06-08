@@ -28,7 +28,7 @@
 param(
     [string] $WorkspaceId  = '<Log Analytics Workspace GUID>',
     [string] $TenantId     = '2ecd5815-0eb9-4e9a-93be-ac58545cdca6',
-    [string] $ClientId     = '<Service Principal AppId>',
+    [string] $ClientId     = '4eda9e64-ead7-4aac-9631-ef4703c10135',  # BC_Telemetry_SP
     [string] $SqlServer    = 'BSWNAV01',
     [string] $SqlDatabase  = 'BC_Telemetry',
     # Cílový generic credential v Windows Credential Manageru, který drží SP client secret.
