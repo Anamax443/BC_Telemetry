@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Vyexportuje agregovaná data z SQL do web\data.json pro admin dashboard.
 

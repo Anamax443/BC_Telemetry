@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Inkrementální import BC telemetrie (page views) z Azure Log Analytics do SQL.
 
@@ -153,21 +153,21 @@ CREATE TABLE #Staging (
 "@
         $cmdStage.ExecuteNonQuery() | Out-Null
 
-        # Naplnit DataTable
+        # Naplnit DataTable (PS 5.1-safe: žádné if-expression přiřazení)
         $dt = New-Object System.Data.DataTable
-        'Timestamp','UserId','UserName','PageId','PageName','CompanyName' | ForEach-Object {
-            $col = $dt.Columns.Add($_)
-            $col.DataType = if ($_ -eq 'Timestamp') { [DateTime] } else { [string] }
+        foreach ($colName in 'Timestamp','UserId','UserName','PageId','PageName','CompanyName') {
+            $col = $dt.Columns.Add($colName)
+            if ($colName -eq 'Timestamp') { $col.DataType = [DateTime] } else { $col.DataType = [string] }
             $col.AllowDBNull = $true
         }
         foreach ($row in $data) {
             $r = $dt.NewRow()
             $r['Timestamp']   = [DateTime]$row.timestamp
-            $r['UserId']      = if ($row.userId)      { $row.userId }      else { [DBNull]::Value }
-            $r['UserName']    = if ($row.userName)    { $row.userName }    else { [DBNull]::Value }
-            $r['PageId']      = if ($row.pageId)      { $row.pageId }      else { [DBNull]::Value }
-            $r['PageName']    = if ($row.pageName)    { $row.pageName }    else { [DBNull]::Value }
-            $r['CompanyName'] = if ($row.companyName) { $row.companyName } else { [DBNull]::Value }
+            $r['UserId']      = [DBNull]::Value; if ($row.userId)      { $r['UserId']      = $row.userId }
+            $r['UserName']    = [DBNull]::Value; if ($row.userName)    { $r['UserName']    = $row.userName }
+            $r['PageId']      = [DBNull]::Value; if ($row.pageId)      { $r['PageId']      = $row.pageId }
+            $r['PageName']    = [DBNull]::Value; if ($row.pageName)    { $r['PageName']    = $row.pageName }
+            $r['CompanyName'] = [DBNull]::Value; if ($row.companyName) { $r['CompanyName'] = $row.companyName }
             $dt.Rows.Add($r)
         }
 

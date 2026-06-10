@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Modul C — import RT0031 (Authorization Failed) z App Insights do SQL.
 
@@ -55,10 +55,12 @@ AppTraces
 IF NOT EXISTS (SELECT 1 FROM dbo.BCAuthFailRaw WHERE Timestamp=@t AND UserId=@u AND ISNULL(ObjectId,'')=ISNULL(@o,''))
 INSERT INTO dbo.BCAuthFailRaw (Timestamp,UserId,ObjectId,ObjectName) VALUES (@t,@u,@o,@n)
 "@
+        $oVal = [DBNull]::Value; if ($r.objectId)   { $oVal = $r.objectId }
+        $nVal = [DBNull]::Value; if ($r.objectName) { $nVal = $r.objectName }
         $c.Parameters.AddWithValue('@t',[datetime]$r.timestamp) | Out-Null
         $c.Parameters.AddWithValue('@u',$r.userId) | Out-Null
-        $c.Parameters.AddWithValue('@o',($r.objectId ?? [DBNull]::Value)) | Out-Null
-        $c.Parameters.AddWithValue('@n',($r.objectName ?? [DBNull]::Value)) | Out-Null
+        $c.Parameters.AddWithValue('@o',$oVal) | Out-Null
+        $c.Parameters.AddWithValue('@n',$nVal) | Out-Null
         $c.ExecuteNonQuery() | Out-Null
     }
     $cmdR = $conn.CreateCommand(); $cmdR.CommandText = 'EXEC dbo.usp_BCAuthFail_Rollup'; $cmdR.ExecuteNonQuery() | Out-Null

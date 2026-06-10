@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Založí doménový servisní účet svc-bc-telemetry "ve stejném duchu" jako svc-itdashboard.
 

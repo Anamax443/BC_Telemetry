@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Zaregistruje denní scheduled task pro BC_PageLog_Import.ps1.
 

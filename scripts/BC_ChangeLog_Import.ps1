@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Modul B — import BC Change Log Entries (audit kdo/co/kdy) přes OData do SQL.
 

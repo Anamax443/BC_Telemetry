@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Nainstaluje PowerShell prerekvizity pro BC_Telemetry import (modul Az + Credential Manager).
 
