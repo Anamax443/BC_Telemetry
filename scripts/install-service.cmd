@@ -20,6 +20,8 @@ set PUBLIC=%APPDIR%\public
 set LOGS=%APPDIR%\logs
 set NSSM=C:\Tools\nssm\nssm.exe
 set RULE=BC Telemetry Dashboard (%PORT%)
+REM servisni ucet, ktery pise snapshot data.json do public (daily scheduler)
+set SVCACCT=AXINETWORK\svc-bc-telemetry
 REM Default whitelist = stejna sada admin IP jako ITDashboard (10.8.2.213/181/243),
 REM jen localhost = vlastni server 10.8.2.225. remoteip umi i CIDR masku a rozsah:
 REM   maska:  10.8.2.0/24    rozsah: 10.8.2.180-10.8.2.200    (lze kombinovat carkou)
@@ -33,6 +35,9 @@ echo [1/6] Slozky...
 if not exist "%APPDIR%" mkdir "%APPDIR%"
 if not exist "%PUBLIC%" mkdir "%PUBLIC%"
 if not exist "%LOGS%"   mkdir "%LOGS%"
+REM servisni ucet musi mit zapis do public (snapshot data.json) i logs
+icacls "%PUBLIC%" /grant "%SVCACCT%:(OI)(CI)M" >nul
+icacls "%LOGS%"   /grant "%SVCACCT%:(OI)(CI)M" >nul
 
 echo [2/6] Kopirovani souboru (server + dashboard)...
 REM   spousti se z korene repa: scripts\install-service.cmd
