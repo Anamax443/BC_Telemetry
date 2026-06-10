@@ -127,7 +127,7 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
   "version": "1.1",
   "generated": "2026-06-10",
   "commit": "393c5e7",
-  "pushNo": 35,
+  "pushNo": 36,
   "activeProjectNo": 5,
   "milestones": [
     {
@@ -310,7 +310,8 @@ document.getElementById('meta').innerHTML =
   `<span><b>Repo:</b> <a href="${D.repoUrl}">${esc(D.repo)}</a></span>`+
   `<span><b>Host:</b> ${esc(D.host)}</span>`+
   `<span><b>Verze:</b> ${esc(D.version)}</span>`+
-  `<span><b>Commit:</b> ${esc(D.commit)}</span>`+
+  `<span><b>Push:</b> <a href="${D.repoUrl}/commit/${esc(D.commit)}">#${esc(D.pushNo)}</a></span>`+
+  `<span><b>Commit:</b> <a href="${D.repoUrl}/commit/${esc(D.commit)}">${esc(D.commit)}</a></span>`+
   `<span><b>Aktualizováno:</b> ${esc(D.generated)}</span>`;
 
 const ms = D.milestones;
