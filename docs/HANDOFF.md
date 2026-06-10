@@ -61,9 +61,14 @@ Poslední update: **2026-06-08** · repo `Anamax443/BC_Telemetry`.
 7. ~~User Rights~~ ✅ `svc-bc-telemetry` má `Log on as a service` + `Log on as a batch job` (secpol; `Lock pages in memory` omylem → odebráno).
 8. ~~**Funkční ověření end-to-end**~~ ✅ **2026-06-10**: pod identitou svc — CRED OK, SQL OK (jako svc), **modul A** Azure/Log Analytics
    `AppPageViews count=421`, **modul B** BC API `roles=API.ReadWrite.All` → `firmy=12`. Az moduly (Az.Accounts/OperationalInsights) doinstalovány AllUsers.
-9. **Web dashboard služba** (`install-service.cmd`, Node+NSSM) + **ruční běh importů** + **scheduler** (`Register-ScheduledTask.ps1`). ← **PŘÍŠTÍ KROK**
-   Pozn.: importy jsou `.ps1` → vyřešit **GPO AllSigned** (podpis skriptů) pro běh v Task Scheduleru; potřeba dostat `web\`+`scripts\` na server.
-10. Volitelně: zúžit BC permission set z D365 BUS PREMIUM na custom read (least-privilege); vlastní AL API page místo deprecated UI-page web service.
+9. ~~**Ruční běh importů — DATA LIVE**~~ ✅ **2026-06-10**: všechny 3 moduly naimportovaly reálná data
+   (`BCPageLog=500`, `BCPageDaily=185`, `BCChangeLog=42665`, `BCAuthFailRaw=0`). Skripty deploynuty na server přes
+   SMB share `\\10.8.2.225\BC_Telemetry` (trnkam Modify; Claude píše, svc spouští). Importy se pouští jako svc přes scheduled task.
+   ⚠ **Opraveno při ostrém běhu:** (a) `.ps1` ukládat **s UTF-8 BOM** (5.1 jinak čte CP1250 → parse error u PageLogu);
+   (b) `??` → if/else (PS7-only); (c) rollup procy: popisný sloupec přes `MAX()`, ne v `GROUP BY` (jinak duplicate PK).
+10. **Web dashboard služba** (`install-service.cmd`, Node+NSSM) — Node/NSSM na serveru chybí, doinstalovat. ← **PŘÍŠTÍ KROK**
+11. **Denní scheduler** — pozor: `Register-ScheduledTask.ps1` pokrývá jen modul A; doplnit wrapper na **všechny 3 importy + snapshot**.
+12. Volitelně: zúžit BC permission set z D365 BUS PREMIUM na custom read (least-privilege); vlastní AL API page místo deprecated UI-page web service.
 
 ## Otevřená rozhodnutí (operator)
 - ~~BC_Telemetry DB: 10.8.2.225 (localhost) vs BSWNAV01~~ ✅ **localhost (co-located na 10.8.2.225)** — všechny importy sjednoceny na `localhost`, GRANT míří na lokální Windows účet.
