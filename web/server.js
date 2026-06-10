@@ -37,6 +37,7 @@ function logActivity(level, scope, msg) {
 }
 const LOG_DIR = 'C:\\Apps\\BC_Telemetry\\logs';
 const USERMAP_FILE = path.join(__dirname, 'usermap.json');  // mapování pseudonymní GUID → reálné jméno
+const CHANGELOG_COMPANIES_FILE = path.join(__dirname, 'changelog-companies.json');  // výběr firem pro modul B (Audit změn)
 
 // ── PowerShell helper (inline -Command, AllSigned-safe) ──────────────────────
 function runPs(script) {
@@ -277,6 +278,33 @@ else { '{"file":null,"text":""}' }
     return;
   }
 
+  // GET/PUT /changelog-companies — výběr firem pro modul B (Audit změn). Soubor: changelog-companies.json
+  //   { all:[...vsechny firmy z importu...], enabled:[...vybrane...] | null (=vse, default) }
+  if (url === '/changelog-companies' && req.method === 'GET') {
+    return fs.readFile(CHANGELOG_COMPANIES_FILE, 'utf8', (err, data) => {
+      if (err) return sendJson(res, 200, { all: [], enabled: null });
+      try { const o = JSON.parse(data); sendJson(res, 200, { all: Array.isArray(o.all) ? o.all : [], enabled: Array.isArray(o.enabled) ? o.enabled : null }); }
+      catch { sendJson(res, 200, { all: [], enabled: null }); }
+    });
+  }
+  if (url === '/changelog-companies' && req.method === 'PUT') {
+    let body = '';
+    req.on('data', (c) => { body += c; if (body.length > 1e6) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const obj = JSON.parse(body || '{}');
+        if (!Array.isArray(obj.enabled)) throw new Error('expected { enabled: [] }');
+        const enabled = obj.enabled.filter((x) => typeof x === 'string' && x.trim()).map((x) => x.trim());
+        let cur = {}; try { cur = JSON.parse(fs.readFileSync(CHANGELOG_COMPANIES_FILE, 'utf8')); } catch { }
+        const out = { all: Array.isArray(cur.all) ? cur.all : [], enabled };
+        fs.writeFileSync(CHANGELOG_COMPANIES_FILE, JSON.stringify(out, null, 2), 'utf8');
+        logActivity('success', 'changelog-companies', `uloženo ${enabled.length} firem`);
+        sendJson(res, 200, { ok: true, count: enabled.length });
+      } catch (e) { sendJson(res, 500, { error: String(e.message || e) }); }
+    });
+    return;
+  }
+
   // GET /logfiles — seznam log souborů v obou složkách (pro ověření retence v Nastavení).
   if (url === '/logfiles' && req.method === 'GET') {
     const ps = `
@@ -301,7 +329,7 @@ if ($t.State -eq 'Running') { 'running' } else { Start-ScheduledTask -TaskName '
       .then((o) => { logActivity('info', 'refresh', `manual refresh: ${o.trim()}`); sendJson(res, 200, { status: o.trim() }); })
       .catch((e) => sendJson(res, 500, { error: String(e.message || e) }));
   }
-  if (url.startsWith('/firewall/') || url.startsWith('/api/') || url === '/refresh' || url === '/activity' || url === '/logs' || url === '/logfiles' || url === '/usermap') return sendJson(res, 404, { error: 'unknown endpoint' });
+  if (url.startsWith('/firewall/') || url.startsWith('/api/') || url === '/refresh' || url === '/activity' || url === '/logs' || url === '/logfiles' || url === '/usermap' || url === '/changelog-companies') return sendJson(res, 404, { error: 'unknown endpoint' });
   return serveStatic(req, res);
 });
 

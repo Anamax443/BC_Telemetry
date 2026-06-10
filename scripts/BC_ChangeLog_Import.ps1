@@ -25,10 +25,18 @@ param(
     [string[]] $Companies = @(),                          # prázdné = VŠECHNY firmy (auto-list)
     [string] $ServiceName = 'ChangelogEntry',           # publikovaný web service (přesný název z BC)
     [string] $SqlServer   = 'localhost',
-    [string] $SqlDatabase = 'BC_Telemetry'
+    [string] $SqlDatabase = 'BC_Telemetry',
+    [string] $CompaniesFile = ''                          # vyber firem z dashboardu (Nastaveni)
 )
 $ErrorActionPreference = 'Stop'
 Import-Module CredentialManager
+
+# changelog-companies.json patri tam, odkud ho cte/pise dashboard (web sluzba)
+if (-not $CompaniesFile) {
+    $served = 'C:\Apps\BC_Telemetry_Web\changelog-companies.json'
+    if (Test-Path (Split-Path $served)) { $CompaniesFile = $served }
+    else { $CompaniesFile = (Join-Path $PSScriptRoot '..\web\changelog-companies.json') }
+}
 
 # ── OAuth2 client-credentials → token pro BC API ─────────────────────────────
 $secret = (Get-StoredCredential -Target $SecretTarget).Password
@@ -49,8 +57,24 @@ try {
     $base = "https://api.businesscentral.dynamics.com/v2.0/$TenantId/$Environment/ODataV4"
 
     # Seznam firem — prázdný param = VŠECHNY (Change Log je per-firma, EntryNo je per-firma sekvence)
-    $companyList = if ($Companies.Count) { $Companies } else {
-        (Invoke-RestMethod -Headers $headers -Uri "$base/Company?`$select=Name").value | ForEach-Object { $_.Name }
+    if ($Companies.Count) {
+        $companyList = $Companies
+    } else {
+        $allNames = @((Invoke-RestMethod -Headers $headers -Uri "$base/Company?`$select=Name").value | ForEach-Object { $_.Name })
+        # nacti vyber z dashboardu (Nastaveni) + persistuj seznam VSECH firem (pro UI checkboxy)
+        $cfg = $null
+        if (Test-Path $CompaniesFile) { try { $cfg = Get-Content -Raw -Path $CompaniesFile | ConvertFrom-Json } catch {} }
+        $enabled = $null
+        if ($cfg -and ($cfg.PSObject.Properties.Name -contains 'enabled') -and $null -ne $cfg.enabled) { $enabled = @($cfg.enabled) }
+        $out = [ordered]@{ all = $allNames; enabled = $enabled }
+        try { [IO.File]::WriteAllText($CompaniesFile, ($out | ConvertTo-Json -Depth 3), (New-Object System.Text.UTF8Encoding($false))) }
+        catch { Write-Host "WARN: nelze zapsat $CompaniesFile : $($_.Exception.Message)" }
+        if ($null -ne $enabled) {
+            $companyList = @($allNames | Where-Object { $enabled -contains $_ })
+            Write-Host "Vyber firem (Nastaveni): $($companyList.Count) z $($allNames.Count)"
+        } else {
+            $companyList = $allNames
+        }
     }
     Write-Host "Firmy ($($companyList.Count)): $($companyList -join ', ')"
 

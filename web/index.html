@@ -60,6 +60,9 @@ td.num{text-align:right;font-family:var(--mono);}
 .set-section{max-width:520px;}
 .set-section h3{font-size:16px;margin-bottom:4px;}
 .set-desc{font-size:12px;color:var(--text3);margin-bottom:16px;}
+.cl-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px;margin:10px 0;}
+.cl-item{font-size:13px;color:var(--text2);display:flex;gap:7px;align-items:center;cursor:pointer;}
+.cl-item input{cursor:pointer;}
 .wl-banner{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:8px;font-size:12px;margin-bottom:16px;}
 .wl-banner.ok{background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.25);}
 .wl-banner.warn{background:rgba(180,83,9,.08);border:1px solid rgba(180,83,9,.3);}
@@ -229,6 +232,13 @@ html[data-theme="dark"] .spark .col{background:rgba(96,165,250,.35);}
         Zdroj pravdy je Windows Firewall rule <span class="mono">BC Telemetry Dashboard (8080)</span>.
         Jedna IP nebo CIDR na řádek (např. <span class="mono">10.8.2.0/24</span>).</p>
         <div id="wlHost"></div>
+      </div>
+      <div class="set-section">
+        <h3>Protokol změn — sledované firmy</h3>
+        <p class="set-desc">Které firmy se importují do <span class="mono">Auditu změn</span> (modul B).
+        Odškrtnutím firmy se její Change Log přestane stahovat — užitečné u extrémně velkých
+        (např. ESHOP s miliony záznamů). Projeví se při dalším běhu importu. Nenastaveno = sledují se všechny.</p>
+        <div id="clHost">načítám…</div>
       </div>
       <div class="set-section">
         <h3>Údržba logů</h3>
@@ -446,6 +456,33 @@ function render(d){
   }));
 
   buildWhitelistEditor(document.getElementById('wlHost'));
+  buildCompaniesEditor(document.getElementById('clHost'));
+}
+
+// ── Výběr firem pro modul B (Audit změn) — Nastavení ─────────────────────────
+function buildCompaniesEditor(host){
+  if(!host) return;
+  host.innerHTML='<div class="wl-cur">načítám…</div>';
+  fetch('/changelog-companies').then(r=>{if(!r.ok)throw new Error(r.status);return r.json();})
+    .then(d=>renderCompaniesEditor(host, d.all||[], d.enabled))
+    .catch(e=>{host.innerHTML='<div class="wl-banner warn"><span>⚠</span><div>Konfigurace firem není dostupná ('+esc(e.message)+'). Služba BC_Telemetry_Web neběží, nebo je stránka otevřená staticky.</div></div>';});
+}
+function renderCompaniesEditor(host, all, enabled){
+  if(!all.length){ host.innerHTML='<div class="wl-cur">Seznam firem zatím není — naběhne po prvním běhu importu modulu B.</div>'; return; }
+  const isAll = !Array.isArray(enabled);              // enabled chybí → default vše
+  const set = new Set(isAll ? all : enabled);
+  host.innerHTML = (isAll?'<div class="wl-cur">Zatím nenastaveno → sledují se <strong>všechny</strong> firmy.</div>':'')
+    + '<div class="cl-list">'+ all.map(c=>'<label class="cl-item"><input type="checkbox" value="'+esc(c)+'"'+(set.has(c)?' checked':'')+'> '+esc(c)+'</label>').join('') +'</div>'
+    + '<div class="wl-row"><button class="btn" id="clApply">Uložit</button> <span class="wl-msg" id="clMsg"></span></div>';
+  const btn=document.getElementById('clApply'), msg=document.getElementById('clMsg');
+  btn.addEventListener('click',()=>{
+    const enabled=[...host.querySelectorAll('.cl-item input:checked')].map(i=>i.value);
+    btn.disabled=true; msg.className='wl-msg'; msg.textContent='ukládám…';
+    fetch('/changelog-companies',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled})})
+      .then(r=>r.json().then(j=>({ok:r.ok,j})))
+      .then(({ok,j})=>{ if(!ok)throw new Error(j.error||'chyba'); msg.className='wl-msg ok'; msg.textContent='✓ uloženo ('+j.count+' firem) — projeví se při dalším importu'; btn.disabled=false; })
+      .catch(e=>{ msg.className='wl-msg err'; msg.textContent='⚠ '+e.message; btn.disabled=false; });
+  });
 }
 
 // ── Whitelist editor (jako ITDashboard NetworkAccessSection) ─────────────────

@@ -41,6 +41,9 @@ icacls "%LOGS%"   /grant "%SVCACCT%:(OI)(CI)M" >nul
 REM a do usermap.json (BC_Users_Import jej prepisuje z dbo.vw_UserMap)
 if not exist "%APPDIR%\usermap.json" echo {}> "%APPDIR%\usermap.json"
 icacls "%APPDIR%\usermap.json" /grant "%SVCACCT%:(M)" >nul
+REM a do changelog-companies.json (BC_ChangeLog_Import pise seznam firem)
+if not exist "%APPDIR%\changelog-companies.json" echo {}> "%APPDIR%\changelog-companies.json"
+icacls "%APPDIR%\changelog-companies.json" /grant "%SVCACCT%:(M)" >nul
 
 echo [2/6] Kopirovani souboru (server + dashboard)...
 REM   spousti se z korene repa: scripts\install-service.cmd
