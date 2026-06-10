@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BC Telemetrie — Admin dashboard</title>
 <script>(function(){try{var s=localStorage.getItem('bct-theme');var d=s?s==='dark':(window.matchMedia&&matchMedia('(prefers-color-scheme:dark)').matches);document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAzMiAzMic+PHJlY3Qgd2lkdGg9JzMyJyBoZWlnaHQ9JzMyJyByeD0nNicgZmlsbD0nIzFkNGVkOCcvPjxyZWN0IHg9JzcnIHk9JzE4JyB3aWR0aD0nNCcgaGVpZ2h0PSc3JyByeD0nMScgZmlsbD0nI2ZmZicvPjxyZWN0IHg9JzE0JyB5PScxMicgd2lkdGg9JzQnIGhlaWdodD0nMTMnIHJ4PScxJyBmaWxsPScjZmZmJy8+PHJlY3QgeD0nMjEnIHk9JzcnIHdpZHRoPSc0JyBoZWlnaHQ9JzE4JyByeD0nMScgZmlsbD0nI2ZmZicvPjwvc3ZnPg==">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#fff;--bg2:#f8f9fb;--bg3:#f1f3f7;--border:#dde1ea;--accent:#1d4ed8;--accent2:#2563eb;
@@ -22,6 +23,10 @@ main{padding:28px 32px;max-width:1200px;margin:0 auto;}
 .kpi .label{font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--text3);margin-bottom:8px;}
 .kpi .val{font-size:30px;font-weight:300;letter-spacing:-1px;}
 .kpi.warn .val{color:var(--red);}
+.kpi[data-panel]{cursor:pointer;transition:border-color .12s;}
+.kpi[data-panel]:hover{border-color:var(--accent);}
+header h1#homeLink{cursor:pointer;}
+header h1#homeLink:hover{color:var(--accent2);}
 .tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:20px;}
 .tab{padding:9px 16px;font-size:13px;color:var(--text2);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;font-family:var(--sans);}
 .tab:hover{color:var(--text);}
@@ -96,7 +101,7 @@ html[data-theme="dark"] .spark .col{background:rgba(96,165,250,.35);}
 </head>
 <body>
 <header>
-  <div><span class="tag">AXIMA · interní</span><h1>BC Telemetrie — Admin dashboard</h1></div>
+  <div><span class="tag">AXIMA · interní</span><h1 id="homeLink" title="Domů — obnovit dashboard">BC Telemetrie — Admin dashboard</h1></div>
   <div class="hright">
     <button class="theme-btn" type="button" id="themeToggle" title="Světlý / tmavý režim" aria-label="Přepnout motiv">🌙</button>
     <div class="meta" id="meta">načítám…</div>
@@ -224,6 +229,9 @@ const state = {};
   });
 })();
 
+// ── Klik na název = domů (obnovit dashboard) ─────────────────────────────────
+(function(){ const h=document.getElementById('homeLink'); if(h) h.addEventListener('click',()=>location.assign('/')); })();
+
 // ── Ruční obnova (Nastavení): POST /refresh → spustí denní task, poll na nový snapshot ──
 (function refreshCtl(){
   const btn=document.getElementById('refreshBtn'), msg=document.getElementById('refreshMsg');
@@ -293,18 +301,21 @@ function render(d){
 
   const k=d.kpi||{};
   const kpis=[
-    {label:'Aktivní uživatelé · 30d',val:fmt(k.ActiveUsers30d)},
-    {label:'Použité stránky · 30d',val:fmt(k.DistinctPages30d)},
-    {label:'Otevření · 30d',val:fmt(k.Hits30d)},
-    {label:'RT0031 chyby · 14d',val:fmt(k.AuthFails14d),warn:(k.AuthFails14d>0)},
+    {label:'Aktivní uživatelé · 30d',val:fmt(k.ActiveUsers30d),panel:'activity'},
+    {label:'Použité stránky · 30d',val:fmt(k.DistinctPages30d),panel:'activity'},
+    {label:'Otevření · 30d',val:fmt(k.Hits30d),panel:'trend'},
+    {label:'RT0031 chyby · 14d',val:fmt(k.AuthFails14d),warn:(k.AuthFails14d>0),panel:'migration'},
   ];
   document.getElementById('kpis').innerHTML=kpis.map(x=>
-    `<div class="kpi${x.warn?' warn':''}"><div class="label">${x.label}</div><div class="val">${x.val}</div></div>`).join('');
+    `<div class="kpi${x.warn?' warn':''}" data-panel="${x.panel}" title="Přejít na záložku"><div class="label">${x.label}</div><div class="val">${x.val}</div></div>`).join('');
+  document.querySelectorAll('.kpi[data-panel]').forEach(el=>el.addEventListener('click',()=>{
+    const tab=document.querySelector('.tab[data-panel="'+el.dataset.panel+'"]'); if(tab) tab.click();
+  }));
 
-  setupTable('Activity',d.userActivity||[],activityRow,['UserName','PageName'],maxHits(d.userActivity));
-  setupTable('Trim',d.trimCandidates||[],trimRow,['UserName','PageName']);
-  setupTable('Mig',d.authFails||[],migRow,['UserName','ObjectName']);
-  setupTable('Audit',d.changeLog||[],auditRow,['UserId','TableName','FieldName','PrimaryKey']);
+  setupTable('Activity',d.userActivity||[],activityRow,['UserName','PageName'],maxHits(d.userActivity),{key:'LastUsed',dir:-1});
+  setupTable('Trim',d.trimCandidates||[],trimRow,['UserName','PageName'],null,{key:'LastUsed',dir:-1});
+  setupTable('Mig',d.authFails||[],migRow,['UserName','ObjectName'],null,{key:'DateKey',dir:-1});
+  setupTable('Audit',d.changeLog||[],auditRow,['UserId','TableName','FieldName','PrimaryKey'],null,{key:'ChangedAt',dir:-1});
   renderTrend(d.trend||[]);
 
   document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
@@ -405,8 +416,9 @@ function auditRow(r){
   <td>${esc(r.OldValue)}</td><td>${esc(r.NewValue)}</td></tr>`;
 }
 
-function setupTable(key,rows,rowFn,searchFields,max){
-  state[key]={rows,rowFn,searchFields,max,sortKey:null,sortDir:1,filter:''};
+function setupTable(key,rows,rowFn,searchFields,max,defaultSort){
+  const ds=defaultSort||{};
+  state[key]={rows,rowFn,searchFields,max,sortKey:ds.key||null,sortDir:ds.dir||1,filter:''};
   const search=document.getElementById('search'+key);
   if(search)search.addEventListener('input',e=>{state[key].filter=e.target.value.toLowerCase();draw(key);});
   document.querySelectorAll('#tbl'+key+' th[data-sort]').forEach(th=>th.addEventListener('click',()=>{
