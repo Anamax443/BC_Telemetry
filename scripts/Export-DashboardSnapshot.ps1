@@ -42,10 +42,13 @@ $conn.ConnectionString = "Server=$SqlServer;Database=$SqlDatabase;Integrated Sec
 $conn.Open()
 try {
     $kpi = (Invoke-Sql $conn 'SELECT * FROM dbo.vw_DashKPI')[0]
+    $sync = @()
+    try { $sync = Invoke-Sql $conn 'SELECT Module, CloudCount, LocalCount, CONVERT(varchar(19),UpdatedAt,120) AS UpdatedAt FROM dbo.BCSyncStatus ORDER BY Module' } catch { }
 
     $snapshot = [ordered]@{
         generatedUtc   = [DateTime]::UtcNow.ToString('yyyy-MM-dd HH:mm:ss')
         kpi            = $kpi
+        sync           = $sync
         userActivity   = Invoke-Sql $conn "SELECT TOP ($TopRows) * FROM dbo.vw_DashUserActivity ORDER BY TotalHits DESC"
         trimCandidates = Invoke-Sql $conn "SELECT TOP ($TopRows) * FROM dbo.vw_DashTrimCandidates ORDER BY UserName, PageName"
         trend          = Invoke-Sql $conn 'SELECT * FROM dbo.vw_DashTrend ORDER BY DateKey'

@@ -332,6 +332,23 @@ BEGIN
 END
 GO
 GO
+/* ---------- sync-status (cloud vs zesynchronizováno) ---------- */
+IF OBJECT_ID('dbo.BCSyncStatus', 'U') IS NULL
+    CREATE TABLE dbo.BCSyncStatus (
+        Module NVARCHAR(20) NOT NULL PRIMARY KEY, CloudCount BIGINT, LocalCount BIGINT,
+        UpdatedAt DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME());
+GO
+IF OBJECT_ID('dbo.usp_BCSyncStatus_Set', 'P') IS NOT NULL DROP PROCEDURE dbo.usp_BCSyncStatus_Set;
+GO
+CREATE PROCEDURE dbo.usp_BCSyncStatus_Set @Module NVARCHAR(20), @Cloud BIGINT, @Local BIGINT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    MERGE dbo.BCSyncStatus AS t USING (SELECT @Module AS M) s ON t.Module = s.M
+    WHEN MATCHED THEN UPDATE SET CloudCount=@Cloud, LocalCount=@Local, UpdatedAt=SYSUTCDATETIME()
+    WHEN NOT MATCHED THEN INSERT (Module, CloudCount, LocalCount) VALUES (@Module, @Cloud, @Local);
+END
+GO
 /* ---------- login + user + prava pro AXINETWORK\svc-bc-telemetry ---------- */
 IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = N'AXINETWORK\svc-bc-telemetry')
     CREATE LOGIN [AXINETWORK\svc-bc-telemetry] FROM WINDOWS;

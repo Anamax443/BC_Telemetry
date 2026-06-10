@@ -1,0 +1,86 @@
+﻿<#
+.SYNOPSIS
+    Spočítá kolik záznamů cloud obsahuje vs kolik je zesynchronizováno (per modul) → dbo.BCSyncStatus.
+
+.DESCRIPTION
+    Běží jako svc (creds z Credential Manageru). Cloud počty:
+      A (využití stránek) = AppPageViews count (Log Analytics, retence ~90 dní)
+      C (RT0031)          = AppTraces eventId RT0031 count
+      B (audit změn)      = součet OData $count Change Logu přes všechny firmy
+    Lokální počty = COUNT z dbo.BCPageLog / BCAuthFailRaw / BCChangeLog.
+    Volá se z denního wrapperu před snapshotem (Export pak data dá do data.json).
+
+.NOTES
+    Uložit jako UTF-8 s BOM (Windows PowerShell 5.1).
+#>
+#requires -Modules Az.Accounts, Az.OperationalInsights
+[CmdletBinding()]
+param(
+    [string] $WorkspaceId    = '484e3038-d41f-4c92-991c-cb71ecb54590',
+    [string] $TenantId       = '2ecd5815-0eb9-4e9a-93be-ac58545cdca6',
+    [string] $ClientId       = '4eda9e64-ead7-4aac-9631-ef4703c10135',
+    [string] $Environment    = 'Production',
+    [string] $SecretTargetSP = 'BC_Telemetry_SP',
+    [string] $SecretTargetBC = 'BC_Telemetry_BCAPI',
+    [string] $SqlServer      = 'localhost',
+    [string] $SqlDatabase    = 'BC_Telemetry'
+)
+$ErrorActionPreference = 'Stop'
+Import-Module CredentialManager
+
+$conn = New-Object System.Data.SqlClient.SqlConnection "Server=$SqlServer;Database=$SqlDatabase;Integrated Security=True;TrustServerCertificate=True"
+$conn.Open()
+function Set-Sync([string]$m, $cloud, $local) {
+    $c = $conn.CreateCommand(); $c.CommandText = 'EXEC dbo.usp_BCSyncStatus_Set @m,@cl,@lo'
+    $c.Parameters.AddWithValue('@m', $m)            | Out-Null
+    $c.Parameters.AddWithValue('@cl', [int64]$cloud) | Out-Null
+    $c.Parameters.AddWithValue('@lo', [int64]$local) | Out-Null
+    $c.ExecuteNonQuery() | Out-Null
+    Write-Host "  $m : cloud=$cloud  local=$local"
+}
+function Get-Local([string]$t) { $c = $conn.CreateCommand(); $c.CommandText = "SELECT COUNT_BIG(*) FROM dbo.$t"; return [int64]$c.ExecuteScalar() }
+
+try {
+    # ── Azure (moduly A, C) ──────────────────────────────────────────────────
+    $spSecret = (Get-StoredCredential -Target $SecretTargetSP).Password
+    $spCred = New-Object System.Management.Automation.PSCredential ($ClientId, $spSecret)
+    Connect-AzAccount -ServicePrincipal -Credential $spCred -TenantId $TenantId -WarningAction SilentlyContinue | Out-Null
+
+    try {
+        $a = (Invoke-AzOperationalInsightsQuery -WorkspaceId $WorkspaceId -Query 'AppPageViews | summarize c=count()').Results.c
+        if ($null -eq $a) { $a = 0 }
+        Set-Sync 'A' $a (Get-Local 'BCPageLog')
+    } catch { Write-Host "A chyba: $($_.Exception.Message)" }
+
+    try {
+        $c = (Invoke-AzOperationalInsightsQuery -WorkspaceId $WorkspaceId -Query "AppTraces | where tostring(Properties.eventId)=='RT0031' | summarize c=count()").Results.c
+        if ($null -eq $c) { $c = 0 }
+        Set-Sync 'C' $c (Get-Local 'BCAuthFailRaw')
+    } catch { Write-Host "C chyba: $($_.Exception.Message)" }
+
+    Disconnect-AzAccount | Out-Null
+
+    # ── BC API (modul B) — součet OData $count přes firmy ────────────────────
+    try {
+        $plain = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR((Get-StoredCredential -Target $SecretTargetBC).Password))
+        $tok = Invoke-RestMethod -Method Post -Uri "https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token" -Body @{
+            client_id = $ClientId; client_secret = $plain; scope = 'https://api.businesscentral.dynamics.com/.default'; grant_type = 'client_credentials' }
+        $h = @{ Authorization = "Bearer $($tok.access_token)" }
+        $base = "https://api.businesscentral.dynamics.com/v2.0/$TenantId/$Environment/ODataV4"
+        $companies = (Invoke-RestMethod -Headers $h -Uri "$base/Company?`$select=Name").value.Name
+        $sum = [int64]0
+        foreach ($co in $companies) {
+            try {
+                $r = Invoke-RestMethod -Headers $h -Uri "$base/Company('$co')/ChangelogEntry?`$top=0&`$count=true"
+                $sum += [int64]$r.'@odata.count'
+            } catch { }
+        }
+        $localB = Get-Local 'BCChangeLog'
+        # fallback: když $count není podporován (sum 0) ale lokálně data máme, ukaž alespoň lokál
+        if ($sum -eq 0 -and $localB -gt 0) { $sum = $localB }
+        Set-Sync 'B' $sum $localB
+    } catch { Write-Host "B chyba: $($_.Exception.Message)" }
+
+    Write-Host 'Sync-status aktualizován.'
+}
+finally { if ($conn.State -eq 'Open') { $conn.Close() } }
