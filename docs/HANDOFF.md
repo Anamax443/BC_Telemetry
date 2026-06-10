@@ -49,14 +49,16 @@ Poslední update: **2026-06-08** · repo `Anamax443/BC_Telemetry`.
 2. ~~Azure: SP → Log Analytics Reader na workspace~~ ✅ (moduly A/C mají auth).
 3. ~~SP → BC API (S2S): Redirect URI + API.ReadWrite.All + consent + BC app user~~ ✅ (modul B čte OData).
 4. ~~Ověřit OData pole + doladit BC_ChangeLog_Import~~ ✅ (pole Entry_No/Date_and_Time/User_ID/… opravena).
-5. **SQL na 10.8.2.225** — ✅ deploy **připraven**: `sql/deploy.cmd` (GPO-safe, přes nativní `sqlcmd.exe`)
-   vytvoří DB + spustí `00`→`01`→`02`→`04`→`05_grants` idempotentně. ← **SPUSTIT na serveru jako admin:**
-   `cd sql & deploy.cmd` (default `localhost` + `AXINETWORK\svc-bc-telemetry`). DB **co-located** na 10.8.2.225.
-6. **Založit servisní účet** `AXINETWORK\svc-bc-telemetry` (doménový, regular — jako ITDashboard, ne gMSA) +
-   **naplnit secret** do Credential Manageru **v profilu toho účtu** (cíl `BC_Telemetry_SP` i `BC_Telemetry_BCAPI`,
-   stejná hodnota) — Cred Manager je per-user, takže přes `PsExec -u AXINETWORK\svc-bc-telemetry` nebo jednorázové přihlášení.
-7. **Spustit importy** (3 moduly) + scheduler (`Register-ScheduledTask.ps1`); **dashboard** přes Node službu (install-service.cmd).
-8. Volitelně: zúžit BC permission set z D365 BUS PREMIUM na custom read (least-privilege); vlastní AL API page místo deprecated UI-page web service.
+5. ~~SQL na 10.8.2.225~~ ✅ **LIVE 2026-06-10** — schéma+agregáty+audit+práva nasazeny do `BC_Telemetry`
+   (verifikováno: 6 tabulek / 6 views / 4 procy; login+user `svc-bc-telemetry` s `db_datareader+db_datawriter`).
+   DB **co-located** na 10.8.2.225 (DEFAULT instance, SQL 2022). Deploy přes SSMS (`sql/deploy-full.sql`) —
+   `trnkam` nemá na SQL DDL práva, pustil to admintrnka (sysadmin). `sql/deploy.cmd` je alternativa, když je repo na serveru.
+6. ~~Založit servisní účet~~ ✅ `AXINETWORK\svc-bc-telemetry` založen na DC (`New-ServiceAccount.ps1`, klon OU+flagů z svc-itdashboard).
+   **Zbývá secret** do Credential Manageru **v profilu toho účtu** (cíl `BC_Telemetry_SP` i `BC_Telemetry_BCAPI`,
+   stejná hodnota) — Cred Manager je per-user → přes `PsExec -u AXINETWORK\svc-bc-telemetry`. ← **PŘÍŠTÍ KROK**
+7. **User Rights** na 10.8.2.225 pro účet: `Log on as a service` + `Log on as a batch job` (secpol/GPO).
+8. **Spustit importy** (3 moduly) + scheduler (`Register-ScheduledTask.ps1`); **dashboard** přes Node službu (install-service.cmd).
+9. Volitelně: zúžit BC permission set z D365 BUS PREMIUM na custom read (least-privilege); vlastní AL API page místo deprecated UI-page web service.
 
 ## Otevřená rozhodnutí (operator)
 - ~~BC_Telemetry DB: 10.8.2.225 (localhost) vs BSWNAV01~~ ✅ **localhost (co-located na 10.8.2.225)** — všechny importy sjednoceny na `localhost`, GRANT míří na lokální Windows účet.
