@@ -126,8 +126,8 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
   "host": "10.8.2.225 (B-S-W-SQL-04)",
   "version": "1.1",
   "generated": "2026-06-08",
-  "commit": "1b13b2a",
-  "pushNo": 31,
+  "commit": "7536608",
+  "pushNo": 32,
   "activeProjectNo": 5,
   "milestones": [
     {
@@ -177,11 +177,17 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
     },
     {
       "id": "M4", "title": "Admin dashboard", "status": "done",
-      "desc": "Webový dashboard pro adminy — KPI + 4 bloky, čte předagregovaný snapshot.",
+      "desc": "Webový dashboard LIVE na :8080 — KPI + 6 záložek, čte předagregovaný snapshot.",
       "items": [
-        {"s":"done","t":"KPI dlaždice + Aktivita / Kandidáti / Migrace / Trend"},
+        {"s":"done","t":"KPI dlaždice + Aktivita / Kandidáti / Audit / Migrace / Trend"},
         {"s":"done","t":"Export-DashboardSnapshot.ps1 → data.json (malý i při milionech raw)"},
-        {"s":"done","t":"Filtr, řazení, sparkline; CSP-safe"},
+        {"s":"done","t":"Filtr, řazení (default newest-first), sparkline; CSP-safe"},
+        {"s":"done","t":"Dark mode (🌙/☀, prefers-color-scheme + localStorage) + favicon + název→domů"},
+        {"s":"done","t":"Proklikávací KPI dlaždice → příslušná záložka"},
+        {"s":"done","t":"Terminál: aktivita služby (/activity) + log posledního importu (/logs), auto-refresh"},
+        {"s":"done","t":"Ruční obnova z Nastavení (POST /refresh → spustí denní task, poll na snapshot)"},
+        {"s":"done","t":"Údržba logů: retence denních 30d (wrapper) + NSSM rotace 5MB + okno se seznamem (/logfiles)"},
+        {"s":"todo","t":"Sync-status: kolik záznamů cloud obsahuje vs kolik zesynchronizováno (per modul) ← rozpracováno"},
         {"s":"todo","t":"⏰ Monitor expirace SP secretu/certifikátu — KPI/alert (current 2028-06-07)"}
       ]
     },
@@ -265,7 +271,8 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
     {"sha":"94f62bd","msg":"Funkční ověření end-to-end (2026-06-10): modul A count=421, modul B firmy=12; účet+secret+User Rights hotové"},
     {"sha":"9a4fd1c","msg":"Build návod 2 verze (interní AXIMA + public sanitizovaný); AllSigned vyřešen (225=RemoteSigned)"},
     {"sha":"571e850","msg":"DATA LIVE: import 3 modulů (PageDaily=185, ChangeLog=42665); fixy BOM/5.1, ??, rollup GROUP BY; deploy přes SMB share"},
-    {"sha":"1b13b2a","msg":"SYSTÉM LIVE: dashboard (dark mode) + denní scheduler (4× exit=0); fixy SCHEMA::dbo grant, svc public Modify, ScriptDir"}
+    {"sha":"1b13b2a","msg":"SYSTÉM LIVE: dashboard (dark mode) + denní scheduler (4× exit=0); fixy SCHEMA::dbo grant, svc public Modify, ScriptDir"},
+    {"sha":"7536608","msg":"Dashboard UX: terminál, ruční obnova, proklik dlaždic, favicon, default sort, údržba+retence logů"}
   ]
 }
 </script>
