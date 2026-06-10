@@ -126,8 +126,8 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
   "host": "10.8.2.225 (B-S-W-SQL-04)",
   "version": "1.1",
   "generated": "2026-06-08",
-  "commit": "9ed73d3",
-  "pushNo": 27,
+  "commit": "94f62bd",
+  "pushNo": 28,
   "activeProjectNo": 5,
   "milestones": [
     {
@@ -204,9 +204,10 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
         {"s":"done","t":"SQL deploy LIVE 2026-06-10: schéma+agregáty+audit+práva (6 tab/6 view/4 proc, svc login+grants) přes deploy-full.sql v SSMS"},
         {"s":"done","t":"Whitelist rozhodnut: stejně jako ITDashboard (admin IP 10.8.2.225/181/243); editor umí i CIDR masku + rozsah"},
         {"s":"done","t":"svc-bc-telemetry založen na DC (New-ServiceAccount.ps1, klon OU+flagů z svc-itdashboard, regular doménový)"},
-        {"s":"block","t":"GPO AllSigned — podpis importních/export PS skriptů (SQL deploy už obchází přes sqlcmd)"},
-        {"s":"todo","t":"Secret do Cred Manageru v profilu svc-bc-telemetry (BC_Telemetry_SP + _BCAPI) + User Rights (service/batch)"},
-        {"s":"todo","t":"install-service.cmd + scheduler + ruční běh importů na serveru"}
+        {"s":"done","t":"Secret v Cred Manageru profilu svc (BC_Telemetry_SP + _BCAPI, Value mzm8Q~) + User Rights service/batch + Az moduly AllUsers"},
+        {"s":"done","t":"FUNKČNÍ OVĚŘENÍ 2026-06-10 (jako svc): modul A AppPageViews count=421, modul B BC API roles=API.ReadWrite.All firmy=12, SQL OK"},
+        {"s":"block","t":"GPO AllSigned — podpis importních .ps1 pro Task Scheduler (SQL deploy už obchází přes sqlcmd)"},
+        {"s":"todo","t":"install-service.cmd (web) + scheduler + ruční běh importů; dostat web/+scripts/ na server"}
       ]
     },
     {
@@ -254,7 +255,8 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
     {"sha":"aef8e6f","msg":"refactor(web): whitelist port 1:1 z ITDashboard"},
     {"sha":"b36146e","msg":"feat(sql): GPO-safe deploy.cmd + 00_database + 05_grants; DB co-located na localhost"},
     {"sha":"f9ffd5c","msg":"feat(account+whitelist): svc-bc-telemetry (klon svc-itdashboard) + whitelist range/mask; AXINETWORK doména"},
-    {"sha":"9ed73d3","msg":"SQL deploy LIVE na 10.8.2.225 (2026-06-10): 6 tab/6 view/4 proc + svc login/grants; účet svc-bc-telemetry založen na DC"}
+    {"sha":"9ed73d3","msg":"SQL deploy LIVE na 10.8.2.225 (2026-06-10): 6 tab/6 view/4 proc + svc login/grants; účet svc-bc-telemetry založen na DC"},
+    {"sha":"94f62bd","msg":"Funkční ověření end-to-end (2026-06-10): modul A count=421, modul B firmy=12; účet+secret+User Rights hotové"}
   ]
 }
 </script>
