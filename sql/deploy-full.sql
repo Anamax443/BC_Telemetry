@@ -6,6 +6,10 @@
    ============================================================================ */
 USE BC_Telemetry;
 GO
+-- sqlcmd ma QUOTED_IDENTIFIER defaultne OFF -> filtrovany index by spadl; zapnout pro cely skript
+SET QUOTED_IDENTIFIER ON;
+SET ANSI_NULLS ON;
+GO
 /* ---------- 01_schema.sql ---------- */
 /* ============================================================================
    BC_Telemetry — SQL schéma
