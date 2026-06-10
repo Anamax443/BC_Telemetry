@@ -126,8 +126,8 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
   "host": "10.8.2.225 (B-S-W-SQL-04)",
   "version": "1.1",
   "generated": "2026-06-08",
-  "commit": "f9ffd5c",
-  "pushNo": 26,
+  "commit": "9ed73d3",
+  "pushNo": 27,
   "activeProjectNo": 5,
   "milestones": [
     {
@@ -196,17 +196,17 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
       ]
     },
     {
-      "id": "M6", "title": "Deploy na 10.8.2.225", "status": "blocked",
-      "desc": "Připraveno, čeká na rozhodnutí operatora a běh na serveru.",
+      "id": "M6", "title": "Deploy na 10.8.2.225", "status": "prog",
+      "desc": "SQL LIVE + účet založen; zbývá secret, User Rights, služba, scheduler, importy.",
       "items": [
         {"s":"done","t":"install-service.cmd (Node+NSSM, LocalSystem) + firewall rule"},
         {"s":"done","t":"Umístění DB rozhodnuto: localhost na 10.8.2.225 (co-located) — skripty sjednoceny"},
-        {"s":"done","t":"SQL deploy připraven: sql/deploy.cmd (GPO-safe, sqlcmd) — spustit na serveru jako admin"},
+        {"s":"done","t":"SQL deploy LIVE 2026-06-10: schéma+agregáty+audit+práva (6 tab/6 view/4 proc, svc login+grants) přes deploy-full.sql v SSMS"},
         {"s":"done","t":"Whitelist rozhodnut: stejně jako ITDashboard (admin IP 10.8.2.225/181/243); editor umí i CIDR masku + rozsah"},
-        {"s":"done","t":"New-ServiceAccount.ps1: založí svc-bc-telemetry (klon OU+flagy z svc-itdashboard, regular doménový, ne gMSA)"},
+        {"s":"done","t":"svc-bc-telemetry založen na DC (New-ServiceAccount.ps1, klon OU+flagů z svc-itdashboard, regular doménový)"},
         {"s":"block","t":"GPO AllSigned — podpis importních/export PS skriptů (SQL deploy už obchází přes sqlcmd)"},
-        {"s":"todo","t":"Spustit New-ServiceAccount.ps1 na DC + secret do Cred Manageru (per-user profil účtu)"},
-        {"s":"todo","t":"Spustit deploy.cmd + importy + install-service.cmd + scheduler na serveru"}
+        {"s":"todo","t":"Secret do Cred Manageru v profilu svc-bc-telemetry (BC_Telemetry_SP + _BCAPI) + User Rights (service/batch)"},
+        {"s":"todo","t":"install-service.cmd + scheduler + ruční běh importů na serveru"}
       ]
     },
     {
@@ -253,7 +253,8 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
     {"sha":"46f965d","msg":"feat(web): editovatelný whitelist v Nastavení + Node služba"},
     {"sha":"aef8e6f","msg":"refactor(web): whitelist port 1:1 z ITDashboard"},
     {"sha":"b36146e","msg":"feat(sql): GPO-safe deploy.cmd + 00_database + 05_grants; DB co-located na localhost"},
-    {"sha":"f9ffd5c","msg":"feat(account+whitelist): svc-bc-telemetry (klon svc-itdashboard) + whitelist range/mask; AXINETWORK doména"}
+    {"sha":"f9ffd5c","msg":"feat(account+whitelist): svc-bc-telemetry (klon svc-itdashboard) + whitelist range/mask; AXINETWORK doména"},
+    {"sha":"9ed73d3","msg":"SQL deploy LIVE na 10.8.2.225 (2026-06-10): 6 tab/6 view/4 proc + svc login/grants; účet svc-bc-telemetry založen na DC"}
   ]
 }
 </script>
