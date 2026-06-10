@@ -78,11 +78,12 @@ CREATE PROCEDURE dbo.usp_BCAuthFail_Rollup
 AS
 BEGIN
     SET NOCOUNT ON;
+    -- ObjectName popisný → MAX(), ne v GROUP BY (jinak duplicate PK_BCAuthFailDaily)
     ;WITH src AS (
         SELECT CAST(Timestamp AS DATE) AS DateKey, UserId AS UserName,
-               ISNULL(ObjectId,'?') AS ObjectId, ObjectName, COUNT(*) AS Failures
+               ISNULL(ObjectId,'?') AS ObjectId, MAX(ObjectName) AS ObjectName, COUNT(*) AS Failures
         FROM dbo.BCAuthFailRaw
-        GROUP BY CAST(Timestamp AS DATE), UserId, ISNULL(ObjectId,'?'), ObjectName
+        GROUP BY CAST(Timestamp AS DATE), UserId, ISNULL(ObjectId,'?')
     )
     MERGE dbo.BCAuthFailDaily AS tgt
     USING src ON tgt.DateKey = src.DateKey AND tgt.UserName = src.UserName AND tgt.ObjectId = src.ObjectId

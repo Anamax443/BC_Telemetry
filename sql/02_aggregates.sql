@@ -54,13 +54,15 @@ BEGIN
     SELECT @to = ISNULL(MAX(Id), @from) FROM dbo.BCPageLog;
     IF @to <= @from RETURN;
 
+    -- PageName je popisný sloupec → MAX(), ne v GROUP BY (jinak duplicate PK_BCPageDaily
+    -- když má stejná PageId dvě varianty názvu, např. PageId -1 systémová stránka).
     ;WITH src AS (
         SELECT CAST(Timestamp AS DATE) AS DateKey, UserName,
-               ISNULL(PageId,'?') AS PageId, PageName,
+               ISNULL(PageId,'?') AS PageId, MAX(PageName) AS PageName,
                ISNULL(CompanyName,'?') AS CompanyName, COUNT(*) AS Hits
         FROM dbo.BCPageLog
         WHERE Id > @from AND Id <= @to
-        GROUP BY CAST(Timestamp AS DATE), UserName, ISNULL(PageId,'?'), PageName, ISNULL(CompanyName,'?')
+        GROUP BY CAST(Timestamp AS DATE), UserName, ISNULL(PageId,'?'), ISNULL(CompanyName,'?')
     )
     MERGE dbo.BCPageDaily AS tgt
     USING src ON tgt.DateKey = src.DateKey AND tgt.UserName = src.UserName

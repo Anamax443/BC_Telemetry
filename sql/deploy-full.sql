@@ -156,11 +156,11 @@ BEGIN
 
     ;WITH src AS (
         SELECT CAST(Timestamp AS DATE) AS DateKey, UserName,
-               ISNULL(PageId,'?') AS PageId, PageName,
+               ISNULL(PageId,'?') AS PageId, MAX(PageName) AS PageName,
                ISNULL(CompanyName,'?') AS CompanyName, COUNT(*) AS Hits
         FROM dbo.BCPageLog
         WHERE Id > @from AND Id <= @to
-        GROUP BY CAST(Timestamp AS DATE), UserName, ISNULL(PageId,'?'), PageName, ISNULL(CompanyName,'?')
+        GROUP BY CAST(Timestamp AS DATE), UserName, ISNULL(PageId,'?'), ISNULL(CompanyName,'?')
     )
     MERGE dbo.BCPageDaily AS tgt
     USING src ON tgt.DateKey = src.DateKey AND tgt.UserName = src.UserName
@@ -319,9 +319,9 @@ BEGIN
     SET NOCOUNT ON;
     ;WITH src AS (
         SELECT CAST(Timestamp AS DATE) AS DateKey, UserId AS UserName,
-               ISNULL(ObjectId,'?') AS ObjectId, ObjectName, COUNT(*) AS Failures
+               ISNULL(ObjectId,'?') AS ObjectId, MAX(ObjectName) AS ObjectName, COUNT(*) AS Failures
         FROM dbo.BCAuthFailRaw
-        GROUP BY CAST(Timestamp AS DATE), UserId, ISNULL(ObjectId,'?'), ObjectName
+        GROUP BY CAST(Timestamp AS DATE), UserId, ISNULL(ObjectId,'?')
     )
     MERGE dbo.BCAuthFailDaily AS tgt
     USING src ON tgt.DateKey = src.DateKey AND tgt.UserName = src.UserName AND tgt.ObjectId = src.ObjectId
