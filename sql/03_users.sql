@@ -7,6 +7,11 @@
    Naplnuje scripts\BC_Users_Import.ps1 (OData -> MERGE).
 */
 
+-- filtrovany index (WHERE ...) vyzaduje QUOTED_IDENTIFIER ON; sqlcmd ho ma defaultne OFF
+SET QUOTED_IDENTIFIER ON;
+SET ANSI_NULLS ON;
+GO
+
 IF OBJECT_ID('dbo.BCUser', 'U') IS NULL
     CREATE TABLE dbo.BCUser (
         UserSecurityId   NVARCHAR(36)  NOT NULL,   -- BC "User Security ID" (PK, vzdy unikatni)

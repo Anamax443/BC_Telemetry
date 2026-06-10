@@ -350,6 +350,9 @@ BEGIN
 END
 GO
 /* ---------- 03_users.sql — adresar BC uzivatelu (GUID -> jmeno) ---------- */
+SET QUOTED_IDENTIFIER ON;   -- filtrovany index to vyzaduje (sqlcmd ho ma defaultne OFF)
+SET ANSI_NULLS ON;
+GO
 IF OBJECT_ID('dbo.BCUser', 'U') IS NULL
     CREATE TABLE dbo.BCUser (
         UserSecurityId   NVARCHAR(36)  NOT NULL,   -- BC "User Security ID" (PK)
