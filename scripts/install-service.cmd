@@ -59,6 +59,10 @@ echo [4/6] Instalace NSSM sluzby %SVC%...
 "%NSSM%" set %SVC% AppEnvironmentExtra "BCT_PORT=%PORT%" "BCT_PUBLIC=%PUBLIC%"
 "%NSSM%" set %SVC% AppStdout "%LOGS%\web.out.log"
 "%NSSM%" set %SVC% AppStderr "%LOGS%\web.err.log"
+REM rotace NSSM logu (web.out/err.log) - jinak rostou bez limitu; rotace pri 5 MB
+"%NSSM%" set %SVC% AppRotateFiles 1
+"%NSSM%" set %SVC% AppRotateOnline 1
+"%NSSM%" set %SVC% AppRotateBytes 5242880
 "%NSSM%" set %SVC% Start SERVICE_AUTO_START
 "%NSSM%" set %SVC% Description "BC_Telemetry web dashboard + whitelist API"
 

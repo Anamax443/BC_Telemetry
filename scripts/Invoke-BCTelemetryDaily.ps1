@@ -19,7 +19,8 @@ param(
     [string] $ScriptDir = 'C:\Apps\BC_Telemetry\scripts',
     [string] $SqlServer = 'localhost',
     [string] $Snapshot  = 'C:\Apps\BC_Telemetry_Web\public\data.json',
-    [string] $LogDir    = 'C:\Apps\BC_Telemetry\logs'
+    [string] $LogDir    = 'C:\Apps\BC_Telemetry\logs',
+    [int]    $LogRetentionDays = 30
 )
 # fallback, kdyby ScriptDir nesedl
 if (-not $ScriptDir -or -not (Test-Path $ScriptDir)) { if ($PSScriptRoot) { $ScriptDir = $PSScriptRoot } }
@@ -52,5 +53,12 @@ Log "modul B exit=$LASTEXITCODE"
 Log "--- snapshot: Export-DashboardSnapshot.ps1 ---"
 & $ps -NoProfile -ExecutionPolicy Bypass -File $E -SqlServer $SqlServer -OutPath $Snapshot *>> $log
 Log "snapshot exit=$LASTEXITCODE"
+
+# Retence logů — denní soubory se jinak množí (1/den). Smazat starší než N dní.
+try {
+    $cut = (Get-Date).AddDays(-$LogRetentionDays)
+    $old = Get-ChildItem $LogDir -Filter 'bct-daily-*.log' -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -lt $cut }
+    if ($old) { $old | Remove-Item -Force -ErrorAction SilentlyContinue; Log "Retence logů: smazáno $($old.Count) souborů starších $LogRetentionDays dní." }
+} catch { Log "Retence logů — chyba: $($_.Exception.Message)" }
 
 Log "=== BC_Telemetry daily END ==="
