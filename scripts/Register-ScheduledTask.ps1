@@ -1,45 +1,49 @@
 ﻿<#
 .SYNOPSIS
-    Zaregistruje denní scheduled task pro BC_PageLog_Import.ps1.
+    Zaregistruje denní scheduled task pro BC_Telemetry (všechny 3 moduly + snapshot).
 
 .DESCRIPTION
-    Verze 1.1 — zapracována oponentura 2026-06-08:
-      #8 LogonType  -> 'Password' pro doménový účet (ServiceAccount je jen pro
-                       virtuální/gMSA účty; s doménovým by úloha selhala 0x80041315).
-                       Alternativa gMSA viz poznámka níže.
+    Spustí Invoke-BCTelemetryDaily.ps1 denně pod servisním účtem (regular doménový,
+    LogonType Password — ne gMSA). Vytvoří log složku a dá na ni servisnímu účtu zápis.
 
-    Spustit jednorázově jako administrátor na serveru, kde úloha poběží.
+    Spustit jednorázově jako administrátor na serveru (10.8.2.225). Vyžádá heslo svc účtu.
+
+.NOTES
+    Uložit jako UTF-8 s BOM (Windows PowerShell 5.1).
 #>
-
 [CmdletBinding()]
 param(
-    [string] $TaskName   = 'BC_PageLog_Import',
-    [string] $ScriptPath = 'C:\Scripts\BC_PageLog_Import.ps1',
-    [string] $LogPath    = 'C:\Scripts\Logs\BC_PageLog_Import.log',
-    [string] $RunAs      = 'AXINETWORK\svc-bc-telemetry'
+    [string] $TaskName   = 'BC_Telemetry_Daily',
+    [string] $ScriptPath = 'C:\Apps\BC_Telemetry\scripts\Invoke-BCTelemetryDaily.ps1',
+    [string] $RunAs      = 'AXINETWORK\svc-bc-telemetry',
+    [string] $LogDir     = 'C:\Apps\BC_Telemetry\logs',
+    [string] $At         = '02:00'
 )
-
 $ErrorActionPreference = 'Stop'
 
-# Heslo servisního účtu — vyžádá interaktivně při registraci (neukládá se ve skriptu).
+# Log složka — servisní účet potřebuje zápis (task běží jako on)
+if (-not (Test-Path $LogDir)) { New-Item -ItemType Directory -Force $LogDir | Out-Null }
+icacls $LogDir /grant "${RunAs}:(OI)(CI)M" | Out-Null
+
+# Heslo servisního účtu — vyžádá interaktivně, neukládá se ve skriptu
 $cred = Get-Credential -UserName $RunAs -Message "Heslo pro $RunAs (uloží se do úlohy)"
 
 $action = New-ScheduledTaskAction `
-    -Execute 'PowerShell.exe' `
-    -Argument "-NonInteractive -ExecutionPolicy Bypass -File `"$ScriptPath`" >> `"$LogPath`" 2>&1"
+    -Execute 'powershell.exe' `
+    -Argument "-NonInteractive -NoProfile -ExecutionPolicy Bypass -File `"$ScriptPath`""
 
-$trigger = New-ScheduledTaskTrigger -Daily -At '02:00'
+$trigger = New-ScheduledTaskTrigger -Daily -At $At
 
 $settings = New-ScheduledTaskSettingsSet `
-    -ExecutionTimeLimit (New-TimeSpan -Hours 1) `
+    -ExecutionTimeLimit (New-TimeSpan -Hours 2) `
     -RestartCount 2 `
     -RestartInterval (New-TimeSpan -Minutes 15) `
     -StartWhenAvailable
 
-# LogonType Password — správně pro doménový účet AXINETWORK\svc-bc-telemetry (oponentura #8)
+# LogonType Password — správně pro regular doménový účet (gMSA se NEpoužívá)
 Register-ScheduledTask `
     -TaskName    $TaskName `
-    -Description 'Stahuje BC telemetrii z Azure AppInsights do SQL (inkrementálně).' `
+    -Description 'BC_Telemetry: denní import 3 modulů (page views / RT0031 / change log) + snapshot dashboardu.' `
     -Action      $action `
     -Trigger     $trigger `
     -Settings    $settings `
@@ -48,7 +52,6 @@ Register-ScheduledTask `
     -RunLevel    Highest `
     -Force
 
-Write-Host "Úloha '$TaskName' zaregistrována (LogonType Password, denně 02:00)."
-
-# Pozn.: regular doménový účet (AXINETWORK\svc-bc-telemetry), stejně jako ITDashboard.
-# gMSA se NEpoužívá (rozhodnutí operatora).
+Write-Host "Úloha '$TaskName' zaregistrována (denně $At, jako $RunAs)."
+Write-Host "Ruční spuštění / test:  Start-ScheduledTask -TaskName $TaskName"
+Write-Host "Log:  $LogDir\bct-daily-<datum>.log"
