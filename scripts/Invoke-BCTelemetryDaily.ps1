@@ -26,25 +26,28 @@ if (-not (Test-Path $LogDir)) { New-Item -ItemType Directory -Force $LogDir | Ou
 $log = Join-Path $LogDir ('bct-daily-' + [DateTime]::Now.ToString('yyyyMMdd') + '.log')
 function Log([string]$m) { ("$([DateTime]::Now.ToString('yyyy-MM-dd HH:mm:ss')) $m") | Tee-Object -FilePath $log -Append }
 
+$ps = 'powershell.exe'
+$A  = Join-Path $ScriptDir 'BC_PageLog_Import.ps1'
+$C  = Join-Path $ScriptDir 'BC_AuthFail_Import.ps1'
+$B  = Join-Path $ScriptDir 'BC_ChangeLog_Import.ps1'
+$E  = Join-Path $ScriptDir 'Export-DashboardSnapshot.ps1'
+
 Log "=== BC_Telemetry daily START (user=$env:USERNAME) ==="
 
-$steps = @(
-    @{ n = 'modul A (page views)'; f = 'BC_PageLog_Import.ps1';        a = @() },
-    @{ n = 'modul C (RT0031)';     f = 'BC_AuthFail_Import.ps1';       a = @() },
-    @{ n = 'modul B (change log)'; f = 'BC_ChangeLog_Import.ps1';      a = @() },
-    @{ n = 'snapshot';             f = 'Export-DashboardSnapshot.ps1'; a = @('-SqlServer', $SqlServer, '-OutPath', $Snapshot) }
-)
+Log "--- modul A (page views): BC_PageLog_Import.ps1 ---"
+& $ps -NoProfile -ExecutionPolicy Bypass -File $A *>> $log
+Log "modul A exit=$LASTEXITCODE"
 
-foreach ($s in $steps) {
-    $path = Join-Path $ScriptDir $s.f
-    Log "--- $($s.n): $($s.f) ---"
-    if (-not (Test-Path $path)) { Log "CHYBI skript: $path"; continue }
-    try {
-        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $path @($s.a) *>> $log
-        Log "$($s.n) dokonceno (exit=$LASTEXITCODE)"
-    } catch {
-        Log "$($s.n) CHYBA: $($_.Exception.Message)"
-    }
-}
+Log "--- modul C (RT0031): BC_AuthFail_Import.ps1 ---"
+& $ps -NoProfile -ExecutionPolicy Bypass -File $C *>> $log
+Log "modul C exit=$LASTEXITCODE"
+
+Log "--- modul B (change log): BC_ChangeLog_Import.ps1 ---"
+& $ps -NoProfile -ExecutionPolicy Bypass -File $B *>> $log
+Log "modul B exit=$LASTEXITCODE"
+
+Log "--- snapshot: Export-DashboardSnapshot.ps1 ---"
+& $ps -NoProfile -ExecutionPolicy Bypass -File $E -SqlServer $SqlServer -OutPath $Snapshot *>> $log
+Log "snapshot exit=$LASTEXITCODE"
 
 Log "=== BC_Telemetry daily END ==="
