@@ -23,6 +23,9 @@ main{padding:28px 32px;max-width:1200px;margin:0 auto;}
 .kpi .label{font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--text3);margin-bottom:8px;}
 .kpi .val{font-size:30px;font-weight:300;letter-spacing:-1px;}
 .kpi.warn .val{color:var(--red);}
+.sync-strip{font-size:12px;color:var(--text3);margin:-14px 0 24px;display:flex;gap:18px;flex-wrap:wrap;align-items:center;}
+.sync-strip .syn{color:var(--text2);}
+.sync-strip b{color:var(--text);font-weight:600;}
 .kpi[data-panel]{cursor:pointer;transition:border-color .12s;}
 .kpi[data-panel]:hover{border-color:var(--accent);}
 header h1#homeLink{cursor:pointer;}
@@ -92,6 +95,9 @@ html[data-theme="dark"] .spark .col{background:rgba(96,165,250,.35);}
 .term{background:#0b1220;color:#cbd5e1;border:1px solid #1e293b;border-radius:8px;font-family:var(--mono);font-size:12px;line-height:1.55;padding:12px 14px;overflow:auto;}
 .term-act{max-height:210px;}
 .term-log{max-height:440px;white-space:pre;}
+.uid-sub{font-family:var(--mono);font-size:11px;color:var(--text3);}
+#tblUsers input{font-family:var(--sans);font-size:13px;padding:5px 9px;border:1px solid var(--border);border-radius:6px;width:190px;background:var(--bg);color:var(--text);}
+#tblUsers input:focus{outline:none;border-color:var(--accent);}
 .log-paths{font-size:12px;color:var(--text2);line-height:1.9;margin-bottom:10px;}
 #lgBox{max-height:240px;white-space:pre;margin-top:8px;}
 .term .ts{color:#64748b;}
@@ -113,9 +119,11 @@ html[data-theme="dark"] .spark .col{background:rgba(96,165,250,.35);}
   <div class="loading" id="loading">Načítám data.json…</div>
   <div id="app" hidden>
     <div class="kpis" id="kpis"></div>
+    <div class="sync-strip" id="sync"></div>
     <div class="tabs">
       <button class="tab active" data-panel="activity">Aktivita uživatelů</button>
       <button class="tab" data-panel="trim">Kandidáti na vyřazení</button>
+      <button class="tab" data-panel="users">👤 Uživatelé</button>
       <button class="tab" data-panel="audit">Audit změn</button>
       <button class="tab" data-panel="migration">Permission errors (RT0031)</button>
       <button class="tab" data-panel="trend">Trend</button>
@@ -145,6 +153,19 @@ html[data-theme="dark"] .spark .col{background:rgba(96,165,250,.35);}
         <th data-sort="UserName">Uživatel</th><th data-sort="PageId">Page ID</th>
         <th data-sort="PageName">Stránka</th><th data-sort="CompanyName">Firma</th>
         <th data-sort="TotalHits">Otevření</th><th data-sort="LastUsed">Naposledy</th>
+      </tr></thead><tbody></tbody></table>
+    </section>
+
+    <section class="panel" id="panel-users">
+      <p class="set-desc">Telemetrie využití (modul A) zná uživatele jen jako <strong>pseudonymní GUID</strong>
+      (Microsoft je nerozkrývá ani přes Graph). Přiřaď ke každému <strong>reálné jméno</strong> podle firem/stránek,
+      kde je aktivní — jméno se pak zobrazí v Aktivitě, Kandidátech i RT0031. Audit změn (modul B) má reálná jména nativně.</p>
+      <div class="toolbar">
+        <button class="btn" type="button" id="umSave" disabled>Uložit jména</button>
+        <span class="wl-msg" id="umMsg"></span>
+      </div>
+      <table id="tblUsers"><thead><tr>
+        <th>Reálné jméno (vyplň)</th><th>GUID</th><th>Firmy</th><th>Top stránka</th><th>Otevření</th><th>Naposledy</th>
       </tr></thead><tbody></tbody></table>
     </section>
 
@@ -229,6 +250,9 @@ html[data-theme="dark"] .spark .col{background:rgba(96,165,250,.35);}
 const fmt = n => (n==null?'—':Number(n).toLocaleString('cs-CZ'));
 const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const state = {};
+let userMap = {};   // pseudonymní GUID → reálné jméno (z /usermap)
+// zobrazení uživatele: namapované jméno + zkrácený GUID, nebo holý GUID když není mapováno
+const unameHtml = g => { const n=userMap[g]; return n ? `${esc(n)} <span class="uid-sub">${esc(String(g).slice(0,8))}…</span>` : `<span class="uid-sub">${esc(g)}</span>`; };
 
 // ── Dark mode toggle (data-theme už nastaven early skriptem v <head>) ─────────
 (function themeToggle(){
@@ -320,10 +344,49 @@ async function loadLogFiles(){
 }
 (function lgCtl(){ const b=document.getElementById('lgList'); if(b) b.addEventListener('click',loadLogFiles); })();
 
+// ── Uživatelé: editor mapování GUID → reálné jméno ───────────────────────────
+function buildUsers(){
+  const tb=document.querySelector('#tblUsers tbody'); if(!tb) return;
+  const rows=(state.Activity && state.Activity.rows) || [];
+  const by={};
+  rows.forEach(r=>{ const g=r.UserName; if(!g) return;
+    if(!by[g]) by[g]={g,companies:new Set(),top:null,topHits:-1,hits:0,last:''};
+    const u=by[g]; if(r.CompanyName) u.companies.add(r.CompanyName); u.hits+=(r.TotalHits||0);
+    if((r.TotalHits||0)>u.topHits){ u.topHits=r.TotalHits||0; u.top=r.PageName; }
+    if((r.LastUsed||'')>u.last) u.last=r.LastUsed||'';
+  });
+  const list=Object.values(by).sort((a,b)=>b.hits-a.hits);
+  tb.innerHTML = list.length ? list.map(u=>`<tr>
+    <td><input type="text" data-guid="${esc(u.g)}" value="${esc(userMap[u.g]||'')}" placeholder="jméno…" spellcheck="false"></td>
+    <td><span class="uid-sub">${esc(u.g)}</span></td>
+    <td>${esc([...u.companies].join(', '))}</td>
+    <td>${esc(u.top||'')}</td>
+    <td class="num">${fmt(u.hits)}</td>
+    <td class="num">${esc(u.last)}</td></tr>`).join('') : `<tr><td colspan="6"><div class="empty">Žádní uživatelé</div></td></tr>`;
+  const save=document.getElementById('umSave');
+  tb.querySelectorAll('input[data-guid]').forEach(i=>i.addEventListener('input',()=>{ if(save) save.disabled=false; }));
+}
+(function umCtl(){
+  const save=document.getElementById('umSave'), msg=document.getElementById('umMsg');
+  if(!save) return;
+  save.addEventListener('click', async ()=>{
+    const map={...userMap};
+    document.querySelectorAll('#tblUsers input[data-guid]').forEach(i=>{ const v=i.value.trim(); if(v) map[i.dataset.guid]=v; else delete map[i.dataset.guid]; });
+    save.disabled=true; msg.className='wl-msg'; msg.textContent='ukládám…';
+    try{
+      const r=await fetch('/usermap',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(map)});
+      const j=await r.json(); if(!r.ok) throw new Error(j.error||r.status);
+      userMap=map; msg.className='wl-msg ok'; msg.textContent='✓ uloženo ('+j.count+' jmen)';
+      ['Activity','Trim','Mig'].forEach(k=>{ if(state[k]) draw(k); });
+    }catch(e){ msg.className='wl-msg err'; msg.textContent='⚠ '+(e.message||e); save.disabled=false; }
+  });
+})();
+
 initAccessGate();
-fetch('./data.json',{cache:'no-store'})
-  .then(r=>{if(!r.ok)throw new Error(r.status);return r.json();})
-  .then(render)
+Promise.all([
+  fetch('./data.json',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error(r.status);return r.json();}),
+  fetch('/usermap').then(r=>r.ok?r.json():{}).catch(()=>({}))
+]).then(([d,m])=>{ userMap=m||{}; render(d); })
   .catch(e=>{document.getElementById('loading').textContent='Chyba načtení data.json: '+e.message;});
 
 function render(d){
@@ -345,11 +408,24 @@ function render(d){
     const tab=document.querySelector('.tab[data-panel="'+el.dataset.panel+'"]'); if(tab) tab.click();
   }));
 
+  // Sync-status: kolik cloud obsahuje vs kolik zesynchronizováno (per modul)
+  const modName={A:'Využití stránek',B:'Audit změn',C:'Permission errors'};
+  const syn=Array.isArray(d.sync)?d.sync:(d.sync?[d.sync]:[]);
+  const synEl=document.getElementById('sync');
+  if(syn.length){
+    synEl.innerHTML='<span class="uid-sub">SYNCHRONIZACE</span> '+syn.map(s=>{
+      const cloud=Number(s.CloudCount||0), loc=Number(s.LocalCount||0);
+      const pct=cloud>0?Math.round(100*loc/cloud):(loc>0?100:0);
+      return `<span class="syn"><b>${esc(modName[s.Module]||s.Module)}</b> ${fmt(loc)} / ${fmt(cloud)} <span class="uid-sub">(${pct}%)</span></span>`;
+    }).join('') + (syn[0]&&syn[0].UpdatedAt?` <span class="uid-sub">· ${esc(syn[0].UpdatedAt)}</span>`:'');
+  } else { synEl.innerHTML=''; }
+
   setupTable('Activity',d.userActivity||[],activityRow,['UserName','PageName'],maxHits(d.userActivity),{key:'LastUsed',dir:-1});
   setupTable('Trim',d.trimCandidates||[],trimRow,['UserName','PageName'],null,{key:'LastUsed',dir:-1});
   setupTable('Mig',d.authFails||[],migRow,['UserName','ObjectName'],null,{key:'DateKey',dir:-1});
   setupTable('Audit',d.changeLog||[],auditRow,['UserId','TableName','FieldName','PrimaryKey'],null,{key:'ChangedAt',dir:-1});
   renderTrend(d.trend||[]);
+  buildUsers();
 
   document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
     document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
@@ -358,6 +434,7 @@ function render(d){
     document.getElementById('panel-'+t.dataset.panel).classList.add('active');
     if(t.dataset.panel==='terminal') loadTerminal();
     if(t.dataset.panel==='settings') loadLogFiles();
+    if(t.dataset.panel==='users') buildUsers();
   }));
 
   buildWhitelistEditor(document.getElementById('wlHost'));
@@ -426,19 +503,19 @@ function showGate(ip){
 function maxHits(rows){return rows&&rows.length?Math.max(...rows.map(r=>r.TotalHits||0)):1;}
 
 function activityRow(r,max){
-  return `<tr><td>${esc(r.UserName)}</td><td><span class="mono">${esc(r.PageId)}</span></td>
+  return `<tr><td>${unameHtml(r.UserName)}</td><td><span class="mono">${esc(r.PageId)}</span></td>
   <td>${esc(r.PageName)}</td><td>${esc(r.CompanyName)}</td>
   <td class="num"><div class="bar" data-pct="${Math.round(100*(r.TotalHits||0)/(max||1))}"><span>${fmt(r.TotalHits)}</span></div></td>
   <td class="num">${esc(r.LastUsed)}</td></tr>`;
 }
 function trimRow(r){
-  return `<tr><td>${esc(r.UserName)}</td><td><span class="mono">${esc(r.PageId)}</span></td>
+  return `<tr><td>${unameHtml(r.UserName)}</td><td><span class="mono">${esc(r.PageId)}</span></td>
   <td>${esc(r.PageName)}</td><td>${esc(r.CompanyName)}</td>
   <td class="num"><span class="pill pill-gray">${fmt(r.TotalHits)}×</span></td>
   <td class="num">${esc(r.LastUsed)}</td></tr>`;
 }
 function migRow(r){
-  return `<tr><td class="num">${esc(r.DateKey)}</td><td>${esc(r.UserName)}</td>
+  return `<tr><td class="num">${esc(r.DateKey)}</td><td>${unameHtml(r.UserName)}</td>
   <td><span class="mono">${esc(r.ObjectId)}</span></td><td>${esc(r.ObjectName)}</td>
   <td class="num"><span class="pill pill-red">${fmt(r.Failures)}</span></td></tr>`;
 }
@@ -465,7 +542,7 @@ function setupTable(key,rows,rowFn,searchFields,max,defaultSort){
 function draw(key){
   const s=state[key];
   let rows=s.rows.slice();
-  if(s.filter){rows=rows.filter(r=>s.searchFields.some(f=>String(r[f]||'').toLowerCase().includes(s.filter)));}
+  if(s.filter){rows=rows.filter(r=>s.searchFields.some(f=>String(r[f]||'').toLowerCase().includes(s.filter)) || String(userMap[r.UserName]||'').toLowerCase().includes(s.filter));}
   if(s.sortKey){rows.sort((a,b)=>{const x=a[s.sortKey],y=b[s.sortKey];
     return (x<y?-1:x>y?1:0)*s.sortDir;});}
   const tbody=document.querySelector('#tbl'+key+' tbody');

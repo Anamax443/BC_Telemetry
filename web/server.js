@@ -36,6 +36,7 @@ function logActivity(level, scope, msg) {
   console.log(`[${level}] ${scope}: ${msg}`);
 }
 const LOG_DIR = 'C:\\Apps\\BC_Telemetry\\logs';
+const USERMAP_FILE = path.join(__dirname, 'usermap.json');  // mapování pseudonymní GUID → reálné jméno
 
 // ── PowerShell helper (inline -Command, AllSigned-safe) ──────────────────────
 function runPs(script) {
@@ -252,6 +253,30 @@ else { '{"file":null,"text":""}' }
       .catch((e) => sendJson(res, 500, { error: String(e.message || e) }));
   }
 
+  // GET/PUT /usermap — mapování pseudonymní GUID → reálné jméno (soubor usermap.json).
+  if (url === '/usermap' && req.method === 'GET') {
+    return fs.readFile(USERMAP_FILE, 'utf8', (err, data) => {
+      if (err) return sendJson(res, 200, {});
+      try { sendJson(res, 200, JSON.parse(data)); } catch { sendJson(res, 200, {}); }
+    });
+  }
+  if (url === '/usermap' && req.method === 'PUT') {
+    let body = '';
+    req.on('data', (c) => { body += c; if (body.length > 1e6) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const obj = JSON.parse(body || '{}');
+        if (typeof obj !== 'object' || Array.isArray(obj)) throw new Error('expected object');
+        const clean = {};
+        for (const k of Object.keys(obj)) { const v = obj[k]; if (typeof v === 'string' && v.trim()) clean[k] = String(v).trim().slice(0, 120); }
+        fs.writeFileSync(USERMAP_FILE, JSON.stringify(clean, null, 2), 'utf8');
+        logActivity('success', 'usermap', `uloženo ${Object.keys(clean).length} jmen`);
+        sendJson(res, 200, { ok: true, count: Object.keys(clean).length });
+      } catch (e) { sendJson(res, 500, { error: String(e.message || e) }); }
+    });
+    return;
+  }
+
   // GET /logfiles — seznam log souborů v obou složkách (pro ověření retence v Nastavení).
   if (url === '/logfiles' && req.method === 'GET') {
     const ps = `
@@ -276,7 +301,7 @@ if ($t.State -eq 'Running') { 'running' } else { Start-ScheduledTask -TaskName '
       .then((o) => { logActivity('info', 'refresh', `manual refresh: ${o.trim()}`); sendJson(res, 200, { status: o.trim() }); })
       .catch((e) => sendJson(res, 500, { error: String(e.message || e) }));
   }
-  if (url.startsWith('/firewall/') || url.startsWith('/api/') || url === '/refresh' || url === '/activity' || url === '/logs' || url === '/logfiles') return sendJson(res, 404, { error: 'unknown endpoint' });
+  if (url.startsWith('/firewall/') || url.startsWith('/api/') || url === '/refresh' || url === '/activity' || url === '/logs' || url === '/logfiles' || url === '/usermap') return sendJson(res, 404, { error: 'unknown endpoint' });
   return serveStatic(req, res);
 });
 
