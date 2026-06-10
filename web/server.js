@@ -224,7 +224,18 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
-  if (url.startsWith('/firewall/') || url.startsWith('/api/')) return sendJson(res, 404, { error: 'unknown endpoint' });
+  // POST /refresh — vynutí denní běh (import 3 modulů + snapshot). Task běží jako svc;
+  // službu (LocalSystem) jen spustí task. Když už běží, vrátí 'running' (nezdvojí).
+  if (url === '/refresh' && req.method === 'POST') {
+    const ps = `
+$t = Get-ScheduledTask -TaskName 'BC_Telemetry_Daily' -ErrorAction Stop
+if ($t.State -eq 'Running') { 'running' } else { Start-ScheduledTask -TaskName 'BC_Telemetry_Daily'; 'started' }
+`;
+    return runPs(ps)
+      .then((o) => { logActivity('info', 'refresh', `manual refresh: ${o.trim()}`); sendJson(res, 200, { status: o.trim() }); })
+      .catch((e) => sendJson(res, 500, { error: String(e.message || e) }));
+  }
+  if (url.startsWith('/firewall/') || url.startsWith('/api/') || url === '/refresh') return sendJson(res, 404, { error: 'unknown endpoint' });
   return serveStatic(req, res);
 });
 

@@ -83,6 +83,7 @@ html[data-theme="dark"] .spark .col{background:rgba(96,165,250,.35);}
 <header>
   <div><span class="tag">AXIMA · interní</span><h1>BC Telemetrie — Admin dashboard</h1></div>
   <div class="hright">
+    <button class="theme-btn" type="button" id="refreshBtn" title="Vynutit import + snapshot (pár minut)">↻ Obnovit</button>
     <button class="theme-btn" type="button" id="themeToggle" title="Světlý / tmavý režim" aria-label="Přepnout motiv">🌙</button>
     <div class="meta" id="meta">načítám…</div>
   </div>
@@ -187,6 +188,35 @@ const state = {};
   });
 })();
 
+// ── Vynutit obnovu (POST /refresh → spustí denní task; poll na nový snapshot) ──
+(function refreshBtn(){
+  const btn=document.getElementById('refreshBtn'); if(!btn) return;
+  const orig=btn.textContent;
+  btn.addEventListener('click', async ()=>{
+    const before = state.generatedUtc||'';
+    btn.disabled=true; btn.textContent='⏳ spouštím…';
+    try{
+      const r=await fetch('/refresh',{method:'POST'});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
+      btn.textContent='⏳ import běží…';
+      const t0=Date.now();
+      const poll=async()=>{
+        try{
+          const d=await (await fetch('./data.json',{cache:'no-store'})).json();
+          if(d.generatedUtc && d.generatedUtc!==before){ btn.textContent='✓ hotovo'; setTimeout(()=>location.reload(),600); return; }
+        }catch(e){}
+        if(Date.now()-t0 > 7*60*1000){ btn.textContent='⚠ timeout (Ctrl+F5)'; btn.disabled=false; setTimeout(()=>btn.textContent=orig,5000); return; }
+        setTimeout(poll, 8000);
+      };
+      setTimeout(poll, 8000);
+    }catch(e){
+      btn.textContent='⚠ '+(e.message||e);
+      setTimeout(()=>{ btn.textContent=orig; btn.disabled=false; }, 5000);
+    }
+  });
+})();
+
 initAccessGate();
 fetch('./data.json',{cache:'no-store'})
   .then(r=>{if(!r.ok)throw new Error(r.status);return r.json();})
@@ -196,6 +226,7 @@ fetch('./data.json',{cache:'no-store'})
 function render(d){
   document.getElementById('loading').hidden=true;
   document.getElementById('app').hidden=false;
+  state.generatedUtc=d.generatedUtc||'';
   document.getElementById('meta').textContent='snapshot '+(d.generatedUtc||'?')+' UTC';
 
   const k=d.kpi||{};
