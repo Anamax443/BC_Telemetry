@@ -21,10 +21,17 @@ param(
     [string] $ServiceName  = 'Users',                                  # publikovany web service (Page 9800)
     [string] $SqlServer    = 'localhost',
     [string] $SqlDatabase  = 'BC_Telemetry',
-    [string] $UserMapFile  = (Join-Path $PSScriptRoot '..\web\usermap.json')
+    [string] $UserMapFile  = ''
 )
 $ErrorActionPreference = 'Stop'
 Import-Module CredentialManager
+
+# usermap.json patri tam, odkud ho cte dashboard (web sluzba), NE vedle skriptu.
+if (-not $UserMapFile) {
+    $served = 'C:\Apps\BC_Telemetry_Web\usermap.json'
+    if (Test-Path (Split-Path $served)) { $UserMapFile = $served }
+    else { $UserMapFile = (Join-Path $PSScriptRoot '..\web\usermap.json') }
+}
 
 # -- OAuth2 client-credentials -> token (1:1 jako BC_ChangeLog_Import) --------
 $secret = (Get-StoredCredential -Target $SecretTarget).Password

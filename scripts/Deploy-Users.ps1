@@ -27,7 +27,18 @@ if (-not $SkipCopy) {
     $sql     = '03_users.sql','deploy.cmd','deploy-full.sql'
     foreach ($f in $scripts) { Copy-Item (Join-Path $Src "scripts\$f") "$AppShare\scripts\" -Force; Write-Host "  scripts\$f" }
     foreach ($f in $sql)     { Copy-Item (Join-Path $Src "sql\$f")     "$AppShare\sql\"     -Force; Write-Host "  sql\$f" }
-    foreach ($f in 'index.html','usermap.json') { Copy-Item (Join-Path $Src "web\$f") "$WebDir\" -Force; Write-Host "  web\$f -> $WebDir" }
+    # web soubory: zkus servirovany adresar (c$); kdyz nejde, odloz do share\web a poradi se rucni krok
+    $webOk = $false
+    try {
+        foreach ($f in 'index.html','usermap.json') { Copy-Item (Join-Path $Src "web\$f") "$WebDir\" -Force }
+        Write-Host "  web\* -> $WebDir"; $webOk = $true
+    } catch {
+        Write-Warning "  web kopie do $WebDir selhala ($($_.Exception.Message))."
+        New-Item -ItemType Directory -Force -Path "$AppShare\web" | Out-Null
+        foreach ($f in 'index.html','usermap.json') { Copy-Item (Join-Path $Src "web\$f") "$AppShare\web\" -Force }
+        Write-Host "  web\* odlozeno do $AppShare\web  ->  NA SERVERU spust: copy /Y C:\Apps\BC_Telemetry\web\* C:\Apps\BC_Telemetry_Web\" -ForegroundColor Yellow
+    }
+    if (-not $webOk) { Write-Host "  (usermap.json stejne pregeneruje BC_Users_Import primo do C:\Apps\BC_Telemetry_Web; rucni krok je hlavne kvuli index.html)" }
 } else { Step "1/3 Kopie PRESKOCENA" }
 
 # --- 2) SQL DDL (dbo.BCUser + vw_UserMap) -------------------------------------
