@@ -53,12 +53,15 @@ Poslední update: **2026-06-08** · repo `Anamax443/BC_Telemetry`.
    (verifikováno: 6 tabulek / 6 views / 4 procy; login+user `svc-bc-telemetry` s `db_datareader+db_datawriter`).
    DB **co-located** na 10.8.2.225 (DEFAULT instance, SQL 2022). Deploy přes SSMS (`sql/deploy-full.sql`) —
    `trnkam` nemá na SQL DDL práva, pustil to admintrnka (sysadmin). `sql/deploy.cmd` je alternativa, když je repo na serveru.
-6. ~~Založit servisní účet~~ ✅ `AXINETWORK\svc-bc-telemetry` založen na DC (`New-ServiceAccount.ps1`, klon OU+flagů z svc-itdashboard).
-   **Zbývá secret** do Credential Manageru **v profilu toho účtu** (cíl `BC_Telemetry_SP` i `BC_Telemetry_BCAPI`,
-   stejná hodnota) — Cred Manager je per-user → přes `PsExec -u AXINETWORK\svc-bc-telemetry`. ← **PŘÍŠTÍ KROK**
-7. **User Rights** na 10.8.2.225 pro účet: `Log on as a service` + `Log on as a batch job` (secpol/GPO).
-8. **Spustit importy** (3 moduly) + scheduler (`Register-ScheduledTask.ps1`); **dashboard** přes Node službu (install-service.cmd).
-9. Volitelně: zúžit BC permission set z D365 BUS PREMIUM na custom read (least-privilege); vlastní AL API page místo deprecated UI-page web service.
+6. ~~Servisní účet + secret~~ ✅ `AXINETWORK\svc-bc-telemetry` založen na DC (`New-ServiceAccount.ps1`, klon z svc-itdashboard);
+   secret uložen do Credential Manageru **v profilu svc účtu** (`BC_Telemetry_SP` + `BC_Telemetry_BCAPI`) přes jednorázový
+   scheduled task (PsExec na serveru není). ⚠ **Past:** ukládat **Value `mzm8Q~…`**, NE Secret ID (`4b1f…`, 36 znaků GUID).
+7. ~~User Rights~~ ✅ `svc-bc-telemetry` má `Log on as a service` + `Log on as a batch job` (secpol; `Lock pages in memory` omylem → odebráno).
+8. ~~**Funkční ověření end-to-end**~~ ✅ **2026-06-10**: pod identitou svc — CRED OK, SQL OK (jako svc), **modul A** Azure/Log Analytics
+   `AppPageViews count=421`, **modul B** BC API `roles=API.ReadWrite.All` → `firmy=12`. Az moduly (Az.Accounts/OperationalInsights) doinstalovány AllUsers.
+9. **Web dashboard služba** (`install-service.cmd`, Node+NSSM) + **ruční běh importů** + **scheduler** (`Register-ScheduledTask.ps1`). ← **PŘÍŠTÍ KROK**
+   Pozn.: importy jsou `.ps1` → vyřešit **GPO AllSigned** (podpis skriptů) pro běh v Task Scheduleru; potřeba dostat `web\`+`scripts\` na server.
+10. Volitelně: zúžit BC permission set z D365 BUS PREMIUM na custom read (least-privilege); vlastní AL API page místo deprecated UI-page web service.
 
 ## Otevřená rozhodnutí (operator)
 - ~~BC_Telemetry DB: 10.8.2.225 (localhost) vs BSWNAV01~~ ✅ **localhost (co-located na 10.8.2.225)** — všechny importy sjednoceny na `localhost`, GRANT míří na lokální Windows účet.
