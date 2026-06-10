@@ -66,9 +66,22 @@ Poslední update: **2026-06-08** · repo `Anamax443/BC_Telemetry`.
    SMB share `\\10.8.2.225\BC_Telemetry` (trnkam Modify; Claude píše, svc spouští). Importy se pouští jako svc přes scheduled task.
    ⚠ **Opraveno při ostrém běhu:** (a) `.ps1` ukládat **s UTF-8 BOM** (5.1 jinak čte CP1250 → parse error u PageLogu);
    (b) `??` → if/else (PS7-only); (c) rollup procy: popisný sloupec přes `MAX()`, ne v `GROUP BY` (jinak duplicate PK).
-10. **Web dashboard služba** (`install-service.cmd`, Node+NSSM) — Node/NSSM na serveru chybí, doinstalovat. ← **PŘÍŠTÍ KROK**
-11. **Denní scheduler** — pozor: `Register-ScheduledTask.ps1` pokrývá jen modul A; doplnit wrapper na **všechny 3 importy + snapshot**.
-12. Volitelně: zúžit BC permission set z D365 BUS PREMIUM na custom read (least-privilege); vlastní AL API page místo deprecated UI-page web service.
+10. ~~**Web dashboard LIVE**~~ ✅ **2026-06-10**: služba `BC_Telemetry_Web` (Node+NSSM, NSSM z ITDashboard serveru) běží na
+    `http://10.8.2.225:8080/` — KPI + 6 záložek + **dark mode** (🌙/☀, prefers-color-scheme + localStorage). Whitelist `10.8.2.225/181/243`.
+11. ~~**Denní scheduler LIVE**~~ ✅ **2026-06-10**: `Invoke-BCTelemetryDaily.ps1` (3 importy + snapshot, child procesy) + `Register-ScheduledTask.ps1`
+    (`BC_Telemetry_Daily`, denně 02:00 jako svc). Ověřen plný běh: 4× `exit=0`, snapshot přegeneroval `data.json`.
+    ⚠ **Opraveno při ostrém běhu scheduleru:** (a) child volání explicitně (ne splat `@($s.a)`); (b) `ScriptDir` hardcoded
+    (`$PSScriptRoot` byl v task kontextu prázdný); (c) **EXECUTE na `SCHEMA::dbo`** (per-proc grant zanikl při DROP/CREATE rollup proc);
+    (d) svc potřebuje **Modify na `…_Web\public`** (snapshot píše `data.json`) — zapracováno do `install-service.cmd`.
+
+## 🟢 STATUS: LIVE / kompletní (2026-06-10)
+Celý řetězec **BC → Azure App Insights → SQL (3 moduly) → rollup → snapshot → dashboard** běží **plně automaticky**
+(denně 02:00 jako `AXINETWORK\svc-bc-telemetry`). Data ověřena, dashboard servíruje, dokumentace (interní + public) hotová.
+
+### Zbývá jen volitelné
+- Zúžit BC permission set z D365 BUS PREMIUM na custom read (least-privilege); vlastní AL API page místo deprecated UI-page web service.
+- ⏰ Monitor expirace SP secretu v dashboardu (current expiry **2028-06-07**).
+- Sledovat objem Change Logu (denně tisíce záznamů) vs retence 24 měs. + daily cap App Insights.
 
 ## Otevřená rozhodnutí (operator)
 - ~~BC_Telemetry DB: 10.8.2.225 (localhost) vs BSWNAV01~~ ✅ **localhost (co-located na 10.8.2.225)** — všechny importy sjednoceny na `localhost`, GRANT míří na lokální Windows účet.

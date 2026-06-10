@@ -126,8 +126,8 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
   "host": "10.8.2.225 (B-S-W-SQL-04)",
   "version": "1.1",
   "generated": "2026-06-08",
-  "commit": "571e850",
-  "pushNo": 30,
+  "commit": "1b13b2a",
+  "pushNo": 31,
   "activeProjectNo": 5,
   "milestones": [
     {
@@ -196,8 +196,8 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
       ]
     },
     {
-      "id": "M6", "title": "Deploy na 10.8.2.225", "status": "prog",
-      "desc": "SQL LIVE + účet založen; zbývá secret, User Rights, služba, scheduler, importy.",
+      "id": "M6", "title": "Deploy na 10.8.2.225", "status": "done",
+      "desc": "LIVE 2026-06-10 — celý řetězec běží automaticky (denně 02:00 jako svc): import 3 modulů + rollup + snapshot + dashboard.",
       "items": [
         {"s":"done","t":"install-service.cmd (Node+NSSM, LocalSystem) + firewall rule"},
         {"s":"done","t":"Umístění DB rozhodnuto: localhost na 10.8.2.225 (co-located) — skripty sjednoceny"},
@@ -211,7 +211,9 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
         {"s":"done","t":"Deploy přes SMB share \\10.8.2.225\\BC_Telemetry (trnkam Modify; Claude píše soubory, svc spouští)"},
         {"s":"done","t":"DATA LIVE 2026-06-10: import všech 3 modulů — BCPageLog=500, BCPageDaily=185, BCChangeLog=42665, BCAuthFailRaw=0"},
         {"s":"done","t":"Fixy z ostrého běhu: .ps1 UTF-8 BOM (5.1/CP1250 parse), ?? → if/else, rollup MAX() místo GROUP BY (duplicate PK)"},
-        {"s":"todo","t":"Node+NSSM na server + install-service.cmd (dashboard) + denní scheduler (wrapper na 3 importy + snapshot)"}
+        {"s":"done","t":"Dashboard LIVE: BC_Telemetry_Web (Node+NSSM) na :8080 + dark mode (🌙/☀); NSSM převzat z ITDashboard serveru"},
+        {"s":"done","t":"Denní scheduler LIVE: Invoke-BCTelemetryDaily (3 importy+snapshot) denně 02:00 jako svc — ověřeno 4× exit=0, data.json čerstvý"},
+        {"s":"done","t":"Fixy scheduleru: child volání bez splatu, ScriptDir hardcoded (PSScriptRoot prázdný), EXECUTE na SCHEMA::dbo, svc Modify na public"}
       ]
     },
     {
@@ -262,7 +264,8 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
     {"sha":"9ed73d3","msg":"SQL deploy LIVE na 10.8.2.225 (2026-06-10): 6 tab/6 view/4 proc + svc login/grants; účet svc-bc-telemetry založen na DC"},
     {"sha":"94f62bd","msg":"Funkční ověření end-to-end (2026-06-10): modul A count=421, modul B firmy=12; účet+secret+User Rights hotové"},
     {"sha":"9a4fd1c","msg":"Build návod 2 verze (interní AXIMA + public sanitizovaný); AllSigned vyřešen (225=RemoteSigned)"},
-    {"sha":"571e850","msg":"DATA LIVE: import 3 modulů (PageDaily=185, ChangeLog=42665); fixy BOM/5.1, ??, rollup GROUP BY; deploy přes SMB share"}
+    {"sha":"571e850","msg":"DATA LIVE: import 3 modulů (PageDaily=185, ChangeLog=42665); fixy BOM/5.1, ??, rollup GROUP BY; deploy přes SMB share"},
+    {"sha":"1b13b2a","msg":"SYSTÉM LIVE: dashboard (dark mode) + denní scheduler (4× exit=0); fixy SCHEMA::dbo grant, svc public Modify, ScriptDir"}
   ]
 }
 </script>
