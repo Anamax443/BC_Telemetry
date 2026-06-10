@@ -34,7 +34,7 @@ if (-not $SkipCopy) {
 if (-not $SkipSql) {
     Step "2/3 SQL deploy 03_users.sql (DDL -> potreba admintrnka/sysadmin)"
     & sqlcmd -S $Server -E -b -d $Database -i (Join-Path $Src 'sql\03_users.sql')
-    if ($LASTEXITCODE -ne 0) { throw "sqlcmd selhal (exit $LASTEXITCODE) — bezi to jako admintrnka? Ma ucet DDL prava?" }
+    if ($LASTEXITCODE -ne 0) { throw "sqlcmd selhal (exit $LASTEXITCODE) - bezi to jako admintrnka? Ma ucet DDL prava?" }
     Write-Host "  dbo.BCUser + vw_UserMap OK"
 } else { Step "2/3 SQL PRESKOCEN" }
 
@@ -42,7 +42,7 @@ if (-not $SkipSql) {
 if (-not $SkipRun) {
     Step "3/3 Spousteni tasku $TaskName na $Server (bezi jako svc-bc-telemetry)"
     & schtasks /run /s $Server /tn $TaskName
-    Write-Host "  task spusten — sleduj log behu (krok 'uzivatele' + 'snapshot')"
+    Write-Host "  task spusten - sleduj log behu (krok 'uzivatele' + 'snapshot')"
 } else { Step "3/3 Spusteni tasku PRESKOCENO" }
 
 # --- overeni ------------------------------------------------------------------
