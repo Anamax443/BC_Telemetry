@@ -12,8 +12,13 @@ sysadmin; `trnkam` ani `svc-bc-telemetry` DDL práva nemají — jen `db_datarea
 | `scripts/BC_Users_Import.ps1` | `C:\Apps\BC_Telemetry\scripts\` | **NOVÝ** — OData Users → `dbo.BCUser` → `usermap.json` |
 | `scripts/Invoke-BCTelemetryDaily.ps1` | `C:\Apps\BC_Telemetry\scripts\` | + krok „uživatelé" po modulu B |
 | `scripts/BC_PageLog_Import.ps1`, `BC_AuthFail_Import.ps1` | `C:\Apps\BC_Telemetry\scripts\` | KQL `order by … desc` |
+| `web/server.js` | `C:\Apps\BC_Telemetry_Web\` | **endpoint `/usermap`** — bez něj dashboard nezobrazí jména (404). **Po nasazení RESTART služby!** |
 | `web/index.html` | `C:\Apps\BC_Telemetry_Web\` | sync pruh „Celkem SQL / cloud" |
-| `web/usermap.json` | `C:\Apps\BC_Telemetry_Web\` | 38 jmen (seed; přepíše ho i import z DB) |
+| `web/usermap.json` | `C:\Apps\BC_Telemetry_Web\` | 38 jmen (seed; přepíše ho import z DB na 63) |
+
+> ⚠ **`server.js` = nejčastější opomenutí.** Změna `server.js` vyžaduje **restart služby**
+> (`sc.exe stop` → čekat `STOPPED` → `sc.exe start`; NSSM jinak drží starý PID). `index.html`
+> a `usermap.json` restart nepotřebují. Bez aktuálního `server.js` vrací `/usermap` **404** a jména se nezobrazí.
 
 > **Kódování:** `.ps1` se srovnanou diakritikou mají UTF-8 BOM (ověřeno). `BC_Users_Import.ps1`
 > je čisté ASCII → BOM nepotřebuje. Při kopii přes SMB se obsah nemění, BOM zůstává.
@@ -28,10 +33,12 @@ Copy-Item "$src\scripts\BC_Users_Import.ps1","$src\scripts\Invoke-BCTelemetryDai
           "$src\scripts\BC_PageLog_Import.ps1","$src\scripts\BC_AuthFail_Import.ps1" "$dst\scripts\" -Force
 ```
 
-Web soubory (`C:\Apps\BC_Telemetry_Web` — admin share nebo lokálně na serveru):
+Web soubory (`C:\Apps\BC_Telemetry_Web`): admin share `c$` často **nejde** („síťový název nelze nalézt") →
+odlož je na `\\10.8.2.225\BC_Telemetry\web\` a přesuň je **na serveru** (Krok 3a):
 
 ```powershell
-Copy-Item "$src\web\index.html","$src\web\usermap.json" '\\10.8.2.225\c$\Apps\BC_Telemetry_Web\' -Force
+New-Item -ItemType Directory -Force "$d\web" | Out-Null
+Copy-Item "$src\web\server.js","$src\web\index.html","$src\web\usermap.json" "$d\web\" -Force
 ```
 
 ## Krok 2 — deploy SQL `03_users.sql` (admintrnka, DDL)
@@ -46,6 +53,19 @@ sqlcmd -S localhost -E -b -d BC_Telemetry -i C:\Apps\BC_Telemetry\sql\03_users.s
 ```
 > `-E` = trusted connection pod **aktuálním** uživatelem → musí běžet jako **admintrnka**
 > (sysadmin), ne `trnkam`. Jinak `CREATE TABLE` selže na právech.
+
+## Krok 3a — web soubory na místo + RESTART služby (na serveru, admintrnka)
+
+```powershell
+Copy-Item C:\Apps\BC_Telemetry\web\server.js,C:\Apps\BC_Telemetry\web\index.html,C:\Apps\BC_Telemetry\web\usermap.json C:\Apps\BC_Telemetry_Web\ -Force
+# server.js se projevi az po restartu (NSSM jinak drzi stary PID); 'sc' v PS je alias Set-Content -> sc.exe!
+sc.exe stop BC_Telemetry_Web
+do { Start-Sleep 1 } until ((sc.exe query BC_Telemetry_Web | Select-String 'STATE') -match 'STOPPED')
+sc.exe start BC_Telemetry_Web
+Start-Sleep 2; (Invoke-WebRequest http://localhost:8080/usermap -UseBasicParsing).Content   # ma vratit JSON, ne 404
+```
+
+> Bez aktuálního `server.js` + restartu vrací `/usermap` **404** a dashboard ukazuje GUID místo jmen.
 
 ## Krok 3 — první běh importu uživatelů (jako svc)
 
