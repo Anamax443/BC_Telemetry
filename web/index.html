@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BC Telemetrie — Admin dashboard</title>
+<script>(function(){try{var s=localStorage.getItem('bct-theme');var d=s?s==='dark':(window.matchMedia&&matchMedia('(prefers-color-scheme:dark)').matches);document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#fff;--bg2:#f8f9fb;--bg3:#f1f3f7;--border:#dde1ea;--accent:#1d4ed8;--accent2:#2563eb;
@@ -66,12 +67,25 @@ td.num{text-align:right;font-family:var(--mono);}
 .gate-card{max-width:520px;width:100%;border:1px solid var(--border);border-radius:12px;padding:28px;background:var(--bg2);}
 .gate-card h2{font-size:18px;margin-bottom:8px;}
 .gate-card p{font-size:13px;color:var(--text2);}
+.pill-blue{background:rgba(37,99,235,.12);color:var(--accent2);border:1px solid rgba(37,99,235,.25);}
+/* ── Dark mode ── */
+.hright{display:flex;align-items:center;gap:16px;}
+.theme-btn{font-size:15px;line-height:1;background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:8px;padding:7px 11px;cursor:pointer;font-family:var(--sans);}
+.theme-btn:hover{color:var(--text);border-color:var(--accent);}
+html[data-theme="dark"]{--bg:#0f1729;--bg2:#162033;--bg3:#1e293b;--border:#2c3a52;
+--accent:#3b82f6;--accent2:#60a5fa;--green:#22c55e;--yellow:#f59e0b;--red:#f87171;
+--text:#e6edf6;--text2:#c2cdda;--text3:#8a99ad;}
+html[data-theme="dark"] .bar .fill{background:rgba(96,165,250,.22);}
+html[data-theme="dark"] .spark .col{background:rgba(96,165,250,.35);}
 </style>
 </head>
 <body>
 <header>
   <div><span class="tag">AXIMA · interní</span><h1>BC Telemetrie — Admin dashboard</h1></div>
-  <div class="meta" id="meta">načítám…</div>
+  <div class="hright">
+    <button class="theme-btn" type="button" id="themeToggle" title="Světlý / tmavý režim" aria-label="Přepnout motiv">🌙</button>
+    <div class="meta" id="meta">načítám…</div>
+  </div>
 </header>
 <main>
   <div class="loading" id="loading">Načítám data.json…</div>
@@ -159,6 +173,19 @@ td.num{text-align:right;font-family:var(--mono);}
 const fmt = n => (n==null?'—':Number(n).toLocaleString('cs-CZ'));
 const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const state = {};
+
+// ── Dark mode toggle (data-theme už nastaven early skriptem v <head>) ─────────
+(function themeToggle(){
+  const root=document.documentElement, btn=document.getElementById('themeToggle');
+  const setIcon=()=>{ if(btn) btn.textContent = root.getAttribute('data-theme')==='dark' ? '☀' : '🌙'; };
+  setIcon();
+  if(btn) btn.addEventListener('click',()=>{
+    const dark = root.getAttribute('data-theme')!=='dark';
+    root.setAttribute('data-theme', dark?'dark':'light');
+    try{ localStorage.setItem('bct-theme', dark?'dark':'light'); }catch(e){}
+    setIcon();
+  });
+})();
 
 initAccessGate();
 fetch('./data.json',{cache:'no-store'})
