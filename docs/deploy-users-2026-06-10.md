@@ -58,6 +58,8 @@ sqlcmd -S localhost -E -b -d BC_Telemetry -i C:\Apps\BC_Telemetry\sql\03_users.s
 
 ```powershell
 Copy-Item C:\Apps\BC_Telemetry\web\server.js,C:\Apps\BC_Telemetry\web\index.html,C:\Apps\BC_Telemetry\web\usermap.json C:\Apps\BC_Telemetry_Web\ -Force
+# svc musi mit pravo prepsat usermap.json (BC_Users_Import) — jinak WriteAllText padne na "Access denied"
+icacls C:\Apps\BC_Telemetry_Web\usermap.json /grant "AXINETWORK\svc-bc-telemetry:(M)"
 # server.js se projevi az po restartu (NSSM jinak drzi stary PID); 'sc' v PS je alias Set-Content -> sc.exe!
 sc.exe stop BC_Telemetry_Web
 do { Start-Sleep 1 } until ((sc.exe query BC_Telemetry_Web | Select-String 'STATE') -match 'STOPPED')

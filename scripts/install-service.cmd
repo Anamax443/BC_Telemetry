@@ -38,6 +38,9 @@ if not exist "%LOGS%"   mkdir "%LOGS%"
 REM servisni ucet musi mit zapis do public (snapshot data.json) i logs
 icacls "%PUBLIC%" /grant "%SVCACCT%:(OI)(CI)M" >nul
 icacls "%LOGS%"   /grant "%SVCACCT%:(OI)(CI)M" >nul
+REM a do usermap.json (BC_Users_Import jej prepisuje z dbo.vw_UserMap)
+if not exist "%APPDIR%\usermap.json" echo {}> "%APPDIR%\usermap.json"
+icacls "%APPDIR%\usermap.json" /grant "%SVCACCT%:(M)" >nul
 
 echo [2/6] Kopirovani souboru (server + dashboard)...
 REM   spousti se z korene repa: scripts\install-service.cmd
