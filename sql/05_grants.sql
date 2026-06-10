@@ -46,12 +46,11 @@ ELSE
 SET @sql = N'ALTER ROLE db_datareader ADD MEMBER ' + QUOTENAME(@acct) + N';'; EXEC (@sql);
 SET @sql = N'ALTER ROLE db_datawriter ADD MEMBER ' + QUOTENAME(@acct) + N';'; EXEC (@sql);
 
-/* ── EXECUTE na všechny ETL procedury (rollupy + retence, moduly A/B/C) ───── */
-SET @sql =
-    N'GRANT EXECUTE ON dbo.usp_BCPageLog_Rollup   TO ' + QUOTENAME(@acct) + N';' +
-    N'GRANT EXECUTE ON dbo.usp_BCPageLog_Purge    TO ' + QUOTENAME(@acct) + N';' +
-    N'GRANT EXECUTE ON dbo.usp_BCChangeLog_Purge  TO ' + QUOTENAME(@acct) + N';' +
-    N'GRANT EXECUTE ON dbo.usp_BCAuthFail_Rollup  TO ' + QUOTENAME(@acct) + N';';
+/* ── EXECUTE na celé schema dbo (moduly A/B/C rollup+purge procy) ──────────
+   Schema-level grant schválně místo per-proc: grant na konkrétní proceduru
+   ZANIKÁ při jejím DROP/CREATE (např. oprava rollup logiky). Schema grant
+   pokryje i nově/přegenerované procy v dbo. */
+SET @sql = N'GRANT EXECUTE ON SCHEMA::dbo TO ' + QUOTENAME(@acct) + N';';
 EXEC (@sql);
 
 PRINT 'Práva pro ' + @acct + ' nastavena (db_datareader + db_datawriter + EXECUTE na ETL procy).';

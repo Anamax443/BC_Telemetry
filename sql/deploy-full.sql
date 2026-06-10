@@ -341,10 +341,8 @@ IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = N'AXINETWORK\s
 GO
 ALTER ROLE db_datareader ADD MEMBER [AXINETWORK\svc-bc-telemetry];
 ALTER ROLE db_datawriter ADD MEMBER [AXINETWORK\svc-bc-telemetry];
-GRANT EXECUTE ON dbo.usp_BCPageLog_Rollup  TO [AXINETWORK\svc-bc-telemetry];
-GRANT EXECUTE ON dbo.usp_BCPageLog_Purge   TO [AXINETWORK\svc-bc-telemetry];
-GRANT EXECUTE ON dbo.usp_BCChangeLog_Purge TO [AXINETWORK\svc-bc-telemetry];
-GRANT EXECUTE ON dbo.usp_BCAuthFail_Rollup TO [AXINETWORK\svc-bc-telemetry];
+-- schema-level EXECUTE (přežije DROP/CREATE procedur, na rozdíl od per-proc grantu)
+GRANT EXECUTE ON SCHEMA::dbo TO [AXINETWORK\svc-bc-telemetry];
 GO
 PRINT 'HOTOVO: schema + agregaty + audit + prava pro AXINETWORK\svc-bc-telemetry';
 GO
