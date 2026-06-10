@@ -30,6 +30,7 @@ REM -b = ukoncit s chybou pri SQL erroru; -E = trusted (Windows) connection
 sqlcmd -S "%SQLSERVER%" -E -b -i "%HERE%00_database.sql"                                   || goto :err
 sqlcmd -S "%SQLSERVER%" -E -b -d %DB% -i "%HERE%01_schema.sql"                             || goto :err
 sqlcmd -S "%SQLSERVER%" -E -b -d %DB% -i "%HERE%02_aggregates.sql"                         || goto :err
+sqlcmd -S "%SQLSERVER%" -E -b -d %DB% -i "%HERE%03_users.sql"                              || goto :err
 sqlcmd -S "%SQLSERVER%" -E -b -d %DB% -i "%HERE%04_audit.sql"                              || goto :err
 sqlcmd -S "%SQLSERVER%" -E -b -d %DB% -v ServiceAccount="%SVCACCT%" -i "%HERE%05_grants.sql" || goto :err
 

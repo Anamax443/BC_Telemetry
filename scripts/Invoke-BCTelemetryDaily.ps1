@@ -33,6 +33,7 @@ $ps = 'powershell.exe'
 $A  = Join-Path $ScriptDir 'BC_PageLog_Import.ps1'
 $C  = Join-Path $ScriptDir 'BC_AuthFail_Import.ps1'
 $B  = Join-Path $ScriptDir 'BC_ChangeLog_Import.ps1'
+$USR= Join-Path $ScriptDir 'BC_Users_Import.ps1'
 $U  = Join-Path $ScriptDir 'Update-SyncStatus.ps1'
 $E  = Join-Path $ScriptDir 'Export-DashboardSnapshot.ps1'
 
@@ -50,6 +51,10 @@ Log "modul C exit=$LASTEXITCODE"
 Log "--- modul B (change log): BC_ChangeLog_Import.ps1 ---"
 & $ps -NoProfile -ExecutionPolicy Bypass -File $B *>> $log
 Log "modul B exit=$LASTEXITCODE"
+
+Log "--- uzivatele (BC Users -> dbo.BCUser + usermap.json): BC_Users_Import.ps1 ---"
+& $ps -NoProfile -ExecutionPolicy Bypass -File $USR *>> $log
+Log "uzivatele exit=$LASTEXITCODE"
 
 Log "--- sync-status: Update-SyncStatus.ps1 ---"
 & $ps -NoProfile -ExecutionPolicy Bypass -File $U *>> $log

@@ -25,8 +25,9 @@ App Insights telemetrie, ověřená pipeline. Viz [dokumentace.md](dokumentace.m
 > **Mapování GUID → jméno (vyřešeno 2026-06-10):** telemetrický `UserId` = BC pole **„Telemetry User ID"**
 > (sloupec „ID telemetrie" na Page 9800 Users) — NE AAD object id, NE User Security ID. Jméno se získá
 > přímo z **BC Users OData** (publikovaný web service), ne korelací s Entra sign-in logy.
-> `scripts/Resolve-UserMap.ps1` (stejný SP jako modul B) → `web/usermap.json` (GUID → Full Name);
-> dashboard záložka 👤 Uživatelé to pak zobrazí v Aktivitě / Kandidátech / RT0031.
+> `scripts/BC_Users_Import.ps1` (stejný SP jako modul B) → SQL **`dbo.BCUser`** (`sql/03_users.sql`)
+> → `dbo.vw_UserMap` → `web/usermap.json` (GUID → Full Name). Běží v denním wrapperu po modulu B;
+> dashboard záložka 👤 Uživatelé to zobrazí v Aktivitě / Kandidátech / RT0031.
 
 ## Modul B — Audit změn (BC Change Log) (LIVE)
 

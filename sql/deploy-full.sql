@@ -349,6 +349,30 @@ BEGIN
     WHEN NOT MATCHED THEN INSERT (Module, CloudCount, LocalCount) VALUES (@Module, @Cloud, @Local);
 END
 GO
+/* ---------- 03_users.sql — adresar BC uzivatelu (GUID -> jmeno) ---------- */
+IF OBJECT_ID('dbo.BCUser', 'U') IS NULL
+    CREATE TABLE dbo.BCUser (
+        UserSecurityId   NVARCHAR(36)  NOT NULL,   -- BC "User Security ID" (PK)
+        TelemetryUserId  NVARCHAR(36)  NULL,        -- = AppPageViews UserId (telemetricky GUID)
+        UserName         NVARCHAR(132) NULL,
+        FullName         NVARCHAR(132) NULL,
+        AuthEmail        NVARCHAR(250) NULL,
+        State            NVARCHAR(20)  NULL,
+        UpdatedAt        DATETIME2(3)  NOT NULL CONSTRAINT DF_BCUser_UpdatedAt DEFAULT SYSUTCDATETIME(),
+        CONSTRAINT PK_BCUser PRIMARY KEY CLUSTERED (UserSecurityId)
+    );
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_BCUser_Telemetry' AND object_id = OBJECT_ID('dbo.BCUser'))
+    CREATE INDEX IX_BCUser_Telemetry ON dbo.BCUser (TelemetryUserId) WHERE TelemetryUserId IS NOT NULL;
+GO
+CREATE OR ALTER VIEW dbo.vw_UserMap AS
+    SELECT  TelemetryUserId AS UserId,
+            COALESCE(NULLIF(LTRIM(RTRIM(FullName)),''), NULLIF(LTRIM(RTRIM(UserName)),''), TelemetryUserId) AS Name
+    FROM    dbo.BCUser
+    WHERE   TelemetryUserId IS NOT NULL AND LTRIM(RTRIM(TelemetryUserId)) <> ''
+      AND   TelemetryUserId <> '00000000-0000-0000-0000-000000000000';
+GO
+
 /* ---------- login + user + prava pro AXINETWORK\svc-bc-telemetry ---------- */
 IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = N'AXINETWORK\svc-bc-telemetry')
     CREATE LOGIN [AXINETWORK\svc-bc-telemetry] FROM WINDOWS;
