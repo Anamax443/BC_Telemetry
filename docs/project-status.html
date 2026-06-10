@@ -126,8 +126,8 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
   "host": "10.8.2.225 (B-S-W-SQL-04)",
   "version": "1.1",
   "generated": "2026-06-10",
-  "commit": "d1ee5f0",
-  "pushNo": 37,
+  "commit": "8d317ab",
+  "pushNo": 38,
   "activeProjectNo": 5,
   "milestones": [
     {
@@ -172,7 +172,8 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
         {"s":"done","t":"Service Principal auth, dynamický watermark KQL"},
         {"s":"done","t":"SqlBulkCopy → staging → MERGE (idempotentní), try/catch + transakce"},
         {"s":"done","t":"Rollup + retence + retry; Register-ScheduledTask (LogonType Password)"},
-        {"s":"done","t":"Install-Prereqs.ps1 (Az moduly) — ověřeno lokálně"}
+        {"s":"done","t":"Install-Prereqs.ps1 (Az moduly) — ověřeno lokálně"},
+        {"s":"done","t":"Stahování z cloudu od nejnovějších (A/C KQL order desc); modul B ponechán asc kvůli watermark+$top=5000"}
       ]
     },
     {
@@ -191,6 +192,7 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
         {"s":"done","t":"GUID→jméno zdroj vyřešen 2026-06-10: = BC „Telemetry User ID\"; usermap.json naplněn 38 jmény"},
         {"s":"prog","t":"Users z BC web service do SQL dbo.BCUser (BC_Users_Import.ps1 → vw_UserMap → usermap.json), zařazeno do denního wrapperu; čeká deploy sql/03_users.sql na server"},
         {"s":"done","t":"Sync-status (pruh pod KPI): kolik cloud obsahuje vs zesynchronizováno per modul (Update-SyncStatus → BCSyncStatus → snapshot)"},
+        {"s":"done","t":"Sync pruh: součtové „Celkem SQL / cloud (%)\" přes všechny moduly (celkový počet záznamů cloud vs SQL)"},
         {"s":"todo","t":"⏰ Monitor expirace SP secretu/certifikátu — KPI/alert (current 2028-06-07)"}
       ]
     },
@@ -278,7 +280,8 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
     {"sha":"7536608","msg":"Dashboard UX: terminál, ruční obnova, proklik dlaždic, favicon, default sort, údržba+retence logů"},
     {"sha":"550c6af","msg":"Hlavní cíl: mapování GUID→jméno (záložka Uživatelé) → podklad pro permission sety; sync-status cloud vs synced"},
     {"sha":"393c5e7","msg":"GUID→jméno vyřešeno: telemetrický GUID = BC Telemetry User ID → usermap.json (38 jmen) + Resolve-UserMap.ps1 (z BC Users OData)"},
-    {"sha":"d1ee5f0","msg":"Users do SQL: dbo.BCUser + vw_UserMap (03_users.sql), BC_Users_Import.ps1 (OData→MERGE→usermap.json), zařazeno do denního wrapperu"}
+    {"sha":"d1ee5f0","msg":"Users do SQL: dbo.BCUser + vw_UserMap (03_users.sql), BC_Users_Import.ps1 (OData→MERGE→usermap.json), zařazeno do denního wrapperu"},
+    {"sha":"8d317ab","msg":"Import cloudu desc (A/C nejnovější první) + dashboard 'Celkem SQL/cloud' v sync pruhu"}
   ]
 }
 </script>
