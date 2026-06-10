@@ -16,11 +16,13 @@
 #>
 [CmdletBinding()]
 param(
-    [string] $ScriptDir = $PSScriptRoot,
+    [string] $ScriptDir = 'C:\Apps\BC_Telemetry\scripts',
     [string] $SqlServer = 'localhost',
     [string] $Snapshot  = 'C:\Apps\BC_Telemetry_Web\public\data.json',
     [string] $LogDir    = 'C:\Apps\BC_Telemetry\logs'
 )
+# fallback, kdyby ScriptDir nesedl
+if (-not $ScriptDir -or -not (Test-Path $ScriptDir)) { if ($PSScriptRoot) { $ScriptDir = $PSScriptRoot } }
 $ErrorActionPreference = 'Continue'
 if (-not (Test-Path $LogDir)) { New-Item -ItemType Directory -Force $LogDir | Out-Null }
 $log = Join-Path $LogDir ('bct-daily-' + [DateTime]::Now.ToString('yyyyMMdd') + '.log')
@@ -33,6 +35,7 @@ $B  = Join-Path $ScriptDir 'BC_ChangeLog_Import.ps1'
 $E  = Join-Path $ScriptDir 'Export-DashboardSnapshot.ps1'
 
 Log "=== BC_Telemetry daily START (user=$env:USERNAME) ==="
+Log "ScriptDir=$ScriptDir  (A exists=$(Test-Path $A))"
 
 Log "--- modul A (page views): BC_PageLog_Import.ps1 ---"
 & $ps -NoProfile -ExecutionPolicy Bypass -File $A *>> $log
