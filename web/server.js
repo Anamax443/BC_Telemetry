@@ -26,7 +26,16 @@ const RULE_DISPLAY_NAME = `BC Telemetry Dashboard (${PORT})`;
 const MIME = { '.html': 'text/html; charset=utf-8', '.json': 'application/json; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.ico': 'image/x-icon' };
 
-function logActivity(level, scope, msg) { console.log(`[${level}] ${scope}: ${msg}`); }
+// In-memory aktivita (ring buffer) — jako ITDashboard activity log; přežije do restartu služby.
+const ACTIVITY = [];
+const ACT_MAX = 200;
+function logActivity(level, scope, msg) {
+  const ts = new Date().toISOString().replace('T', ' ').slice(0, 19);
+  ACTIVITY.push({ ts, level, scope, msg });
+  if (ACTIVITY.length > ACT_MAX) ACTIVITY.shift();
+  console.log(`[${level}] ${scope}: ${msg}`);
+}
+const LOG_DIR = 'C:\\Apps\\BC_Telemetry\\logs';
 
 // ── PowerShell helper (inline -Command, AllSigned-safe) ──────────────────────
 function runPs(script) {
@@ -224,6 +233,25 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
+  // GET /activity — in-memory aktivita služby (refresh, whitelist, boot) — nejnovější první.
+  if (url === '/activity' && req.method === 'GET') {
+    return sendJson(res, 200, { activity: ACTIVITY.slice().reverse() });
+  }
+
+  // GET /logs — tail posledního denního import logu (čte přes PowerShell kvůli kódování).
+  if (url.split('?')[0] === '/logs' && req.method === 'GET') {
+    const ps = `
+$OutputEncoding = [System.Text.Encoding]::UTF8
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$f = Get-ChildItem '${LOG_DIR}' -Filter 'bct-daily-*.log' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime | Select-Object -Last 1
+if ($f) { [pscustomobject]@{ file=$f.Name; text=((Get-Content $f.FullName -Tail 400) -join "\`n") } | ConvertTo-Json -Compress }
+else { '{"file":null,"text":""}' }
+`;
+    return runPs(ps)
+      .then((o) => { const j = JSON.parse(o || '{}'); sendJson(res, 200, j); })
+      .catch((e) => sendJson(res, 500, { error: String(e.message || e) }));
+  }
+
   // POST /refresh — vynutí denní běh (import 3 modulů + snapshot). Task běží jako svc;
   // službu (LocalSystem) jen spustí task. Když už běží, vrátí 'running' (nezdvojí).
   if (url === '/refresh' && req.method === 'POST') {
@@ -235,11 +263,12 @@ if ($t.State -eq 'Running') { 'running' } else { Start-ScheduledTask -TaskName '
       .then((o) => { logActivity('info', 'refresh', `manual refresh: ${o.trim()}`); sendJson(res, 200, { status: o.trim() }); })
       .catch((e) => sendJson(res, 500, { error: String(e.message || e) }));
   }
-  if (url.startsWith('/firewall/') || url.startsWith('/api/') || url === '/refresh') return sendJson(res, 404, { error: 'unknown endpoint' });
+  if (url.startsWith('/firewall/') || url.startsWith('/api/') || url === '/refresh' || url === '/activity' || url === '/logs') return sendJson(res, 404, { error: 'unknown endpoint' });
   return serveStatic(req, res);
 });
 
 server.listen(PORT, () => {
   console.log(`BC_Telemetry web na :${PORT}, public=${PUBLIC_DIR}, rule="${RULE_DISPLAY_NAME}"`);
+  logActivity('info', 'boot', `služba nastartována na :${PORT}`);
   refreshIpGuard('boot');
 });

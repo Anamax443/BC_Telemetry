@@ -77,13 +77,27 @@ html[data-theme="dark"]{--bg:#0f1729;--bg2:#162033;--bg3:#1e293b;--border:#2c3a5
 --text:#e6edf6;--text2:#c2cdda;--text3:#8a99ad;}
 html[data-theme="dark"] .bar .fill{background:rgba(96,165,250,.22);}
 html[data-theme="dark"] .spark .col{background:rgba(96,165,250,.35);}
+/* ── Terminál ── */
+.set-section + .set-section{margin-top:26px;}
+.term-toolbar{display:flex;gap:14px;align-items:center;margin-bottom:12px;}
+.term-auto{font-size:12px;color:var(--text3);display:flex;align-items:center;gap:5px;cursor:pointer;}
+.btn-ghost{font-family:var(--sans);font-size:13px;padding:7px 13px;border:1px solid var(--border);border-radius:7px;background:var(--bg2);color:var(--text2);cursor:pointer;}
+.btn-ghost:hover{color:var(--text);border-color:var(--accent);}
+.term-h{font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:1px;color:var(--text3);margin:14px 0 6px;}
+.term{background:#0b1220;color:#cbd5e1;border:1px solid #1e293b;border-radius:8px;font-family:var(--mono);font-size:12px;line-height:1.55;padding:12px 14px;overflow:auto;}
+.term-act{max-height:210px;}
+.term-log{max-height:440px;white-space:pre;}
+.term .ts{color:#64748b;}
+.term .ev-ERROR,.term .ev-err{color:#f87171;}
+.term .ev-WARN{color:#fbbf24;}
+.term .ev-info{color:#7dd3fc;}
+.term .ev-success{color:#4ade80;}
 </style>
 </head>
 <body>
 <header>
   <div><span class="tag">AXIMA · interní</span><h1>BC Telemetrie — Admin dashboard</h1></div>
   <div class="hright">
-    <button class="theme-btn" type="button" id="refreshBtn" title="Vynutit import + snapshot (pár minut)">↻ Obnovit</button>
     <button class="theme-btn" type="button" id="themeToggle" title="Světlý / tmavý režim" aria-label="Přepnout motiv">🌙</button>
     <div class="meta" id="meta">načítám…</div>
   </div>
@@ -98,6 +112,7 @@ html[data-theme="dark"] .spark .col{background:rgba(96,165,250,.35);}
       <button class="tab" data-panel="audit">Audit změn</button>
       <button class="tab" data-panel="migration">Permission errors (RT0031)</button>
       <button class="tab" data-panel="trend">Trend</button>
+      <button class="tab" data-panel="terminal">🖥 Terminál</button>
       <button class="tab" data-panel="settings">⚙ Nastavení</button>
     </div>
 
@@ -158,7 +173,28 @@ html[data-theme="dark"] .spark .col{background:rgba(96,165,250,.35);}
       </tr></thead><tbody></tbody></table>
     </section>
 
+    <section class="panel" id="panel-terminal">
+      <div class="term-toolbar">
+        <button class="btn-ghost" type="button" id="termReload">↻ Načíst</button>
+        <label class="term-auto"><input type="checkbox" id="termAuto"> auto (10 s)</label>
+        <span class="count" id="termMeta"></span>
+      </div>
+      <h3 class="term-h">Aktivita služby</h3>
+      <div class="term term-act" id="termActivity">—</div>
+      <h3 class="term-h">Log posledního importu</h3>
+      <div class="term term-log" id="termLog">—</div>
+    </section>
+
     <section class="panel" id="panel-settings">
+      <div class="set-section">
+        <h3>Ruční obnova dat</h3>
+        <p class="set-desc">Vynutí okamžitý běh importu (3 moduly z Azure / BC) + snapshot.
+        Jinak běží automaticky denně 02:00 (úloha <span class="mono">BC_Telemetry_Daily</span>).</p>
+        <div class="wl-row">
+          <button class="btn" type="button" id="refreshBtn">↻ Spustit import teď</button>
+          <span class="wl-msg" id="refreshMsg"></span>
+        </div>
+      </div>
       <div class="set-section">
         <h3>Síťový whitelist</h3>
         <p class="set-desc">Formální omezení zobrazení této stránky na vymezené IP adresy / rozsahy.
@@ -188,32 +224,58 @@ const state = {};
   });
 })();
 
-// ── Vynutit obnovu (POST /refresh → spustí denní task; poll na nový snapshot) ──
-(function refreshBtn(){
-  const btn=document.getElementById('refreshBtn'); if(!btn) return;
-  const orig=btn.textContent;
+// ── Ruční obnova (Nastavení): POST /refresh → spustí denní task, poll na nový snapshot ──
+(function refreshCtl(){
+  const btn=document.getElementById('refreshBtn'), msg=document.getElementById('refreshMsg');
+  if(!btn) return;
+  const say=(t,cls)=>{ if(msg){ msg.className='wl-msg'+(cls?' '+cls:''); msg.textContent=t; } };
   btn.addEventListener('click', async ()=>{
     const before = state.generatedUtc||'';
-    btn.disabled=true; btn.textContent='⏳ spouštím…';
+    btn.disabled=true; say('spouštím…');
     try{
       const r=await fetch('/refresh',{method:'POST'});
       const j=await r.json().catch(()=>({}));
       if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
-      btn.textContent='⏳ import běží…';
+      say(j.status==='running' ? 'import už běží — čekám na nový snapshot…' : 'import běží… (pár minut)');
       const t0=Date.now();
       const poll=async()=>{
         try{
           const d=await (await fetch('./data.json',{cache:'no-store'})).json();
-          if(d.generatedUtc && d.generatedUtc!==before){ btn.textContent='✓ hotovo'; setTimeout(()=>location.reload(),600); return; }
+          if(d.generatedUtc && d.generatedUtc!==before){ say('✓ hotovo — načítám','ok'); setTimeout(()=>location.reload(),700); return; }
         }catch(e){}
-        if(Date.now()-t0 > 7*60*1000){ btn.textContent='⚠ timeout (Ctrl+F5)'; btn.disabled=false; setTimeout(()=>btn.textContent=orig,5000); return; }
+        if(Date.now()-t0 > 7*60*1000){ say('⚠ timeout — zkus Ctrl+F5','err'); btn.disabled=false; return; }
         setTimeout(poll, 8000);
       };
       setTimeout(poll, 8000);
-    }catch(e){
-      btn.textContent='⚠ '+(e.message||e);
-      setTimeout(()=>{ btn.textContent=orig; btn.disabled=false; }, 5000);
-    }
+    }catch(e){ say('⚠ '+(e.message||e),'err'); btn.disabled=false; }
+  });
+})();
+
+// ── Terminál (aktivita služby + log posledního importu) ──────────────────────
+let termTimer=null;
+async function loadTerminal(){
+  const act=document.getElementById('termActivity'), lg=document.getElementById('termLog'), meta=document.getElementById('termMeta');
+  if(!act||!lg) return;
+  try{
+    const a=await (await fetch('/activity',{cache:'no-store'})).json();
+    const rows=a.activity||[];
+    act.innerHTML = rows.length ? rows.map(e=>
+      `<div><span class="ts">${esc(e.ts)}</span> <span class="ev-${esc(e.level)}">[${esc(e.level)}] ${esc(e.scope)}</span>: ${esc(e.msg)}</div>`).join('')
+      : '— žádná aktivita od startu služby —';
+  }catch(e){ act.textContent='aktivita nedostupná: '+(e.message||e); }
+  try{
+    const l=await (await fetch('/logs',{cache:'no-store'})).json();
+    lg.textContent = l.text || '— log zatím prázdný —';
+    lg.scrollTop = lg.scrollHeight;
+    if(meta) meta.textContent = l.file ? ('soubor: '+l.file) : '';
+  }catch(e){ lg.textContent='log nedostupný: '+(e.message||e); }
+}
+(function termCtl(){
+  const rel=document.getElementById('termReload'), auto=document.getElementById('termAuto');
+  if(rel) rel.addEventListener('click',loadTerminal);
+  if(auto) auto.addEventListener('change',()=>{
+    if(auto.checked){ loadTerminal(); termTimer=setInterval(loadTerminal,10000); }
+    else if(termTimer){ clearInterval(termTimer); termTimer=null; }
   });
 })();
 
@@ -250,6 +312,7 @@ function render(d){
     document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
     t.classList.add('active');
     document.getElementById('panel-'+t.dataset.panel).classList.add('active');
+    if(t.dataset.panel==='terminal') loadTerminal();
   }));
 
   buildWhitelistEditor(document.getElementById('wlHost'));
