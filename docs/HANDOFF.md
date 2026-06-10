@@ -33,7 +33,9 @@ Poslední update: **2026-06-10** · repo `Anamax443/BC_Telemetry`.
 
 ## Ověřená realita (POZOR — docs v1.0 i oponentura byly mylné)
 - Import sahá na **Log Analytics** → tabulka **`AppPageViews`** (NE classic `pageViews`), BC dims v **`Properties.*`**.
-- Uživatel telemetrie = **`UserId`** = **pseudonymní GUID** (NE AAD object id — Entra 404). Jméno jen korelací s Entra sign-in logy.
+- Uživatel telemetrie = **`UserId`** = **pseudonymní GUID** (NE AAD object id — Entra 404; NE ani BC „User Security ID").
+  **VYŘEŠENO 2026-06-10:** tenhle GUID = BC pole **„Telemetry User ID"** (sloupec „ID telemetrie" na Page 9800 Users).
+  Mapování na jméno → BC Users OData (publikovaný web service), NE korelace s Entra sign-in logy. Viz `scripts/Resolve-UserMap.ps1` + `web/usermap.json`.
 - Interaktivní klienti = **`Desktop`/`WebClient`** (hodnota „Web" NEexistuje → starý filtr by nematchnul nic).
 - Change Log naopak má **reálné jméno** (User_ID = LSOKOL…) → modul B jména řeší nativně.
 - DCR filtr **odložen** (free tier $0; filtruje import).
@@ -110,7 +112,9 @@ ukazuje Aktivita/Kandidáti **kdo** co reálně používá → z toho se sestav�
 ## Plánované featury
 - ⏰ **Monitor expirace SP secretu/certifikátu** v dashboardu (KPI/alert; current 2028-06-07) — operator request.
 - Modul B durable: vlastní AL API page místo deprecated UI-page web service.
-- Modul A jména: korelace GUID ↔ Entra sign-in logy → `dbo.BCUserMap`.
+- ~~Modul A jména: korelace GUID ↔ Entra sign-in logy~~ ✅ **VYŘEŠENO jinak (2026-06-10):** telemetrický GUID = BC „Telemetry User ID" → mapování přímo z BC Users OData (`Resolve-UserMap.ps1` → `web/usermap.json`). Zbývá: ověřit název OData pole prvním během na serveru + případně přidat resolver do denního wrapperu.
+- **Import: stahovat z cloudu od nejnovějších po nejstarší** (operator request) — A/C KQL `order by timestamp desc`; u modulu B (watermark + `$top=5000`) pozor na úplnost při >5000 nových.
+- **Dashboard: celkový počet záznamů cloud vs SQL** (operator request) — součtové KPI nad per-modul `BCSyncStatus`.
 - 📖 **Anonymizovaný public step-by-step návod** (na maxferit web, jako showcase/lead-gen) —
   samostatný deliverable, **bez identifikace firmy**: nahradit AXIMA / company names / tenant+subscription
   GUIDy / SP client ID / iKey / reálná jména (MTRNKA) / interní IP (10.8.2.225, BSWNAV01) za placeholdery
