@@ -97,7 +97,14 @@ ukazuje Aktivita/Kandidáti **kdo** co reálně používá → z toho se sestav�
 
 ### Dashboard endpointy (Node služba)
 `/access-check` · `/firewall/whitelist` (GET/PUT) · `/firewall/domain-profile` · `/refresh` (POST) ·
-`/activity` · `/logs` · `/logfiles` · `/usermap` (GET/PUT). Statické: `index.html`, `data.json`.
+`/activity` · `/logs` · `/logfiles` · `/usermap` (GET/PUT) · `/changelog-companies` (GET/PUT). Statické: `index.html`, `data.json`.
+
+### Modul B — výběr firem + backfill (2026-06-10)
+- **Nastavení → „Protokol změn — sledované firmy"**: checkboxy per firma → `changelog-companies.json` (`{all,enabled}`).
+  `BC_ChangeLog_Import` zapíše `all` (všech 12) a importuje jen `enabled` (když nastaveno; jinak vše). Umožní vypnout obří firmy.
+- **Backfill past:** BC OData vrací max **~50000 řádků/dotaz** → import bere 50000/firma/běh, watermark `Entry_No gt MAX` **vzestupně** (od nejstarších).
+  `AXIMA_CZ_ESHOP` má `EntryNo ~814M` → ascending backfill k současnosti nereálný. `dbo.BCChangeLog` má 402665 řádků (bez duplicit — UX index).
+- **Otevřené rozhodnutí:** (a) odškrtnout ESHOP (řeší hlavní bolest); (b) přepnout import na **`Entry_No desc`** (nejnovější první) u zbylých firem; (c) **TRUNCATE** `dbo.BCChangeLog` (čistý start). Čeká na operatora.
 
 ### Zbývá jen volitelné
 - Zúžit BC permission set z D365 BUS PREMIUM na custom read (least-privilege); vlastní AL API page místo deprecated UI-page web service.

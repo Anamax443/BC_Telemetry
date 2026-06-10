@@ -126,8 +126,8 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
   "host": "10.8.2.225 (B-S-W-SQL-04)",
   "version": "1.1",
   "generated": "2026-06-10",
-  "commit": "26de258",
-  "pushNo": 39,
+  "commit": "37c430b",
+  "pushNo": 41,
   "activeProjectNo": 5,
   "milestones": [
     {
@@ -246,7 +246,9 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
         {"s":"done","t":"SP → BC API S2S funguje: Redirect URI + API.ReadWrite.All + consent + app user; OData čte všech 12 firem"},
         {"s":"done","t":"OData pole ověřena (Entry_No/Date_and_Time/User_ID=reálné jméno/…), import opraven"},
         {"s":"done","t":"SQL deploy připraven (deploy.cmd zahrnuje BCChangeLog + purge)"},
-        {"s":"done","t":"Produkční běh na serveru LIVE 2026-06-10 (denně 02:00 se 3 moduly): BCChangeLog=42665, všech 12 firem"}
+        {"s":"done","t":"Produkční běh na serveru LIVE 2026-06-10 (denně 02:00 se 3 moduly): BCChangeLog=42665, všech 12 firem"},
+        {"s":"done","t":"Nastavení → výběr sledovaných firem (changelog-companies.json: GET/PUT, checkboxy); import bere jen vybrané — lze vypnout obří ESHOP"},
+        {"s":"prog","t":"Backfill: BC OData strop 50000/firma/běh + ESHOP má EntryNo ~814M → ascending backfill nereálný. Otevřeno: desc + TRUNCATE dosavadních 400k"}
       ]
     },
     {
@@ -283,7 +285,8 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
     {"sha":"393c5e7","msg":"GUID→jméno vyřešeno: telemetrický GUID = BC Telemetry User ID → usermap.json (38 jmen) + Resolve-UserMap.ps1 (z BC Users OData)"},
     {"sha":"d1ee5f0","msg":"Users do SQL: dbo.BCUser + vw_UserMap (03_users.sql), BC_Users_Import.ps1 (OData→MERGE→usermap.json), zařazeno do denního wrapperu"},
     {"sha":"8d317ab","msg":"Import cloudu desc (A/C nejnovější první) + dashboard 'Celkem SQL/cloud' v sync pruhu"},
-    {"sha":"26de258","msg":"Uživatelské mapování LIVE (63 jmen z dbo.BCUser); svc právo na usermap.json; verze Push#+commit v hlavičce dashboardu"}
+    {"sha":"26de258","msg":"Uživatelské mapování LIVE (63 jmen z dbo.BCUser); svc právo na usermap.json; verze Push#+commit v hlavičce dashboardu"},
+    {"sha":"1560caa","msg":"Modul B: výběr sledovaných firem v Nastavení (changelog-companies.json) — lze vypnout obří ESHOP; diagnóza backfillu (50000 strop / ESHOP ~814M)"}
   ]
 }
 </script>

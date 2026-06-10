@@ -60,6 +60,13 @@ přes `/ODataV4/Company`) → GET `…/Company('X')/ChangelogEntry?$filter=entry
 > `User_ID` (reálné jméno) / `Table_No` / `Field_No` / `Type_of_Change` / `Old_Value` / `New_Value` /
 > `Primary_Key`. Import opraven na tato pole; produkční běh LIVE 2026-06-10 (BCChangeLog=42665, 12 firem).
 
+> **Výběr firem (Nastavení):** dashboard `changelog-companies.json` (`{all,enabled}`) — odškrtnutím firmy se
+> její Change Log přestane stahovat. `BC_ChangeLog_Import` zapíše `all` a importuje jen `enabled` (jinak vše).
+
+> ⚠ **Backfill:** BC OData vrací max ~50000 řádků/dotaz → import bere 50000/firma/běh, watermark `Entry_No gt MAX`
+> **vzestupně**. `AXIMA_CZ_ESHOP` má `EntryNo ~814M` → ascending backfill k současnosti nereálný. Řešení: odškrtnout
+> velké firmy, případně přepnout na `Entry_No desc` (nejnovější první) + `TRUNCATE` dosavadních dat. Bez duplicit (UX index).
+
 ## Modul C — Permission errors (RT0031)
 
 RT0031 = *Authorization Failed* v `AppTraces`. **Vzniká až po odebrání plného přístupu** a nasazení
