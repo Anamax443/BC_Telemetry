@@ -5,8 +5,8 @@ Projekt sbírá tři různé pohledy na BC, každý z **jiného zdroje** a s jin
 | Modul | Otázka | Zdroj | Identita | Stav |
 |---|---|---|---|---|
 | **A · Využití stránek** | Co kdo otevírá → Permission Set mining | App Insights `AppPageViews` | pseudonymní GUID (`UserId`) | **LIVE** |
-| **B · Audit změn** | Kdo vytvořil / změnil / **smazal** záznam | **BC Change Log** přes API/OData | **reálný uživatel** (UPN) | nový |
-| **C · Permission errors** | Kdo narazil na chybějící oprávnění (RT0031) | App Insights `AppTraces` | pseudonymní GUID | scaffold |
+| **B · Audit změn** | Kdo vytvořil / změnil / **smazal** záznam | **BC Change Log** přes API/OData | **reálný uživatel** (UPN) | **LIVE** |
+| **C · Permission errors** | Kdo narazil na chybějící oprávnění (RT0031) | App Insights `AppTraces` | pseudonymní GUID | ingest LIVE (čeká na data) |
 
 ```
                  ┌─ App Insights ─ AppPageViews ──▶ [A] dbo.BCPageLog → BCPageDaily
@@ -23,7 +23,7 @@ BC Cloud ────────┤                 AppTraces(RT0031) ▶ [C] d
 App Insights telemetrie, ověřená pipeline. Viz [dokumentace.md](dokumentace.md). Identita = pseudonymní GUID;
 jména volitelně korelací s Entra sign-in logy ([reakce](oponentury/2026-06-08-reakce.md)).
 
-## Modul B — Audit změn (BC Change Log)
+## Modul B — Audit změn (BC Change Log) (LIVE)
 
 **Reálný uživatel** — Change Log loguje INSERT/MODIFY/DELETE s BC User ID (mapovatelný na osobu).
 
@@ -50,8 +50,9 @@ přes `/ODataV4/Company`) → GET `…/Company('X')/ChangelogEntry?$filter=entry
 > **Auth:** browser na OData endpoint ukáže Basic-auth dialog (BC online ho přes prohlížeč neudělá) →
 > ověření a běh **jen přes Service Principal** (client-credentials). Browser test = Zrušit.
 
-> ⚠ Názvy OData polí (entryNo, changeType, oldValue…) **ověřit proti `$metadata`** přes SP před
-> produkčním během — stejně jako jsme validovali App Insights schéma.
+> ✅ Názvy OData polí ověřeny proti `$metadata` přes SP (2026-06-08): `Entry_No` / `Date_and_Time` /
+> `User_ID` (reálné jméno) / `Table_No` / `Field_No` / `Type_of_Change` / `Old_Value` / `New_Value` /
+> `Primary_Key`. Import opraven na tato pole; produkční běh LIVE 2026-06-10 (BCChangeLog=42665, 12 firem).
 
 ## Modul C — Permission errors (RT0031)
 

@@ -125,9 +125,9 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
   "repoUrl": "https://github.com/Anamax443/BC_Telemetry",
   "host": "10.8.2.225 (B-S-W-SQL-04)",
   "version": "1.1",
-  "generated": "2026-06-08",
-  "commit": "550c6af",
-  "pushNo": 33,
+  "generated": "2026-06-10",
+  "commit": "ccc9a3b",
+  "pushNo": 34,
   "activeProjectNo": 5,
   "milestones": [
     {
@@ -140,9 +140,9 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
         {"s":"done","t":"BC Admin Center → Production → telemetrie ON (connection string, bez restartu)"},
         {"s":"done","t":"Data tečou + schéma validováno: AppPageViews / Properties / UserId (GUID), klienti Desktop+WebClient"},
         {"s":"done","t":"DCR filtr ODLOŽEN — free tier $0; filtr řeší import (clientType whitelist)"},
-        {"s":"todo","t":"Mapování GUID→jméno přes Entra sign-in logy → dbo.BCUserMap (GUID je pseudonym, ne AAD id)"},
+        {"s":"todo","t":"Automatické mapování GUID→jméno přes Entra sign-in logy (manuální usermap.json hotové v M4; automatizace přes Entra odložena)"},
         {"s":"done","t":"Service Principal BC_Telemetry_SP + Log Analytics Reader na workspace (Workspace ID 484e3038)"},
-        {"s":"todo","t":"BC Admin Center → Entra Apps: registrovat SP pro BC API (modul B OData)"}
+        {"s":"done","t":"BC Admin Center → Entra Apps: SP pro BC API (modul B OData) — S2S funguje, OData čte všech 12 firem"}
       ]
     },
     {
@@ -233,7 +233,7 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
       ]
     },
     {
-      "id": "M8", "title": "Modul B — Audit změn (Change Log)", "status": "prog",
+      "id": "M8", "title": "Modul B — Audit změn (Change Log)", "status": "done",
       "desc": "Kdo vytvořil / změnil / SMAZAL záznam — s reálným jménem (BC Change Log → API/OData).",
       "items": [
         {"s":"done","t":"SQL dbo.BCChangeLog (per-firma dedup) + view + retence; ingest + dashboard záložka Audit"},
@@ -241,7 +241,7 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
         {"s":"done","t":"SP → BC API S2S funguje: Redirect URI + API.ReadWrite.All + consent + app user; OData čte všech 12 firem"},
         {"s":"done","t":"OData pole ověřena (Entry_No/Date_and_Time/User_ID=reálné jméno/…), import opraven"},
         {"s":"done","t":"SQL deploy připraven (deploy.cmd zahrnuje BCChangeLog + purge)"},
-        {"s":"todo","t":"Produkční běh na serveru (společné s moduly A/C)"}
+        {"s":"done","t":"Produkční běh na serveru LIVE 2026-06-10 (denně 02:00 se 3 moduly): BCChangeLog=42665, všech 12 firem"}
       ]
     },
     {
