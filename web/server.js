@@ -252,6 +252,19 @@ else { '{"file":null,"text":""}' }
       .catch((e) => sendJson(res, 500, { error: String(e.message || e) }));
   }
 
+  // GET /logfiles — seznam log souborů v obou složkách (pro ověření retence v Nastavení).
+  if (url === '/logfiles' && req.method === 'GET') {
+    const ps = `
+$OutputEncoding = [System.Text.Encoding]::UTF8
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+function L($p){ ,@(Get-ChildItem $p -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | ForEach-Object { [pscustomobject]@{ name=$_.Name; kb=[math]::Round($_.Length/1KB,1); modified=$_.LastWriteTime.ToString('yyyy-MM-dd HH:mm') } }) }
+[pscustomobject]@{ dailyDir='${LOG_DIR}'; serviceDir='C:\\Apps\\BC_Telemetry_Web\\logs'; daily=(L '${LOG_DIR}'); service=(L 'C:\\Apps\\BC_Telemetry_Web\\logs') } | ConvertTo-Json -Depth 4
+`;
+    return runPs(ps)
+      .then((o) => sendJson(res, 200, JSON.parse(o || '{}')))
+      .catch((e) => sendJson(res, 500, { error: String(e.message || e) }));
+  }
+
   // POST /refresh — vynutí denní běh (import 3 modulů + snapshot). Task běží jako svc;
   // službu (LocalSystem) jen spustí task. Když už běží, vrátí 'running' (nezdvojí).
   if (url === '/refresh' && req.method === 'POST') {
@@ -263,7 +276,7 @@ if ($t.State -eq 'Running') { 'running' } else { Start-ScheduledTask -TaskName '
       .then((o) => { logActivity('info', 'refresh', `manual refresh: ${o.trim()}`); sendJson(res, 200, { status: o.trim() }); })
       .catch((e) => sendJson(res, 500, { error: String(e.message || e) }));
   }
-  if (url.startsWith('/firewall/') || url.startsWith('/api/') || url === '/refresh' || url === '/activity' || url === '/logs') return sendJson(res, 404, { error: 'unknown endpoint' });
+  if (url.startsWith('/firewall/') || url.startsWith('/api/') || url === '/refresh' || url === '/activity' || url === '/logs' || url === '/logfiles') return sendJson(res, 404, { error: 'unknown endpoint' });
   return serveStatic(req, res);
 });
 

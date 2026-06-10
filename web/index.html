@@ -92,6 +92,8 @@ html[data-theme="dark"] .spark .col{background:rgba(96,165,250,.35);}
 .term{background:#0b1220;color:#cbd5e1;border:1px solid #1e293b;border-radius:8px;font-family:var(--mono);font-size:12px;line-height:1.55;padding:12px 14px;overflow:auto;}
 .term-act{max-height:210px;}
 .term-log{max-height:440px;white-space:pre;}
+.log-paths{font-size:12px;color:var(--text2);line-height:1.9;margin-bottom:10px;}
+#lgBox{max-height:240px;white-space:pre;margin-top:8px;}
 .term .ts{color:#64748b;}
 .term .ev-ERROR,.term .ev-err{color:#f87171;}
 .term .ev-WARN{color:#fbbf24;}
@@ -207,6 +209,18 @@ html[data-theme="dark"] .spark .col{background:rgba(96,165,250,.35);}
         Jedna IP nebo CIDR na řádek (např. <span class="mono">10.8.2.0/24</span>).</p>
         <div id="wlHost"></div>
       </div>
+      <div class="set-section">
+        <h3>Údržba logů</h3>
+        <p class="set-desc">Denní importní logy se po každém běhu <strong>automaticky mažou po 30 dnech</strong> (wrapper).
+        Logy služby (<span class="mono">web.out/err.log</span>) <strong>rotuje NSSM při 5 MB</strong>. Ruční čištění není potřeba.</p>
+        <div class="log-paths">
+          <div>Importní logy: <span class="mono" id="lgDailyDir">…</span></div>
+          <div>Logy služby: <span class="mono" id="lgSvcDir">…</span></div>
+        </div>
+        <div class="wl-row"><button class="btn-ghost" type="button" id="lgList">↻ Zobrazit soubory</button>
+        <span class="count" id="lgMsg"></span></div>
+        <div class="term" id="lgBox">— klikni „Zobrazit soubory" —</div>
+      </div>
     </section>
   </div>
 </main>
@@ -287,6 +301,25 @@ async function loadTerminal(){
   });
 })();
 
+// ── Údržba logů (Nastavení): výpis souborů pro ověření retence ───────────────
+async function loadLogFiles(){
+  const box=document.getElementById('lgBox'), dd=document.getElementById('lgDailyDir'),
+        sd=document.getElementById('lgSvcDir'), msg=document.getElementById('lgMsg');
+  if(!box) return;
+  if(msg) msg.textContent='načítám…';
+  const arr=x=>Array.isArray(x)?x:(x?[x]:[]);
+  const sect=(title,files)=>{ const f=arr(files);
+    return `[${title}]  (${f.length})\n` + (f.length ? f.map(x=>'  '+String(x.name||'').padEnd(34)+String(x.kb).padStart(9)+' kB   '+(x.modified||'')).join('\n') : '  —'); };
+  try{
+    const j=await (await fetch('/logfiles',{cache:'no-store'})).json();
+    if(dd) dd.textContent=j.dailyDir||'?';
+    if(sd) sd.textContent=j.serviceDir||'?';
+    box.textContent = sect('importní logy', j.daily) + '\n\n' + sect('logy služby', j.service);
+    if(msg) msg.textContent='';
+  }catch(e){ box.textContent='nedostupné: '+(e.message||e); if(msg) msg.textContent=''; }
+}
+(function lgCtl(){ const b=document.getElementById('lgList'); if(b) b.addEventListener('click',loadLogFiles); })();
+
 initAccessGate();
 fetch('./data.json',{cache:'no-store'})
   .then(r=>{if(!r.ok)throw new Error(r.status);return r.json();})
@@ -324,6 +357,7 @@ function render(d){
     t.classList.add('active');
     document.getElementById('panel-'+t.dataset.panel).classList.add('active');
     if(t.dataset.panel==='terminal') loadTerminal();
+    if(t.dataset.panel==='settings') loadLogFiles();
   }));
 
   buildWhitelistEditor(document.getElementById('wlHost'));
