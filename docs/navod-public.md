@@ -168,6 +168,17 @@ Dashboard hostuj jako **malou Node službu** (přes NSSM), aby šel whitelist ed
 - Whitelist umí **single IP, CIDR masku (`x.x.x.x/n`) i rozsah (`x.x.x.x-y.y.y.y`)**.
 - Snapshot exportér čte jen **agregáty** → `data.json` zůstává malý i nad miliony raw řádků.
 
+**Funkce dashboardu:**
+- **👤 Mapování uživatelů** — telemetrie využití zná uživatele jen jako **pseudonymní GUID** (poskytovatel je
+  nerozkrývá). Dashboard má editor, kde ke GUID přiřadíš reálné jméno (s nápovědou podle firem/stránek);
+  jméno se pak zobrazí všude. **Tohle je klíč k hlavnímu cíli** — abys věděl, KOMU jaká práva nastavit.
+  (Audit změn má reálné jméno nativně, protože pochází z aplikačního change logu, ne z telemetrie.)
+- **Sync-status** — kolik záznamů cloud obsahuje vs kolik je zesynchronizováno (per modul).
+- **Terminál** — aktivita služby + log posledního importu (živé sledování běhu).
+- **Ruční obnova** — tlačítko vynutí import + snapshot mimo plán.
+- **Údržba logů** — automatická retence (denní logy) + rotace logů služby; v UI ověříš seznam souborů.
+- UX: dark mode, default řazení od nejnovějších, proklikávací KPI dlaždice.
+
 > **Honest poznámka k bezpečnosti:** IP whitelist přes firewall *allow* rule je *visibility gate*, ne tvrdá
 > hranice — platí jen když je Domain firewall profil Enabled. Pro tvrdé vynucení profil zapni. Buď k tomuhle
 > ve své dokumentaci upřímný; je to známka, že chápeš rozdíl mezi „omezením zobrazení" a „bezpečnostní hranicí".

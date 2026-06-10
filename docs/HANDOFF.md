@@ -76,10 +76,25 @@ Poslední update: **2026-06-08** · repo `Anamax443/BC_Telemetry`.
     ⚠ **Opraveno při ostrém běhu scheduleru:** (a) child volání explicitně (ne splat `@($s.a)`); (b) `ScriptDir` hardcoded
     (`$PSScriptRoot` byl v task kontextu prázdný); (c) **EXECUTE na `SCHEMA::dbo`** (per-proc grant zanikl při DROP/CREATE rollup proc);
     (d) svc potřebuje **Modify na `…_Web\public`** (snapshot píše `data.json`) — zapracováno do `install-service.cmd`.
+12. ~~**Dashboard UX + hlavní cíl (permission mining)**~~ ✅ **2026-06-10**:
+    - **👤 Uživatelé** (záložka): mapování **pseudonymní GUID → reálné jméno** (`usermap.json` přes `/usermap`), s nápovědou
+      (firmy / top stránka / otevření / naposledy). Jméno se aplikuje v Aktivitě / Kandidátech / RT0031 a dá se podle něj filtrovat
+      → **základ pro definici permission setů per uživatel** (modul A/C má jen pseudonym — MS nerozkrývá; Audit/B má reálné jméno nativně).
+    - **🖥 Terminál** (záložka): aktivita služby (`/activity`, ring-buffer) + log posledního importu (`/logs`), auto-refresh 10 s.
+    - **Údržba logů** (Nastavení): retence denních logů **30 dní** (wrapper) + **NSSM rotace 5 MB** + okno se seznamem (`/logfiles`).
+    - **Sync-status** (pruh pod KPI): kolik cloud obsahuje vs zesynchronizováno per modul. Plní `Update-SyncStatus.ps1`
+      (cloud: AppPageViews / AppTraces RT0031 / OData `$count`) → `dbo.BCSyncStatus` → snapshot. Krok ve wrapperu před snapshotem.
+    - **↻ Ruční obnova** (Nastavení): POST `/refresh` spustí denní task. UI: default řazení newest-first, proklikávací KPI dlaždice, název→domů, favicon.
 
 ## 🟢 STATUS: LIVE / kompletní (2026-06-10)
 Celý řetězec **BC → Azure App Insights → SQL (3 moduly) → rollup → snapshot → dashboard** běží **plně automaticky**
 (denně 02:00 jako `AXINETWORK\svc-bc-telemetry`). Data ověřena, dashboard servíruje, dokumentace (interní + public) hotová.
+**Hlavní cíl** (podklad pro permission sety per uživatel místo SUPER) je naplněn: po namapování jmen v záložce Uživatelé
+ukazuje Aktivita/Kandidáti **kdo** co reálně používá → z toho se sestaví role; RT0031 pak po zúžení práv hlídá chybějící oprávnění.
+
+### Dashboard endpointy (Node služba)
+`/access-check` · `/firewall/whitelist` (GET/PUT) · `/firewall/domain-profile` · `/refresh` (POST) ·
+`/activity` · `/logs` · `/logfiles` · `/usermap` (GET/PUT). Statické: `index.html`, `data.json`.
 
 ### Zbývá jen volitelné
 - Zúžit BC permission set z D365 BUS PREMIUM na custom read (least-privilege); vlastní AL API page místo deprecated UI-page web service.

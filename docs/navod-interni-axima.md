@@ -190,6 +190,16 @@ spusť `Unblock-File` (RemoteSigned blokuje skripty se zónou „downloaded"). �
 - Whitelist umí **single IP, CIDR masku (`x.x.x.x/n`) i rozsah (`x.x.x.x-y.y.y.y`)**.
 - Snapshot: `Export-DashboardSnapshot.ps1` → `data.json` (čte jen agregáty → malý i nad miliony raw).
 
+**Funkce dashboardu (záložky + endpointy):**
+- **👤 Uživatelé** — mapování pseudonymní GUID → reálné jméno (`usermap.json` přes `/usermap`), s nápovědou
+  (firmy/top stránka/otevření/naposledy). **Klíč k hlavnímu cíli** (komu nastavit práva). Modul A/C má jen
+  pseudonym (MS nerozkrývá ani přes Graph); Audit/B má reálné jméno nativně z Change Logu.
+- **Sync-status** (pruh pod KPI) — cloud vs zesynchronizováno per modul (`Update-SyncStatus.ps1` → `dbo.BCSyncStatus` → snapshot).
+- **🖥 Terminál** — aktivita služby (`/activity`) + log posledního importu (`/logs`), auto-refresh.
+- **↻ Ruční obnova** (Nastavení) — `/refresh` spustí denní task; **Údržba logů** — retence 30d (wrapper) + NSSM rotace 5 MB (`/logfiles`).
+- Endpointy: `/access-check`, `/firewall/whitelist`, `/firewall/domain-profile`, `/refresh`, `/activity`, `/logs`, `/logfiles`, `/usermap`.
+- ⚠ Změna `server.js` → **restart služby** (`sc stop`→STOPPED→`sc start`); `index.html`/`usermap.json` ne (no-store / soubor).
+
 > **Honest poznámka:** whitelist je *formální / visibility gate*, ne tvrdá hranice — firewall *allow* rule
 > platí jen když je Domain profil Enabled. Tvrdé vynucení = zapnout Domain profil.
 
