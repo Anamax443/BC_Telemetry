@@ -3,8 +3,10 @@
 Aktuální stav projektu pro pokračování v další session. Updatuje se průběžně.
 Poslední update: **2026-06-08** · repo `Anamax443/BC_Telemetry`.
 
+> **Kompletní build návod:** [navod-interni-axima.md](navod-interni-axima.md) (INTERNÍ, plné hodnoty) ·
+> [navod-public.md](navod-public.md) (sanitizovaný, k publikaci) — sdílené tělo, liší se jen tabulka hodnot.
 > Doplňující docs: [modules.md](modules.md) (3 moduly) · [dokumentace.md](dokumentace.md) (technicky) ·
-> [BUILD.md](../BUILD.md) (postup) · [deploy-10.8.2.225.md](deploy-10.8.2.225.md) (dashboard hosting) ·
+> [BUILD.md](../BUILD.md) (legacy postup) · [deploy-10.8.2.225.md](deploy-10.8.2.225.md) (dashboard hosting) ·
 > [project-status.html](project-status.html) (milestones) · [oponentury/](oponentury/).
 
 ---
@@ -66,8 +68,8 @@ Poslední update: **2026-06-08** · repo `Anamax443/BC_Telemetry`.
 ## Otevřená rozhodnutí (operator)
 - ~~BC_Telemetry DB: 10.8.2.225 (localhost) vs BSWNAV01~~ ✅ **localhost (co-located na 10.8.2.225)** — všechny importy sjednoceny na `localhost`, GRANT míří na lokální Windows účet.
 - ~~Whitelist rozsah dashboardu: `/24` vs `/16`~~ ✅ **stejně jako ITDashboard** — konkrétní admin IP (`10.8.2.225` vlastní server, `10.8.2.181` dev PC, `10.8.2.243` IT specialista); whitelist editor umí navíc CIDR masku i pomlčkový rozsah.
-- GPO AllSigned: podpis PS skriptů vs jiný box vs GPO výjimka. (SQL deploy už AllSigned obchází přes `sqlcmd.exe`; týká se ještě importních `.ps1` v Task Scheduleru.)
-- Servisní účet: navrženo `AXINETWORK\svc-bc-telemetry` (dedikovaný doménový) — operator ho zatím nemá, čeká na založení.
+- ~~GPO AllSigned~~ ✅ na `10.8.2.225` je `LocalMachine=RemoteSigned` (ne AllSigned, ověřeno 2026-06-10) → importní `.ps1` běží bez podpisu (po přenosu z internetu `Unblock-File`). Žádné podpisování netřeba.
+- ~~Servisní účet~~ ✅ `AXINETWORK\svc-bc-telemetry` založen.
 
 ## Plánované featury
 - ⏰ **Monitor expirace SP secretu/certifikátu** v dashboardu (KPI/alert; current 2028-06-07) — operator request.
