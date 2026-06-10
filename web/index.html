@@ -389,11 +389,15 @@ Promise.all([
 ]).then(([d,m])=>{ userMap=m||{}; render(d); })
   .catch(e=>{document.getElementById('loading').textContent='Chyba načtení data.json: '+e.message;});
 
+// verze nasazeneho dashboardu (bump pri kazdem deployi index.html); snapshot ji muze prebit (d.version)
+const APP_VER={push:39,commit:'461aaab',repo:'https://github.com/Anamax443/BC_Telemetry'};
 function render(d){
   document.getElementById('loading').hidden=true;
   document.getElementById('app').hidden=false;
   state.generatedUtc=d.generatedUtc||'';
-  document.getElementById('meta').textContent='snapshot '+(d.generatedUtc||'?')+' UTC';
+  const v=(d.version&&d.version.commit)?d.version:APP_VER;
+  document.getElementById('meta').innerHTML='snapshot '+(d.generatedUtc||'?')+' UTC'
+    +' · <a href="'+v.repo+'/commit/'+v.commit+'" target="_blank" rel="noreferrer" style="color:var(--accent2);text-decoration:none" title="Otevřít commit na GitHubu">⬆ Push #'+v.push+' · '+v.commit+'</a>';
 
   const k=d.kpi||{};
   const kpis=[
