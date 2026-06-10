@@ -413,7 +413,11 @@ function render(d){
   const syn=Array.isArray(d.sync)?d.sync:(d.sync?[d.sync]:[]);
   const synEl=document.getElementById('sync');
   if(syn.length){
-    synEl.innerHTML='<span class="uid-sub">SYNCHRONIZACE</span> '+syn.map(s=>{
+    const tC=syn.reduce((a,s)=>a+Number(s.CloudCount||0),0), tL=syn.reduce((a,s)=>a+Number(s.LocalCount||0),0);
+    const tP=tC>0?Math.round(100*tL/tC):(tL>0?100:0);
+    synEl.innerHTML='<span class="uid-sub">SYNCHRONIZACE</span> '
+      +`<span class="syn"><b>Celkem</b> SQL ${fmt(tL)} / cloud ${fmt(tC)} <span class="uid-sub">(${tP}%)</span></span>`
+      +syn.map(s=>{
       const cloud=Number(s.CloudCount||0), loc=Number(s.LocalCount||0);
       const pct=cloud>0?Math.round(100*loc/cloud):(loc>0?100:0);
       return `<span class="syn"><b>${esc(modName[s.Module]||s.Module)}</b> ${fmt(loc)} / ${fmt(cloud)} <span class="uid-sub">(${pct}%)</span></span>`;

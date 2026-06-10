@@ -114,7 +114,7 @@ AppPageViews
 | extend pageName    = tostring(Properties.alObjectName)
 | extend companyName = tostring(Properties.companyName)
 | project timestamp = TimeGenerated, userId, userName, pageId, pageName, companyName
-| order by timestamp asc
+| order by timestamp desc
 "@
 
     # Retry s exponenciálním čekáním (oponentura 🟢#2 — rate limiting)

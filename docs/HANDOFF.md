@@ -114,8 +114,8 @@ ukazuje Aktivita/Kandidáti **kdo** co reálně používá → z toho se sestav�
 - ⏰ **Monitor expirace SP secretu/certifikátu** v dashboardu (KPI/alert; current 2028-06-07) — operator request.
 - Modul B durable: vlastní AL API page místo deprecated UI-page web service.
 - ~~Modul A jména: korelace GUID ↔ Entra sign-in logy~~ ✅ **VYŘEŠENO jinak (2026-06-10):** telemetrický GUID = BC „Telemetry User ID" → BC Users OData → **SQL `dbo.BCUser`** (`BC_Users_Import.ps1`, v denním wrapperu) → `vw_UserMap` → `usermap.json`. **Zbývá nasadit na serveru:** (1) deploy `sql/03_users.sql` (přes SSMS / deploy.cmd); (2) ověřit názvy OData polí prvním během (skript je auto-detekuje, jinak vypíše dostupná pole).
-- **Import: stahovat z cloudu od nejnovějších po nejstarší** (operator request) — A/C KQL `order by timestamp desc`; u modulu B (watermark + `$top=5000`) pozor na úplnost při >5000 nových.
-- **Dashboard: celkový počet záznamů cloud vs SQL** (operator request) — součtové KPI nad per-modul `BCSyncStatus`.
+- ~~Import: stahovat z cloudu od nejnovějších po nejstarší~~ ✅ A/C KQL `order by timestamp desc`. Modul B ponechán `asc` (watermark + `$top=5000` — desc by při >5000 nových vynechal starší → díra).
+- ~~Dashboard: celkový počet záznamů cloud vs SQL~~ ✅ sync pruh má teď „Celkem SQL / cloud (%)" jako součet přes moduly z `BCSyncStatus`.
 - 📖 **Anonymizovaný public step-by-step návod** (na maxferit web, jako showcase/lead-gen) —
   samostatný deliverable, **bez identifikace firmy**: nahradit AXIMA / company names / tenant+subscription
   GUIDy / SP client ID / iKey / reálná jména (MTRNKA) / interní IP (10.8.2.225, BSWNAV01) za placeholdery

@@ -45,7 +45,7 @@ AppTraces
 | extend objectId   = tostring(Properties.alObjectId)
 | extend objectName = tostring(Properties.alObjectName)
 | project timestamp = TimeGenerated, userId, objectId, objectName
-| order by timestamp asc
+| order by timestamp desc
 "@
     $rows = @((Invoke-AzOperationalInsightsQuery -WorkspaceId $WorkspaceId -Query $query).Results)
     Write-Host "RT0031 staženo: $($rows.Count)"
