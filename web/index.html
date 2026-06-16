@@ -131,6 +131,7 @@ html[data-theme="dark"] .spark .col{background:rgba(96,165,250,.35);}
       <button class="tab" data-panel="migration">Permission errors (RT0031)</button>
       <button class="tab" data-panel="trend">Trend</button>
       <button class="tab" data-panel="terminal">🖥 Terminál</button>
+      <button class="tab" data-panel="auditcfg">⚙ Nastavení auditu</button>
       <button class="tab" data-panel="settings">⚙ Nastavení</button>
     </div>
 
@@ -216,6 +217,16 @@ html[data-theme="dark"] .spark .col{background:rgba(96,165,250,.35);}
       <div class="term term-log" id="termLog">—</div>
     </section>
 
+    <section class="panel" id="panel-auditcfg">
+      <div class="set-section">
+        <h3>Protokol změn — sledované firmy</h3>
+        <p class="set-desc">Whitelist firem, u kterých se provádí <span class="mono">Audit změn</span> (modul B — BC Change Log).
+        Zaškrtnuté firmy se importují, odškrtnuté se přestanou stahovat — užitečné u extrémně velkých
+        (např. ESHOP s miliony záznamů). Projeví se při dalším běhu importu. Nenastaveno = sledují se všechny.</p>
+        <div id="clHost">načítám…</div>
+      </div>
+    </section>
+
     <section class="panel" id="panel-settings">
       <div class="set-section">
         <h3>Ruční obnova dat</h3>
@@ -232,13 +243,6 @@ html[data-theme="dark"] .spark .col{background:rgba(96,165,250,.35);}
         Zdroj pravdy je Windows Firewall rule <span class="mono">BC Telemetry Dashboard (8080)</span>.
         Jedna IP nebo CIDR na řádek (např. <span class="mono">10.8.2.0/24</span>).</p>
         <div id="wlHost"></div>
-      </div>
-      <div class="set-section">
-        <h3>Protokol změn — sledované firmy</h3>
-        <p class="set-desc">Které firmy se importují do <span class="mono">Auditu změn</span> (modul B).
-        Odškrtnutím firmy se její Change Log přestane stahovat — užitečné u extrémně velkých
-        (např. ESHOP s miliony záznamů). Projeví se při dalším běhu importu. Nenastaveno = sledují se všechny.</p>
-        <div id="clHost">načítám…</div>
       </div>
       <div class="set-section">
         <h3>Údržba logů</h3>
@@ -452,6 +456,7 @@ function render(d){
     document.getElementById('panel-'+t.dataset.panel).classList.add('active');
     if(t.dataset.panel==='terminal') loadTerminal();
     if(t.dataset.panel==='settings') loadLogFiles();
+    if(t.dataset.panel==='auditcfg') buildCompaniesEditor(document.getElementById('clHost'));
     if(t.dataset.panel==='users') buildUsers();
   }));
 
