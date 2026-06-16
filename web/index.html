@@ -108,6 +108,27 @@ html[data-theme="dark"] .spark .col{background:rgba(96,165,250,.35);}
 .term .ev-WARN{color:#fbbf24;}
 .term .ev-info{color:#7dd3fc;}
 .term .ev-success{color:#4ade80;}
+/* ── Velikost DB v sync pruhu ── */
+.sync-strip .dbsz b{color:var(--text);}
+/* ── Počty per firma u checkboxu ── */
+.cl-item .cnt{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--text3);}
+.cl-item{justify-content:flex-start;}
+.cl-tools{display:flex;gap:14px;align-items:center;margin:6px 0 4px;flex-wrap:wrap;}
+.cl-link{font-size:12px;color:var(--accent2);background:none;border:none;cursor:pointer;font-family:var(--sans);padding:0;}
+.cl-link:hover{text-decoration:underline;}
+/* ── Danger zone (mazání audit záznamů) ── */
+.danger{border:1px solid rgba(239,68,68,.35);border-radius:10px;padding:16px 18px;margin-top:26px;background:rgba(239,68,68,.04);}
+.danger h3{color:var(--red);font-size:15px;margin-bottom:4px;}
+.btn-danger{font-family:var(--sans);font-size:13px;padding:8px 16px;border:none;border-radius:7px;background:var(--red);color:#fff;cursor:pointer;}
+.btn-danger:disabled{background:var(--text3);cursor:not-allowed;}
+.danger .wl-ta{min-height:auto;}
+.confirm-in{font-family:var(--mono);font-size:12px;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);width:160px;}
+/* ── Řádek filtrů pod hlavičkou tabulky ── */
+tr.filterrow th{padding:5px 8px 8px;background:var(--bg3);border-bottom:1px solid var(--border);cursor:default;}
+tr.filterrow input,tr.filterrow select{width:100%;font-family:var(--sans);font-size:12px;padding:4px 7px;border:1px solid var(--border);border-radius:5px;background:var(--bg);color:var(--text);}
+tr.filterrow input:focus,tr.filterrow select:focus{outline:none;border-color:var(--accent);}
+/* ── Patička ── */
+footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;text-align:center;color:var(--text3);font-size:12px;font-family:var(--mono);}
 </style>
 </head>
 <body>
@@ -225,6 +246,15 @@ html[data-theme="dark"] .spark .col{background:rgba(96,165,250,.35);}
         (např. ESHOP s miliony záznamů). Projeví se při dalším běhu importu. Nenastaveno = sledují se všechny.</p>
         <div id="clHost">načítám…</div>
       </div>
+      <div class="set-section danger">
+        <h3>🗑 Smazat audit záznamy</h3>
+        <p class="set-desc">Nevratně smaže naimportované záznamy <span class="mono">Auditu změn</span> (dbo.BCChangeLog)
+        u zaškrtnutých firem — užitečné pro úklid bobtnající DB. Mazání proběhne přes denní úlohu
+        (pár minut). <strong>Pozor:</strong> pokud firma zůstává <em>sledovaná</em> (zaškrtnutá výše),
+        začnou se její záznamy při příštím importu natahovat znovu od nejstarších — pro trvalé odstranění
+        ji nahoře odškrtni a ulož.</p>
+        <div id="purgeHost">načítám…</div>
+      </div>
     </section>
 
     <section class="panel" id="panel-settings">
@@ -259,6 +289,7 @@ html[data-theme="dark"] .spark .col{background:rgba(96,165,250,.35);}
     </section>
   </div>
 </main>
+<footer class="foot">© <span id="cpYear">2026</span> Milan Trnka, IT — BC Telemetrie</footer>
 
 <script>
 const fmt = n => (n==null?'—':Number(n).toLocaleString('cs-CZ'));
@@ -283,6 +314,7 @@ const unameHtml = g => { const n=userMap[g]; return n ? `${esc(n)} <span class="
 
 // ── Klik na název = domů (obnovit dashboard) ─────────────────────────────────
 (function(){ const h=document.getElementById('homeLink'); if(h) h.addEventListener('click',()=>location.assign('/')); })();
+(function(){ const y=document.getElementById('cpYear'); if(y) y.textContent=new Date().getFullYear(); })();
 
 // ── Ruční obnova (Nastavení): POST /refresh → spustí denní task, poll na nový snapshot ──
 (function refreshCtl(){
@@ -409,6 +441,8 @@ function render(d){
   document.getElementById('loading').hidden=true;
   document.getElementById('app').hidden=false;
   state.generatedUtc=d.generatedUtc||'';
+  state.dbSize=d.dbSize||null;
+  state.clByCompany=Array.isArray(d.changeLogByCompany)?d.changeLogByCompany:[];
   const v=(d.version&&d.version.commit)?d.version:APP_VER;
   document.getElementById('meta').innerHTML='snapshot '+(d.generatedUtc||'?')+' UTC'
     +' · <a href="'+v.repo+'/commit/'+v.commit+'" target="_blank" rel="noreferrer" style="color:var(--accent2);text-decoration:none" title="Otevřít commit na GitHubu">⬆ Push #'+v.push+' · '+v.commit+'</a>';
@@ -441,6 +475,12 @@ function render(d){
       return `<span class="syn"><b>${esc(modName[s.Module]||s.Module)}</b> ${fmt(loc)} / ${fmt(cloud)} <span class="uid-sub">(${pct}%)</span></span>`;
     }).join('') + (syn[0]&&syn[0].UpdatedAt?` <span class="uid-sub">· ${esc(syn[0].UpdatedAt)}</span>`:'');
   } else { synEl.innerHTML=''; }
+  // Velikost lokální DB (data soubor; volitelně log)
+  if(d.dbSize){
+    const ds=d.dbSize;
+    const dbHtml=`<span class="syn dbsz"><b>DB</b> ${fmt(ds.DataUsedMB)} MB využito <span class="uid-sub">/ ${fmt(ds.DataAllocMB)} MB alok.${ds.LogAllocMB!=null?' · log '+fmt(ds.LogAllocMB)+' MB':''}</span></span>`;
+    synEl.innerHTML = synEl.innerHTML ? synEl.innerHTML+dbHtml : '<span class="uid-sub">DATABÁZE</span> '+dbHtml;
+  }
 
   setupTable('Activity',d.userActivity||[],activityRow,['UserName','PageName'],maxHits(d.userActivity),{key:'LastUsed',dir:-1});
   setupTable('Trim',d.trimCandidates||[],trimRow,['UserName','PageName'],null,{key:'LastUsed',dir:-1});
@@ -456,12 +496,13 @@ function render(d){
     document.getElementById('panel-'+t.dataset.panel).classList.add('active');
     if(t.dataset.panel==='terminal') loadTerminal();
     if(t.dataset.panel==='settings') loadLogFiles();
-    if(t.dataset.panel==='auditcfg') buildCompaniesEditor(document.getElementById('clHost'));
+    if(t.dataset.panel==='auditcfg'){ buildCompaniesEditor(document.getElementById('clHost')); buildPurgeEditor(document.getElementById('purgeHost')); }
     if(t.dataset.panel==='users') buildUsers();
   }));
 
   buildWhitelistEditor(document.getElementById('wlHost'));
   buildCompaniesEditor(document.getElementById('clHost'));
+  buildPurgeEditor(document.getElementById('purgeHost'));
 }
 
 // ── Výběr firem pro modul B (Audit změn) — Nastavení ─────────────────────────
@@ -472,22 +513,98 @@ function buildCompaniesEditor(host){
     .then(d=>renderCompaniesEditor(host, d.all||[], d.enabled))
     .catch(e=>{host.innerHTML='<div class="wl-banner warn"><span>⚠</span><div>Konfigurace firem není dostupná ('+esc(e.message)+'). Služba BC_Telemetry_Web neběží, nebo je stránka otevřená staticky.</div></div>';});
 }
+function clCounts(){ const m={}; (state.clByCompany||[]).forEach(r=>m[r.CompanyName]=r.Rows); return m; }
 function renderCompaniesEditor(host, all, enabled){
-  if(!all.length){ host.innerHTML='<div class="wl-cur">Seznam firem zatím není — naběhne po prvním běhu importu modulu B.</div>'; return; }
+  if(!all.length){ host.innerHTML='<div class="cl-tools"><button class="cl-link" id="clRefresh">↻ Aktualizovat seznam firem</button> <span class="wl-msg" id="clRefreshMsg"></span></div><div class="wl-cur">Seznam firem zatím není — naběhne po prvním běhu importu modulu B.</div>'; wireRefresh(host); return; }
   const isAll = !Array.isArray(enabled);              // enabled chybí → default vše
   const set = new Set(isAll ? all : enabled);
-  host.innerHTML = (isAll?'<div class="wl-cur">Zatím nenastaveno → sledují se <strong>všechny</strong> firmy.</div>':'')
-    + '<div class="cl-list">'+ all.map(c=>'<label class="cl-item"><input type="checkbox" value="'+esc(c)+'"'+(set.has(c)?' checked':'')+'> '+esc(c)+'</label>').join('') +'</div>'
+  const cnt = clCounts();
+  host.innerHTML = '<div class="cl-tools"><button class="cl-link" id="clRefresh">↻ Aktualizovat seznam firem</button> <span class="wl-msg" id="clRefreshMsg"></span></div>'
+    + (isAll?'<div class="wl-cur">Zatím nenastaveno → sledují se <strong>všechny</strong> firmy.</div>':'')
+    + '<div class="cl-list">'+ all.map(c=>'<label class="cl-item"><input type="checkbox" value="'+esc(c)+'"'+(set.has(c)?' checked':'')+'> '+esc(c)+'<span class="cnt">'+(cnt[c]!=null?fmt(cnt[c])+' zázn.':'—')+'</span></label>').join('') +'</div>'
     + '<div class="wl-row"><button class="btn" id="clApply">Uložit</button> <span class="wl-msg" id="clMsg"></span></div>';
+  wireRefresh(host);
   const btn=document.getElementById('clApply'), msg=document.getElementById('clMsg');
   btn.addEventListener('click',()=>{
-    const enabled=[...host.querySelectorAll('.cl-item input:checked')].map(i=>i.value);
+    const enabled=[...host.querySelectorAll('.cl-list .cl-item input:checked')].map(i=>i.value);
     btn.disabled=true; msg.className='wl-msg'; msg.textContent='ukládám…';
     fetch('/changelog-companies',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled})})
       .then(r=>r.json().then(j=>({ok:r.ok,j})))
       .then(({ok,j})=>{ if(!ok)throw new Error(j.error||'chyba'); msg.className='wl-msg ok'; msg.textContent='✓ uloženo ('+j.count+' firem) — projeví se při dalším importu'; btn.disabled=false; })
       .catch(e=>{ msg.className='wl-msg err'; msg.textContent='⚠ '+e.message; btn.disabled=false; });
   });
+}
+function wireRefresh(host){
+  const rb=document.getElementById('clRefresh'), rm=document.getElementById('clRefreshMsg');
+  if(rb) rb.addEventListener('click',()=>refreshCompaniesNow(host,rm));
+}
+// Spustí import (přepíše seznam firem `all`), po dokončení snapshotu překreslí editor.
+function refreshCompaniesNow(host,msg){
+  const say=(t,c)=>{ if(msg){ msg.className='wl-msg'+(c?' '+c:''); msg.textContent=t; } };
+  const before=state.generatedUtc||'';
+  say('spouštím import…');
+  fetch('/refresh',{method:'POST'}).then(r=>r.json().then(j=>({ok:r.ok,j})))
+    .then(({ok,j})=>{
+      if(!ok) throw new Error(j.error||'chyba');
+      say(j.status==='running'?'import už běží — čekám…':'import běží… (pár minut)');
+      const t0=Date.now();
+      const poll=async()=>{
+        try{ const d=await (await fetch('./data.json',{cache:'no-store'})).json();
+          if(d.generatedUtc && d.generatedUtc!==before){ say('✓ hotovo','ok'); buildCompaniesEditor(host); return; } }catch(e){}
+        if(Date.now()-t0>7*60*1000){ say('⚠ timeout — zkus později','err'); return; }
+        setTimeout(poll,8000);
+      };
+      setTimeout(poll,8000);
+    })
+    .catch(e=>say('⚠ '+(e.message||e),'err'));
+}
+
+// ── Danger zone: mazání audit záznamů vybraných firem (POST /changelog-purge) ─
+function buildPurgeEditor(host){
+  if(!host) return;
+  host.innerHTML='<div class="wl-cur">načítám…</div>';
+  fetch('/changelog-companies').then(r=>{if(!r.ok)throw new Error(r.status);return r.json();})
+    .then(d=>renderPurgeEditor(host, d.all||[]))
+    .catch(e=>{host.innerHTML='<div class="wl-banner warn"><span>⚠</span><div>Konfigurace firem není dostupná ('+esc(e.message)+').</div></div>';});
+}
+function renderPurgeEditor(host, all){
+  if(!all.length){ host.innerHTML='<div class="wl-cur">Seznam firem zatím není — naběhne po prvním importu modulu B.</div>'; return; }
+  const cnt=clCounts();
+  host.innerHTML =
+    '<div class="cl-list">'+ all.map(c=>'<label class="cl-item"><input type="checkbox" value="'+esc(c)+'"> '+esc(c)+'<span class="cnt">'+(cnt[c]!=null?fmt(cnt[c])+' zázn.':'—')+'</span></label>').join('') +'</div>'
+    + '<div class="wl-row"><input class="confirm-in" id="pgConfirm" placeholder="napiš SMAZAT" spellcheck="false">'
+    + '<button class="btn-danger" id="pgApply" disabled>Smazat vybrané</button> <span class="wl-msg" id="pgMsg"></span></div>';
+  const conf=document.getElementById('pgConfirm'), btn=document.getElementById('pgApply'), msg=document.getElementById('pgMsg');
+  const upd=()=>{ const n=host.querySelectorAll('.cl-item input:checked').length; btn.disabled=!(n>0 && conf.value.trim()==='SMAZAT'); };
+  host.querySelectorAll('.cl-item input').forEach(i=>i.addEventListener('change',upd));
+  conf.addEventListener('input',upd);
+  btn.addEventListener('click',()=>{
+    const companies=[...host.querySelectorAll('.cl-item input:checked')].map(i=>i.value);
+    if(!companies.length) return;
+    btn.disabled=true; msg.className='wl-msg'; msg.textContent='plánuji mazání…';
+    fetch('/changelog-purge',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({companies})})
+      .then(r=>r.json().then(j=>({ok:r.ok,j})))
+      .then(({ok,j})=>{ if(!ok)throw new Error(j.error||'chyba');
+        msg.className='wl-msg'; msg.textContent=(j.queued?'úloha už běží, zařazeno — ':'spuštěno — ')+'mažu '+companies.length+' firem, čekám…';
+        pollOps(msg);
+      })
+      .catch(e=>{ msg.className='wl-msg err'; msg.textContent='⚠ '+e.message; upd(); });
+  });
+}
+function pollOps(msg){
+  const t0=Date.now();
+  const poll=async()=>{
+    try{ const s=await (await fetch('/ops-status',{cache:'no-store'})).json();
+      if(!s.pending && s.status && s.status.action==='purge'){
+        if(s.status.ok){ msg.className='wl-msg ok'; msg.textContent='✓ smazáno '+fmt(s.status.deleted)+' záznamů — načítám'; setTimeout(()=>location.reload(),1300); }
+        else { msg.className='wl-msg err'; msg.textContent='⚠ '+(s.status.error||'chyba mazání'); }
+        return;
+      }
+    }catch(e){}
+    if(Date.now()-t0>10*60*1000){ msg.className='wl-msg err'; msg.textContent='⚠ timeout — zkontroluj Terminál'; return; }
+    setTimeout(poll,5000);
+  };
+  setTimeout(poll,5000);
 }
 
 // ── Whitelist editor (jako ITDashboard NetworkAccessSection) ─────────────────
@@ -577,22 +694,59 @@ function auditRow(r){
   <td>${esc(r.OldValue)}</td><td>${esc(r.NewValue)}</td></tr>`;
 }
 
+// Sloupce s rozbalovacím filtrem (kategorie) vs. bez filtru (čísla).
+const SELECT_FILTER=new Set(['CompanyName','ChangeType']);
+const NO_FILTER=new Set(['TotalHits','Failures','Hits','Users']);
 function setupTable(key,rows,rowFn,searchFields,max,defaultSort){
   const ds=defaultSort||{};
-  state[key]={rows,rowFn,searchFields,max,sortKey:ds.key||null,sortDir:ds.dir||1,filter:''};
+  state[key]={rows,rowFn,searchFields,max,sortKey:ds.key||null,sortDir:ds.dir||1,filter:'',colFilters:{}};
   const search=document.getElementById('search'+key);
   if(search)search.addEventListener('input',e=>{state[key].filter=e.target.value.toLowerCase();draw(key);});
-  document.querySelectorAll('#tbl'+key+' th[data-sort]').forEach(th=>th.addEventListener('click',()=>{
+  document.querySelectorAll('#tbl'+key+' thead tr:first-child th[data-sort]').forEach(th=>th.addEventListener('click',()=>{
     const s=state[key]; const col=th.dataset.sort;
     s.sortDir=(s.sortKey===col)?-s.sortDir:1; s.sortKey=col; draw(key);
   }));
+  buildFilterRow(key,rows);
   draw(key);
+}
+// Vloží pod hlavičku řádek filtrů (jeden na sloupec). Firma/Akce = dropdown, text/datum = obsahuje.
+function buildFilterRow(key,rows){
+  const thead=document.querySelector('#tbl'+key+' thead'); if(!thead) return;
+  const headRow=thead.querySelector('tr'); if(!headRow) return;
+  thead.querySelectorAll('tr.filterrow').forEach(r=>r.remove());
+  const fr=document.createElement('tr'); fr.className='filterrow';
+  [...headRow.children].forEach(th=>{
+    const cell=document.createElement('th'); const f=th.dataset.sort;
+    if(f && !NO_FILTER.has(f)){
+      if(SELECT_FILTER.has(f)){
+        const sel=document.createElement('select');
+        const vals=[...new Set(rows.map(r=>r[f]).filter(v=>v!=null&&v!==''))].map(String).sort((a,b)=>a.localeCompare(b,'cs'));
+        sel.innerHTML='<option value="">— vše —</option>'+vals.map(v=>'<option value="'+esc(v)+'">'+esc(v)+'</option>').join('');
+        sel.addEventListener('change',()=>{ state[key].colFilters[f]=sel.value; draw(key); });
+        cell.appendChild(sel);
+      } else {
+        const inp=document.createElement('input'); inp.type='text'; inp.placeholder='filtr…';
+        inp.addEventListener('input',()=>{ state[key].colFilters[f]=inp.value.toLowerCase(); draw(key); });
+        cell.appendChild(inp);
+      }
+    }
+    fr.appendChild(cell);
+  });
+  thead.appendChild(fr);
 }
 
 function draw(key){
   const s=state[key];
   let rows=s.rows.slice();
   if(s.filter){rows=rows.filter(r=>s.searchFields.some(f=>String(r[f]||'').toLowerCase().includes(s.filter)) || String(userMap[r.UserName]||'').toLowerCase().includes(s.filter));}
+  const cf=s.colFilters||{};
+  rows=rows.filter(r=>{
+    for(const f in cf){ const v=cf[f]; if(!v) continue;
+      if(SELECT_FILTER.has(f)){ if(String(r[f]==null?'':r[f])!==v) return false; }
+      else { let hay=String(r[f]||'').toLowerCase(); if(f==='UserName') hay+=' '+String(userMap[r.UserName]||'').toLowerCase(); if(!hay.includes(v)) return false; }
+    }
+    return true;
+  });
   if(s.sortKey){rows.sort((a,b)=>{const x=a[s.sortKey],y=b[s.sortKey];
     return (x<y?-1:x>y?1:0)*s.sortDir;});}
   const tbody=document.querySelector('#tbl'+key+' tbody');

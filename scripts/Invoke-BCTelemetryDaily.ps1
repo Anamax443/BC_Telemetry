@@ -20,6 +20,7 @@ param(
     [string] $SqlServer = 'localhost',
     [string] $Snapshot  = 'C:\Apps\BC_Telemetry_Web\public\data.json',
     [string] $LogDir    = 'C:\Apps\BC_Telemetry\logs',
+    [string] $WebDir    = 'C:\Apps\BC_Telemetry_Web',
     [int]    $LogRetentionDays = 30
 )
 # fallback, kdyby ScriptDir nesedl
@@ -36,9 +37,24 @@ $B  = Join-Path $ScriptDir 'BC_ChangeLog_Import.ps1'
 $USR= Join-Path $ScriptDir 'BC_Users_Import.ps1'
 $U  = Join-Path $ScriptDir 'Update-SyncStatus.ps1'
 $E  = Join-Path $ScriptDir 'Export-DashboardSnapshot.ps1'
+$P  = Join-Path $ScriptDir 'BC_ChangeLog_Purge.ps1'
 
 Log "=== BC_Telemetry daily START (user=$env:USERNAME) ==="
 Log "ScriptDir=$ScriptDir  (A exists=$(Test-Path $A))"
+
+# Ops-request (z dashboardu) — pokud ceka pozadavek na smazani audit zaznamu, provedeme
+# JEN purge + snapshot a import preskocime (jinak by import smazane firmy hned natahl zpet).
+$opsReq = Join-Path $WebDir 'ops\ops-request.json'
+if (Test-Path $opsReq) {
+    Log "--- ops-request detekovan: purge-only rezim (import preskocen) ---"
+    & $ps -NoProfile -ExecutionPolicy Bypass -File $P *>> $log
+    Log "purge exit=$LASTEXITCODE"
+    Log "--- snapshot po purge: Export-DashboardSnapshot.ps1 ---"
+    & $ps -NoProfile -ExecutionPolicy Bypass -File $E -SqlServer $SqlServer -OutPath $Snapshot *>> $log
+    Log "snapshot exit=$LASTEXITCODE"
+    Log "=== BC_Telemetry daily END (purge-only) ==="
+    return
+}
 
 Log "--- modul A (page views): BC_PageLog_Import.ps1 ---"
 & $ps -NoProfile -ExecutionPolicy Bypass -File $A *>> $log

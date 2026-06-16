@@ -45,10 +45,28 @@ try {
     $sync = @()
     try { $sync = Invoke-Sql $conn 'SELECT Module, CloudCount, LocalCount, CONVERT(varchar(19),UpdatedAt,120) AS UpdatedAt FROM dbo.BCSyncStatus ORDER BY Module' } catch { }
 
+    # Velikost lokalni DB (datovy + log soubor; MB) — orientacni pro spravu retence/mazani.
+    $dbSize = $null
+    try {
+        $dbSize = (Invoke-Sql $conn @"
+SELECT
+  CAST(ISNULL(SUM(CASE WHEN type=0 THEN CAST(size AS bigint) END),0)*8/1024.0 AS decimal(18,1)) AS DataAllocMB,
+  CAST(ISNULL(SUM(CASE WHEN type=0 THEN CAST(FILEPROPERTY(name,'SpaceUsed') AS bigint) END),0)*8/1024.0 AS decimal(18,1)) AS DataUsedMB,
+  CAST(ISNULL(SUM(CASE WHEN type=1 THEN CAST(size AS bigint) END),0)*8/1024.0 AS decimal(18,1)) AS LogAllocMB
+FROM sys.database_files
+"@)[0]
+    } catch { }
+
+    # Pocet audit zaznamu (modul B) per firma — podklad pro vyber firem k mazani.
+    $clByCompany = @()
+    try { $clByCompany = Invoke-Sql $conn 'SELECT CompanyName, COUNT_BIG(*) AS Rows FROM dbo.BCChangeLog GROUP BY CompanyName ORDER BY COUNT_BIG(*) DESC' } catch { }
+
     $snapshot = [ordered]@{
         generatedUtc   = [DateTime]::UtcNow.ToString('yyyy-MM-dd HH:mm:ss')
         kpi            = $kpi
         sync           = $sync
+        dbSize         = $dbSize
+        changeLogByCompany = $clByCompany
         userActivity   = Invoke-Sql $conn "SELECT TOP ($TopRows) * FROM dbo.vw_DashUserActivity ORDER BY TotalHits DESC"
         trimCandidates = Invoke-Sql $conn "SELECT TOP ($TopRows) * FROM dbo.vw_DashTrimCandidates ORDER BY UserName, PageName"
         trend          = Invoke-Sql $conn 'SELECT * FROM dbo.vw_DashTrend ORDER BY DateKey'

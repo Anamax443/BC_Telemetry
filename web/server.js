@@ -38,6 +38,21 @@ function logActivity(level, scope, msg) {
 const LOG_DIR = 'C:\\Apps\\BC_Telemetry\\logs';
 const USERMAP_FILE = path.join(__dirname, 'usermap.json');  // mapování pseudonymní GUID → reálné jméno
 const CHANGELOG_COMPANIES_FILE = path.join(__dirname, 'changelog-companies.json');  // výběr firem pro modul B (Audit změn)
+// Ops fronta: web (LocalSystem) zapíše požadavek, denní úloha (svc) ho zpracuje a uklidí.
+const OPS_DIR = path.join(__dirname, 'ops');
+const OPS_REQUEST_FILE = path.join(OPS_DIR, 'ops-request.json');   // { action:'purge', companies:[], requestedAt }
+const OPS_STATUS_FILE = path.join(OPS_DIR, 'ops-status.json');     // výsledek od svc (purge)
+const SVC_ACCT = 'AXINETWORK\\svc-bc-telemetry';
+
+// Zajisti ops dir + práva pro svc (denní úloha čte/maže request a píše status). LocalSystem to zvládne.
+function ensureOpsDir() {
+  try {
+    if (!fs.existsSync(OPS_DIR)) fs.mkdirSync(OPS_DIR, { recursive: true });
+    execFile('icacls', [OPS_DIR, '/grant', `${SVC_ACCT}:(OI)(CI)M`], { windowsHide: true }, (err) => {
+      if (err) console.error(`ensureOpsDir icacls warn: ${err.message}`);
+    });
+  } catch (e) { console.error(`ensureOpsDir warn: ${e.message}`); }
+}
 
 // ── PowerShell helper (inline -Command, AllSigned-safe) ──────────────────────
 function runPs(script) {
@@ -305,6 +320,52 @@ else { '{"file":null,"text":""}' }
     return;
   }
 
+  // POST /changelog-purge — požadavek na smazání audit záznamů (modul B) vybraných firem.
+  //   Web (LocalSystem) na SQL nesahá — zapíše ops-request a kopne do denní úlohy (svc),
+  //   ta v purge-only režimu provede DELETE + snapshot a request uklidí. UI pak polluje /ops-status.
+  if (url === '/changelog-purge' && req.method === 'POST') {
+    let body = '';
+    req.on('data', (c) => { body += c; if (body.length > 1e6) req.destroy(); });
+    req.on('end', async () => {
+      try {
+        const obj = JSON.parse(body || '{}');
+        let companies = Array.isArray(obj.companies)
+          ? obj.companies.filter((x) => typeof x === 'string' && x.trim()).map((x) => x.trim()) : [];
+        companies = [...new Set(companies)];
+        if (!companies.length) throw new Error('companies must be a non-empty array');
+        // bezpečnostní filtr: povol jen firmy známé z changelog-companies.json (pokud je seznam k dispozici)
+        try {
+          const cfg = JSON.parse(fs.readFileSync(CHANGELOG_COMPANIES_FILE, 'utf8'));
+          if (Array.isArray(cfg.all) && cfg.all.length) {
+            const known = new Set(cfg.all);
+            const bad = companies.filter((c) => !known.has(c));
+            if (bad.length) throw new Error(`neznámé firmy: ${bad.join(', ')}`);
+          }
+        } catch (e) { if (/neznámé firmy/.test(String(e.message))) throw e; }
+        ensureOpsDir();
+        const reqObj = { action: 'purge', companies, requestedAt: new Date().toISOString() };
+        fs.writeFileSync(OPS_REQUEST_FILE, JSON.stringify(reqObj, null, 2), 'utf8');
+        // smaž starý status, ať UI nepoll-ne na předchozí výsledek
+        try { fs.unlinkSync(OPS_STATUS_FILE); } catch { }
+        const ps = `
+$t = Get-ScheduledTask -TaskName 'BC_Telemetry_Daily' -ErrorAction Stop
+if ($t.State -eq 'Running') { 'running' } else { Start-ScheduledTask -TaskName 'BC_Telemetry_Daily'; 'started' }
+`;
+        const o = (await runPs(ps)).trim();
+        logActivity('info', 'changelog-purge', `purge naplánován pro ${companies.length} firem (${o}): ${companies.join(', ')}`);
+        sendJson(res, 200, { status: o, queued: o === 'running', companies });
+      } catch (e) { sendJson(res, 500, { error: String(e.message || e) }); }
+    });
+    return;
+  }
+  // GET /ops-status — výsledek poslední ops operace (purge) + jestli ještě čeká požadavek.
+  if (url === '/ops-status' && req.method === 'GET') {
+    let status = null, pending = false;
+    try { status = JSON.parse(fs.readFileSync(OPS_STATUS_FILE, 'utf8')); } catch { }
+    try { pending = fs.existsSync(OPS_REQUEST_FILE); } catch { }
+    return sendJson(res, 200, { status, pending });
+  }
+
   // GET /logfiles — seznam log souborů v obou složkách (pro ověření retence v Nastavení).
   if (url === '/logfiles' && req.method === 'GET') {
     const ps = `
@@ -329,12 +390,13 @@ if ($t.State -eq 'Running') { 'running' } else { Start-ScheduledTask -TaskName '
       .then((o) => { logActivity('info', 'refresh', `manual refresh: ${o.trim()}`); sendJson(res, 200, { status: o.trim() }); })
       .catch((e) => sendJson(res, 500, { error: String(e.message || e) }));
   }
-  if (url.startsWith('/firewall/') || url.startsWith('/api/') || url === '/refresh' || url === '/activity' || url === '/logs' || url === '/logfiles' || url === '/usermap' || url === '/changelog-companies') return sendJson(res, 404, { error: 'unknown endpoint' });
+  if (url.startsWith('/firewall/') || url.startsWith('/api/') || url === '/refresh' || url === '/activity' || url === '/logs' || url === '/logfiles' || url === '/usermap' || url === '/changelog-companies' || url === '/changelog-purge' || url === '/ops-status') return sendJson(res, 404, { error: 'unknown endpoint' });
   return serveStatic(req, res);
 });
 
 server.listen(PORT, () => {
   console.log(`BC_Telemetry web na :${PORT}, public=${PUBLIC_DIR}, rule="${RULE_DISPLAY_NAME}"`);
   logActivity('info', 'boot', `služba nastartována na :${PORT}`);
+  ensureOpsDir();
   refreshIpGuard('boot');
 });
