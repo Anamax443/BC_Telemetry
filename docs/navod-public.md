@@ -221,9 +221,17 @@ dny v týdnu. Pokud čas „Od" už toho dne minul, import se spustí **hned**.
 **Tabulky (vylepšené zobrazení):**
 - **Per-sloupcové filtry:** kategorie jako rozbalovací seznam, text jako „obsahuje", datum jako rozmezí od–do.
 - Datum ve formátu **rok.měsíc.den**.
+- **Stránkování tabulek:** datové tabulky (aktivita, audit, permission errors, přehled databáze) mají
+  stránkovač (« ‹ strana X/Y › ») s přepínačem počtu řádků na stránku (**50 / 100 / 200 / 500 / vše**).
+  **Výchozí počet řádků na stránku** nastavíš v sekci Nastavení („Zobrazení tabulek"), uloží se v prohlížeči
+  (localStorage). **Export do CSV exportuje celou filtrovanou sadu**, ne jen aktuální stránku.
 - **Export do CSV** — UTF-8 **BOM**, oddělovač `;` (otevře se rovnou v Excelu). Slouží jako **podklad pro tvorbu
   permission setů**.
 - Trend dle společnosti; v auditu sloupce **Číslo tabulky / Číslo pole**.
+
+**Responzivní layout (mobil / tablet):** KPI dlaždice se samy přeskládají (**4→2→1 sloupec**), široké tabulky
+(audit s mnoha sloupci) se na úzké obrazovce **horizontálně scrollují** místo rozbití, záložky se vodorovně
+posouvají a hlavička i toolbary se zalamují (media queries **≤820 px** a **≤480 px**).
 
 **Hlavička:** běžící čas (**heartbeat** — když stojí, stránka zamrzla) + **stáří dat**.
 

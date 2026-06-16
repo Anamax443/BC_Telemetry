@@ -145,6 +145,8 @@ AppPageViews
 
 > **Provoz z dashboardu (Push #58):** retenční politika a plán importu se konfigurují přes JSON v `ops/` (`retention.json`, `schedule.json`), importní skripty + wrapper je čtou. Web (LocalSystem) je jen zapisuje — **nesahá na SQL ani BC**, viz §11.
 
+> **UI tabulek a layout (Push #59):** tabulky dashboardu (Aktivita, Audit, RT0031/Permission errors, Databáze) mají **stránkovač** (« ‹ strana X/Y › ») s přepínačem počtu řádků na stránku (50 / 100 / 200 / 500 / vše); **výchozí počet** se nastaví v ⚙ Nastavení („Zobrazení tabulek") a uloží do prohlížeče (localStorage). Export CSV exportuje **celou filtrovanou sadu**, ne jen aktuální stránku. Layout je **responzivní** — KPI dlaždice se přeskládají (4→2→1 sloupec), široké tabulky (Audit s mnoho sloupci) se na úzké obrazovce **horizontálně scrollují** místo rozbití, záložky se vodorovně posouvají a hlavička/toolbary se zalamují (media queries ≤820 px a ≤480 px).
+
 ## 11 · RBAC — servisní účet `AXINETWORK\svc-bc-telemetry`
 
 | Oprávnění | Kde |

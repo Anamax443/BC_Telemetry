@@ -126,8 +126,8 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
   "host": "10.8.2.225 (B-S-W-SQL-04)",
   "version": "1.1",
   "generated": "2026-06-16",
-  "commit": "37c430b",
-  "pushNo": 58,
+  "commit": "44fb550",
+  "pushNo": 59,
   "activeProjectNo": 5,
   "milestones": [
     {
@@ -270,7 +270,9 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
         {"s":"done","t":"Důvod wrapperu: trigger OS úlohy NEJDE měnit z LocalSystem bez hesla svc (HRESULT 0x8007052e); nativní repetici lze dát jednorázově schtasks /Change /RI .. /RU svc /RP <heslo> (admin)"},
         {"s":"done","t":"Retence přes /retention (GET/PUT → ops/retention.json {pageLogMonths:6, changeLogMonths:24, dailyLogDays:30}), čtou importní skripty; changelog purge přes /changelog-purge (POST) do ops fronty"},
         {"s":"done","t":"Výkon: modul B bulk insert (SqlBulkCopy → #Staging → dedup) + token-refresh á 45 min; modul A dedup fix"},
-        {"s":"done","t":"Nová záložka 🗄 Databáze: přehled tabulek/řádků, retence a stav úloh"}
+        {"s":"done","t":"Nová záložka 🗄 Databáze: přehled tabulek/řádků, retence a stav úloh"},
+        {"s":"done","t":"Push #59: stránkování tabulek (Aktivita/Audit/RT0031/Databáze) — stránkovač « ‹ X/Y › + přepínač 50/100/200/500/vše; výchozí počet řádků v ⚙ Nastavení (Zobrazení tabulek, localStorage); export CSV celé filtrované sady, ne jen stránky"},
+        {"s":"done","t":"Push #59: responzivní layout (mobil/tablet) — KPI dlaždice 4→2→1, široké tabulky (Audit) horizontální scroll, vodorovně posuvné záložky, zalamovaná hlavička/toolbary (media queries ≤820 px a ≤480 px)"}
       ]
     }
   ],
