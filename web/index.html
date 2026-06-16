@@ -185,7 +185,10 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
       (Microsoft je nerozkrývá ani přes Graph). Přiřaď ke každému <strong>reálné jméno</strong> podle firem/stránek,
       kde je aktivní — jméno se pak zobrazí v Aktivitě, Kandidátech i RT0031. Audit změn (modul B) má reálná jména nativně.</p>
       <div class="toolbar">
+        <input type="text" id="searchUsers" placeholder="Filtr: jméno / GUID / firma…">
         <button class="btn" type="button" id="umSave" disabled>Uložit jména</button>
+        <button class="btn-ghost" type="button" id="usersExport" title="Stáhne seznam uživatelů (mapování + aktivita) jako CSV">⬇ Export CSV</button>
+        <span class="count" id="countUsers"></span>
         <span class="wl-msg" id="umMsg"></span>
       </div>
       <table id="tblUsers"><thead><tr>
@@ -291,6 +294,13 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
         <p class="set-desc">Jak dlouho se drží data; projeví se při dalším běhu importu. Raw page log (modul A)
         i Change Log (modul B) se po této době mažou, <strong>agregáty kumulují navždy</strong>.</p>
         <div id="retHost">načítám…</div>
+      </div>
+      <div class="set-section">
+        <h3>Plán importu (okno + četnost)</h3>
+        <p class="set-desc">Kdy a jak často běží úloha <span class="mono">BC_Telemetry_Daily</span>.
+        Interval <strong>0</strong> = jednou denně v čase Od. Jinak se opakuje každých N minut v okně Od–Do
+        (rychlejší dosync/backfill — víc běhů za noc). Projeví se ihned.</p>
+        <div id="schedHost">načítám…</div>
       </div>
       <div class="set-section">
         <h3>Síťový whitelist</h3>
@@ -472,6 +482,29 @@ function buildRetention(host){
     .catch(e=>{host.innerHTML='<div class="wl-banner warn"><span>⚠</span><div>Retence nedostupná ('+esc(e.message)+').</div></div>';});
 }
 
+// ── Plán importu (Nastavení) ─────────────────────────────────────────────────
+function buildSchedule(host){
+  if(!host) return;
+  host.innerHTML='<div class="wl-cur">načítám…</div>';
+  fetch('/schedule').then(r=>{if(!r.ok)throw new Error(r.status);return r.json();})
+   .then(d=>{
+     host.innerHTML='<div class="ret-grid">'
+       +'<label>Od (čas)</label><input type="time" id="schStart" value="'+esc(d.startTime)+'">'
+       +'<label>Do (čas)</label><input type="time" id="schEnd" value="'+esc(d.endTime)+'">'
+       +'<label>Interval (min, 0 = jednou)</label><input type="number" min="0" max="1440" id="schIv" value="'+esc(d.intervalMinutes)+'">'
+       +'</div><div class="wl-row"><button class="btn" id="schSave">Uložit plán</button> <span class="wl-msg" id="schMsg"></span></div>';
+     document.getElementById('schSave').addEventListener('click',()=>{
+       const body={startTime:document.getElementById('schStart').value, endTime:document.getElementById('schEnd').value, intervalMinutes:+document.getElementById('schIv').value};
+       const m=document.getElementById('schMsg'); m.className='wl-msg'; m.textContent='ukládám…';
+       fetch('/schedule',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+         .then(r=>r.json().then(j=>({ok:r.ok,j})))
+         .then(({ok,j})=>{ if(!ok)throw new Error(j.error||'chyba'); m.className='wl-msg ok'; m.textContent='✓ plán: '+j.startTime+'–'+j.endTime+' á '+j.intervalMinutes+' min'; loadTasks(); })
+         .catch(e=>{ m.className='wl-msg err'; m.textContent='⚠ '+e.message; });
+     });
+   })
+   .catch(e=>{host.innerHTML='<div class="wl-banner warn"><span>⚠</span><div>Plán nedostupný ('+esc(e.message)+').</div></div>';});
+}
+
 // ── Terminál (aktivita služby + log posledního importu) ──────────────────────
 let termTimer=null;
 async function loadTerminal(){
@@ -531,18 +564,34 @@ function buildUsers(){
     if((r.LastUsed||'')>u.last) u.last=r.LastUsed||'';
   });
   const list=Object.values(by).sort((a,b)=>b.hits-a.hits);
-  tb.innerHTML = list.length ? list.map(u=>`<tr>
+  state.usersList=list;
+  const fEl=document.getElementById('searchUsers'); const f=(fEl?fEl.value:'').toLowerCase();
+  const shown = f ? list.filter(u=> (userMap[u.g]||'').toLowerCase().includes(f) || String(u.g).toLowerCase().includes(f) || [...u.companies].join(',').toLowerCase().includes(f)) : list;
+  tb.innerHTML = shown.length ? shown.map(u=>`<tr>
     <td><input type="text" data-guid="${esc(u.g)}" value="${esc(userMap[u.g]||'')}" placeholder="jméno…" spellcheck="false"></td>
     <td><span class="uid-sub">${esc(u.g)}</span></td>
     <td>${esc([...u.companies].join(', '))}</td>
     <td>${esc(u.top||'')}</td>
     <td class="num">${fmt(u.hits)}</td>
     <td class="num">${esc(fdate(u.last))}</td></tr>`).join('') : `<tr><td colspan="6"><div class="empty">Žádní uživatelé</div></td></tr>`;
+  const cu=document.getElementById('countUsers'); if(cu) cu.textContent=shown.length+' / '+list.length+' uživatelů';
   const save=document.getElementById('umSave');
   tb.querySelectorAll('input[data-guid]').forEach(i=>i.addEventListener('input',()=>{ if(save) save.disabled=false; }));
 }
+function exportUsers(){
+  const list=state.usersList||[]; const sep=';';
+  const cols=[['Jméno',u=>userMap[u.g]||''],['GUID',u=>u.g],['Firmy',u=>[...u.companies].join(', ')],['Top stránka',u=>u.top||''],['Otevření',u=>u.hits],['Naposledy',u=>fdate(u.last)]];
+  const lines=[cols.map(c=>csvCell(c[0])).join(sep)];
+  list.forEach(u=>lines.push(cols.map(c=>csvCell(c[1](u))).join(sep)));
+  const blob=new Blob(['﻿'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob), a=document.createElement('a');
+  a.href=url; a.download='bc-telemetrie-uzivatele-'+new Date().toISOString().slice(0,10)+'.csv';
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),2000);
+}
 (function umCtl(){
   const save=document.getElementById('umSave'), msg=document.getElementById('umMsg');
+  const su=document.getElementById('searchUsers'); if(su) su.addEventListener('input',buildUsers);
+  const ux=document.getElementById('usersExport'); if(ux) ux.addEventListener('click',exportUsers);
   if(!save) return;
   save.addEventListener('click', async ()=>{
     const map={...userMap};
@@ -578,7 +627,7 @@ function render(d){
 
   const k=d.kpi||{};
   const kpis=[
-    {label:'Aktivní uživatelé · 30d',val:fmt(k.ActiveUsers30d),panel:'activity'},
+    {label:'Aktivní uživatelé · 30d',val:fmt(k.ActiveUsers30d),panel:'users'},
     {label:'Použité stránky · 30d',val:fmt(k.DistinctPages30d),panel:'activity'},
     {label:'Otevření · 30d',val:fmt(k.Hits30d),panel:'trend'},
     {label:'RT0031 chyby · 14d',val:fmt(k.AuthFails14d),warn:(k.AuthFails14d>0),panel:'migration'},
@@ -623,7 +672,7 @@ function render(d){
     t.classList.add('active');
     document.getElementById('panel-'+t.dataset.panel).classList.add('active');
     if(t.dataset.panel==='terminal') loadTerminal();
-    if(t.dataset.panel==='settings'){ loadLogFiles(); loadTasks(); buildRetention(document.getElementById('retHost')); }
+    if(t.dataset.panel==='settings'){ loadLogFiles(); loadTasks(); buildRetention(document.getElementById('retHost')); buildSchedule(document.getElementById('schedHost')); }
     if(t.dataset.panel==='auditcfg'){ buildCompaniesEditor(document.getElementById('clHost')); buildPurgeEditor(document.getElementById('purgeHost')); }
     if(t.dataset.panel==='users') buildUsers();
   }));

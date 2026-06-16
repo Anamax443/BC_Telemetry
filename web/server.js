@@ -44,6 +44,7 @@ const OPS_REQUEST_FILE = path.join(OPS_DIR, 'ops-request.json');   // { action:'
 const OPS_STATUS_FILE = path.join(OPS_DIR, 'ops-status.json');     // výsledek od svc (purge)
 const RETENTION_FILE = path.join(OPS_DIR, 'retention.json');       // retenční politika (čtou importní skripty)
 const RETENTION_DEFAULTS = { pageLogMonths: 6, changeLogMonths: 24, dailyLogDays: 30 };
+const SCHEDULE_FILE = path.join(OPS_DIR, 'schedule.json');         // okno + četnost běhu úlohy
 const SVC_ACCT = 'AXINETWORK\\svc-bc-telemetry';
 
 // Zajisti ops dir + práva pro svc (denní úloha čte/maže request a píše status). LocalSystem to zvládne.
@@ -418,6 +419,41 @@ $out | ConvertTo-Json -Compress -Depth 3
     return;
   }
 
+  // GET/PUT /schedule — okno a četnost běhu úlohy BC_Telemetry_Daily (opakování v okně).
+  if (url === '/schedule' && req.method === 'GET') {
+    let s = { startTime: '02:00', endTime: '06:00', intervalMinutes: 0 };
+    try { const o = JSON.parse(fs.readFileSync(SCHEDULE_FILE, 'utf8')); s = { ...s, ...o }; } catch { }
+    return sendJson(res, 200, s);
+  }
+  if (url === '/schedule' && req.method === 'PUT') {
+    let body = '';
+    req.on('data', (c) => { body += c; if (body.length > 1e5) req.destroy(); });
+    req.on('end', async () => {
+      try {
+        const o = JSON.parse(body || '{}');
+        const rx = /^(\d{1,2}):(\d{2})$/;
+        const ms = rx.exec(String(o.startTime || '')), me = rx.exec(String(o.endTime || ''));
+        if (!ms || !me) throw new Error('čas musí být ve formátu HH:MM');
+        const sh = +ms[1], sm = +ms[2], eh = +me[1], em = +me[2];
+        if (sh > 23 || sm > 59 || eh > 23 || em > 59) throw new Error('neplatný čas');
+        let iv = Math.round(+o.intervalMinutes || 0);
+        if (iv < 0 || iv > 1440) throw new Error('interval 0–1440 min');
+        let dur = (eh * 60 + em) - (sh * 60 + sm); if (dur <= 0) dur = 240;
+        let ps = `$start=[datetime]::Today.AddHours(${sh}).AddMinutes(${sm})\n$trg = New-ScheduledTaskTrigger -Daily -At $start\n`;
+        if (iv > 0) ps += `$trg.Repetition = (New-ScheduledTaskTrigger -Once -At $start -RepetitionInterval (New-TimeSpan -Minutes ${iv}) -RepetitionDuration (New-TimeSpan -Minutes ${dur})).Repetition\n`;
+        ps += `Set-ScheduledTask -TaskName 'BC_Telemetry_Daily' -Trigger $trg -ErrorAction Stop | Out-Null\n'OK'`;
+        const out = (await runPs(ps)).trim();
+        if (out !== 'OK') throw new Error('Set-ScheduledTask: ' + out);
+        ensureOpsDir();
+        const saved = { startTime: `${String(sh).padStart(2, '0')}:${String(sm).padStart(2, '0')}`, endTime: `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`, intervalMinutes: iv };
+        fs.writeFileSync(SCHEDULE_FILE, JSON.stringify(saved, null, 2), 'utf8');
+        logActivity('success', 'schedule', `plán úlohy: ${saved.startTime}–${saved.endTime} á ${iv} min (z ${reqIp(req)})`);
+        sendJson(res, 200, { ok: true, ...saved });
+      } catch (e) { sendJson(res, 500, { error: String(e.message || e) }); }
+    });
+    return;
+  }
+
   // GET /ops-status — výsledek poslední ops operace (purge) + jestli ještě čeká požadavek.
   if (url === '/ops-status' && req.method === 'GET') {
     let status = null, pending = false;
@@ -450,7 +486,7 @@ if ($t.State -eq 'Running') { 'running' } else { Start-ScheduledTask -TaskName '
       .then((o) => { logActivity('info', 'refresh', `manual refresh: ${o.trim()}`); sendJson(res, 200, { status: o.trim() }); })
       .catch((e) => sendJson(res, 500, { error: String(e.message || e) }));
   }
-  if (url.startsWith('/firewall/') || url.startsWith('/api/') || url === '/refresh' || url === '/activity' || url === '/logs' || url === '/logfiles' || url === '/usermap' || url === '/changelog-companies' || url === '/changelog-purge' || url === '/ops-status' || url === '/import-stop' || url === '/restart' || url === '/retention' || url === '/tasks') return sendJson(res, 404, { error: 'unknown endpoint' });
+  if (url.startsWith('/firewall/') || url.startsWith('/api/') || url === '/refresh' || url === '/activity' || url === '/logs' || url === '/logfiles' || url === '/usermap' || url === '/changelog-companies' || url === '/changelog-purge' || url === '/ops-status' || url === '/import-stop' || url === '/restart' || url === '/retention' || url === '/tasks' || url === '/schedule') return sendJson(res, 404, { error: 'unknown endpoint' });
   return serveStatic(req, res);
 });
 
