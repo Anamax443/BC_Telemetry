@@ -65,6 +65,21 @@ $flag = Join-Path $WebDir 'ops\oneshot.flag'
 if (Test-Path $flag) { $oneShot = $true; Remove-Item $flag -Force -ErrorAction SilentlyContinue }
 $schedFile = Join-Path $WebDir 'ops\schedule.json'
 
+# Brana dle dnu v tydnu (0=Ne..6=So) — jen planovany beh; manualni (oneShot) bezi vzdy
+if (-not $oneShot -and (Test-Path $schedFile)) {
+    try {
+        $sc0 = Get-Content -Raw $schedFile | ConvertFrom-Json
+        if ($sc0.days -and @($sc0.days).Count -gt 0) {
+            $dow = [int](Get-Date).DayOfWeek
+            if (@($sc0.days) -notcontains $dow) {
+                Log "=== dnes (DOW=$dow) neni v planovanych dnech -> import preskocen ==="
+                Log "=== BC_Telemetry daily END (mimo plan) ==="
+                return
+            }
+        }
+    } catch { Log "plan(dny): chyba cteni schedule.json: $($_.Exception.Message)" }
+}
+
 do {
 Log "--- modul A (page views): BC_PageLog_Import.ps1 ---"
 & $ps -NoProfile -ExecutionPolicy Bypass -File $A *>> $log

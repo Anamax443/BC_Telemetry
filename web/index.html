@@ -140,6 +140,8 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
 .ret-grid label{font-size:13px;color:var(--text2);}
 .ret-grid input{width:90px;font-family:var(--mono);font-size:13px;padding:6px 9px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);text-align:right;}
 .ret-grid input:focus{outline:none;border-color:var(--accent);}
+.sched-days{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:2px 0 12px;font-size:13px;color:var(--text2);}
+.sched-days .cl-item{gap:5px;}
 </style>
 </head>
 <body>
@@ -493,17 +495,22 @@ function buildSchedule(host){
   host.innerHTML='<div class="wl-cur">načítám…</div>';
   fetch('/schedule').then(r=>{if(!r.ok)throw new Error(r.status);return r.json();})
    .then(d=>{
+     const DAYS=[{v:1,l:'Po'},{v:2,l:'Út'},{v:3,l:'St'},{v:4,l:'Čt'},{v:5,l:'Pá'},{v:6,l:'So'},{v:0,l:'Ne'}];
+     const dset=new Set(Array.isArray(d.days)?d.days:[0,1,2,3,4,5,6]);
      host.innerHTML='<div class="ret-grid">'
        +'<label>Od (čas)</label><input type="time" id="schStart" value="'+esc(d.startTime)+'">'
        +'<label>Do (čas)</label><input type="time" id="schEnd" value="'+esc(d.endTime)+'">'
        +'<label>Interval (min, 0 = jednou)</label><input type="number" min="0" max="1440" id="schIv" value="'+esc(d.intervalMinutes)+'">'
-       +'</div><div class="wl-row"><button class="btn" id="schSave">Uložit plán</button> <span class="wl-msg" id="schMsg"></span></div>';
+       +'</div>'
+       +'<div class="sched-days">Dny: '+DAYS.map(x=>'<label class="cl-item"><input type="checkbox" class="schDay" value="'+x.v+'"'+(dset.has(x.v)?' checked':'')+'> '+x.l+'</label>').join('')+'</div>'
+       +'<div class="wl-row"><button class="btn" id="schSave">Uložit plán</button> <span class="wl-msg" id="schMsg"></span></div>';
      document.getElementById('schSave').addEventListener('click',()=>{
-       const body={startTime:document.getElementById('schStart').value, endTime:document.getElementById('schEnd').value, intervalMinutes:+document.getElementById('schIv').value};
+       const days=[...host.querySelectorAll('.schDay:checked')].map(c=>+c.value);
+       const body={startTime:document.getElementById('schStart').value, endTime:document.getElementById('schEnd').value, intervalMinutes:+document.getElementById('schIv').value, days};
        const m=document.getElementById('schMsg'); m.className='wl-msg'; m.textContent='ukládám…';
        fetch('/schedule',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
          .then(r=>r.json().then(j=>({ok:r.ok,j})))
-         .then(({ok,j})=>{ if(!ok)throw new Error(j.error||'chyba'); m.className='wl-msg ok'; m.textContent='✓ plán: '+j.startTime+'–'+j.endTime+' á '+j.intervalMinutes+' min'; loadTasks(); })
+         .then(({ok,j})=>{ if(!ok)throw new Error(j.error||'chyba'); m.className='wl-msg ok'; m.textContent='✓ plán uložen'+(j.triggered?' — okno aktivní, import spuštěn':''); loadTasks(); })
          .catch(e=>{ m.className='wl-msg err'; m.textContent='⚠ '+e.message; });
      });
    })

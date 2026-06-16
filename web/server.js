@@ -421,8 +421,9 @@ $out | ConvertTo-Json -Compress -Depth 3
 
   // GET/PUT /schedule — okno a četnost běhu úlohy BC_Telemetry_Daily (opakování v okně).
   if (url === '/schedule' && req.method === 'GET') {
-    let s = { startTime: '02:00', endTime: '06:00', intervalMinutes: 0 };
+    let s = { startTime: '02:00', endTime: '06:00', intervalMinutes: 0, days: [0, 1, 2, 3, 4, 5, 6] };
     try { const o = JSON.parse(fs.readFileSync(SCHEDULE_FILE, 'utf8')); s = { ...s, ...o }; } catch { }
+    if (!Array.isArray(s.days) || !s.days.length) s.days = [0, 1, 2, 3, 4, 5, 6];
     return sendJson(res, 200, s);
   }
   if (url === '/schedule' && req.method === 'PUT') {
@@ -438,13 +439,26 @@ $out | ConvertTo-Json -Compress -Depth 3
         if (sh > 23 || sm > 59 || eh > 23 || em > 59) throw new Error('neplatný čas');
         let iv = Math.round(+o.intervalMinutes || 0);
         if (iv < 0 || iv > 1440) throw new Error('interval 0–1440 min');
+        let days = Array.isArray(o.days) ? o.days.map(Number).filter((d) => Number.isInteger(d) && d >= 0 && d <= 6) : [];
+        days = [...new Set(days)].sort((a, b) => a - b);
+        if (!days.length) days = [0, 1, 2, 3, 4, 5, 6];
         // Jen uložíme config — opakování v okně řídí wrapper (Invoke-BCTelemetryDaily.ps1),
         // NE OS úloha: její trigger nejde z LocalSystem měnit bez hesla svc (0x8007052e / prompt).
         ensureOpsDir();
-        const saved = { startTime: `${String(sh).padStart(2, '0')}:${String(sm).padStart(2, '0')}`, endTime: `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`, intervalMinutes: iv };
+        const saved = { startTime: `${String(sh).padStart(2, '0')}:${String(sm).padStart(2, '0')}`, endTime: `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`, intervalMinutes: iv, days };
         fs.writeFileSync(SCHEDULE_FILE, JSON.stringify(saved, null, 2), 'utf8');
         logActivity('success', 'schedule', `plán úlohy: ${saved.startTime}–${saved.endTime} á ${iv} min (z ${reqIp(req)})`);
-        sendJson(res, 200, { ok: true, ...saved });
+        // Když je Od už v minulosti a jsme uvnitř okna → spustit import hned (windowed; wrapper pak loopuje do Do).
+        const now = new Date(); const nowMin = now.getHours() * 60 + now.getMinutes();
+        const startMin = sh * 60 + sm, endMin = eh * 60 + em;
+        let triggered = false;
+        if (days.includes(now.getDay()) && nowMin >= startMin && (iv === 0 || nowMin < endMin)) {
+          triggered = true;
+          runPs(`$t=Get-ScheduledTask -TaskName 'BC_Telemetry_Daily' -ErrorAction Stop; if($t.State -ne 'Running'){ Start-ScheduledTask -TaskName 'BC_Telemetry_Daily' }; 'ok'`)
+            .then(() => logActivity('info', 'schedule', 'okno aktivní → import spuštěn hned'))
+            .catch((e) => logActivity('error', 'schedule', 'auto-start selhal: ' + (e.message || e)));
+        }
+        sendJson(res, 200, { ok: true, ...saved, triggered });
       } catch (e) { sendJson(res, 500, { error: String(e.message || e) }); }
     });
     return;
