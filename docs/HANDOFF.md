@@ -131,7 +131,8 @@ ukazuje Aktivita/Kandidáti **kdo** co reálně používá → z toho se sestav�
   - **Phase A** — dosync k současnosti: `Entry_No gt MAX` vzestupně, re-query do vyčerpání (gap-free, dojede k dnešku; jednorázový catch-up u 0002 ~100k).
   - **Phase B** — backfill historie: `Entry_No lt MIN` sestupně, **bounded `-BackfillRowsPerRun` (default 50000/firma/běh)** → historie se doplní za N běhů.
 - **Optimální objem:** `BackfillRowsPerRun` = strop backfillu/firma/běh (50000); **`ForwardRowsPerRun`** = strop dosyncu/firma/běh (150000, pojistka proti zaseknutí — `2579999`). Catch-up velké firmy se dokončí za víc běhů.
-- ⚠ **Výkon:** insert je **řádek-po-řádku** (try/catch dedup). U velkého catch-upu (KVE) to trvá minuty až déle. **TODO: přepsat na bulk insert (staging + MERGE jako modul A)** — zásadní zrychlení. 0002 dosync ověřen: `forward +73290 → max=120219, min=1` (kompletní). KVE = velký objem, catch-up po dávkách.
+- **Bulk insert** (SqlBulkCopy→#Staging→dedup, `fa08d7e`) — catch-up/backfill statisíců řádků za minuty. `ForwardRowsPerRun`=150000 strop dosyncu/firma/běh. **Token-refresh** (`4f22bce`): BC OAuth se po 45 min obnoví (dlouhý běh KVE jinak vypršel → 401).
+- ⚠ **(starý) Výkon:** insert byl **řádek-po-řádku** (try/catch dedup). U velkého catch-upu (KVE) to trvá minuty až déle. **TODO: přepsat na bulk insert (staging + MERGE jako modul A)** — zásadní zrychlení. 0002 dosync ověřen: `forward +73290 → max=120219, min=1` (kompletní). KVE = velký objem, catch-up po dávkách.
 - **Audit Table/Field No:** snapshot+UI+export doplněn o `TableNo` (Číslo tabulky, např. 2000000053 = Access Control) a `FieldNo` (Číslo pole) — důležité pro permission mining (přiřazení rolí). Access Control změny se logují a stahují.
 
 ### Audit — nejnovější + filtr Firma (2026-06-16, Push #46)
