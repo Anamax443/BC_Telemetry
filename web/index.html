@@ -77,6 +77,11 @@ th.num,th[data-sort="TotalHits"],th[data-sort="LastUsed"],th[data-sort="DateKey"
 .wl-msg.ok{color:var(--green);font-size:12px;}
 .wl-msg.err{color:var(--red);font-size:12px;}
 .wl-cur{margin-top:8px;font-size:11px;color:var(--text3);font-family:var(--mono);}
+.wl-hint{margin-top:8px;font-size:11.5px;color:var(--text3);line-height:1.5;border-left:3px solid var(--border);padding-left:10px;}
+.wl-hint strong{color:var(--text2);}
+.wl-unlim{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text2);margin-bottom:10px;cursor:pointer;}
+.wl-unlim input{width:16px;height:16px;cursor:pointer;}
+.wl-warn{color:var(--red);font-size:11px;}
 .gate{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px;z-index:50;}
 .gate-card{max-width:520px;width:100%;border:1px solid var(--border);border-radius:12px;padding:28px;background:var(--bg2);}
 .gate-card h2{font-size:18px;margin-bottom:8px;}
@@ -1098,7 +1103,7 @@ Promise.all([
   .catch(e=>{document.getElementById('loading').textContent='Chyba načtení data.json: '+e.message;});
 
 // verze nasazeneho dashboardu (bump pri kazdem deployi index.html); snapshot ji muze prebit (d.version)
-const APP_VER={push:64,commit:'3c7d81f',repo:'https://github.com/Anamax443/BC_Telemetry'};
+const APP_VER={push:65,commit:'pending',repo:'https://github.com/Anamax443/BC_Telemetry'};
 function render(d){
   DATA=d;
   document.getElementById('loading').hidden=true;
@@ -1284,8 +1289,20 @@ function buildWhitelistEditor(host){
     .catch(e=>{host.innerHTML='<div class="wl-banner warn"><span>⚠</span><div>Whitelist API není dostupné ('+esc(e.message)+'). Servis BC_Telemetry_Web neběží, nebo je stránka otevřená staticky. Whitelist lze mezitím měnit přes <span class="mono">Set-DashboardWhitelist.cmd</span>.</div></div>';});
 }
 
+// Windows Firewall ukládá "x.x.x.x/24" jako "x.x.x.x/255.255.255.0" → pro zobrazení převedeme zpět na CIDR.
+function maskToCidr(s){
+  const m=String(s).match(/^(\d{1,3}(?:\.\d{1,3}){3})\/(\d{1,3}(?:\.\d{1,3}){3})$/);
+  if(!m) return s;                                   // single IP / už CIDR / rozsah → beze změny
+  const oct=m[2].split('.').map(Number);
+  if(oct.some(o=>o>255)) return s;
+  let bits=0; oct.forEach(o=>{bits=(bits*256)+o;});
+  let n=0, seenZero=false;
+  for(let i=31;i>=0;i--){ const bit=(bits>>>i)&1; if(bit){ if(seenZero) return s; n++; } else seenZero=true; }
+  return m[1]+'/'+n;                                  // contiguous maska → /n
+}
 function renderWlEditor(host, cur, dp){
   dp = dp||{};
+  cur = (cur||[]).map(maskToCidr);
   let banner='';
   if(dp.enabled===false){
     banner='<div class="wl-banner warn"><span>⚠</span><div><strong>Domain firewall profil je vyplý</strong> — whitelist je proto jen <strong>formální</strong> (rule je OS-level inertní, port odpoví komukoliv v doméně). Tvrdé vynucení: <code>Set-NetFirewallProfile -Profile Domain -Enabled True</code> (default inbound: '+esc(dp.defaultInboundAction||'—')+').</div></div>';
@@ -1295,15 +1312,26 @@ function renderWlEditor(host, cur, dp){
     banner='<div class="wl-banner warn"><span>⚠</span><div>Stav firewall profilu nelze přečíst'+(dp.error?': '+esc(dp.error):'')+'.</div></div>';
   }
   host.innerHTML = banner +
+    '<label class="wl-unlim"><input type="checkbox" id="wlAny"> <strong>Neomezený přístup</strong> <span class="wl-warn">(kdokoliv — vypne IP filtr ⚠)</span></label>' +
     '<textarea class="wl-ta" id="wlTa" spellcheck="false"></textarea>' +
     '<div class="wl-row"><button class="btn" id="wlApply" disabled>Uložit</button>' +
     '<span class="wl-msg" id="wlMsg"></span></div>' +
-    '<div class="wl-cur">Aktuální ('+cur.length+'): '+(cur.map(esc).join(', ')||'—')+'</div>';
-  const ta=document.getElementById('wlTa'), btn=document.getElementById('wlApply'), msg=document.getElementById('wlMsg');
-  const orig=cur.join('\n'); ta.value=orig;
-  ta.addEventListener('input',()=>{btn.disabled=(ta.value.trim()===orig.trim());});
+    '<div class="wl-cur">Reálně vynucené firewallem ('+cur.length+'): '+(cur.map(esc).join(', ')||'—')+'</div>'+
+    '<div class="wl-hint">V poli zůstane <strong>přesně to, co napíšeš</strong> (pamatuje si to prohlížeč), i kdyby to firewall přepsal nebo odmítl. „Reálně vynucené" výše ukazuje stav firewallu. Podporováno: IP, <span class="mono">x.x.x.x/24</span> (celý subnet), rozsah <span class="mono">a-b</span>. Pro <strong>úplně bez omezení</strong> zaškrtni „Neomezený přístup" výše (nebo napiš <span class="mono">*</span> / <span class="mono">Any</span>).</div>';
+  const ta=document.getElementById('wlTa'), btn=document.getElementById('wlApply'), msg=document.getElementById('wlMsg'), anyCb=document.getElementById('wlAny');
+  let raw=null; try{ raw=localStorage.getItem('bct-wl-raw'); }catch(e){}
+  const shown=(raw!=null && raw.trim()!=='') ? raw : cur.join('\n');   // přednost má přesně to, co uživatel napsal
+  ta.value=shown; const orig=shown;
+  const isAny=cur.some(e=>e==='*'||/^any$/i.test(e)||e==='0.0.0.0/0');
+  const setAnyUI=(on)=>{ ta.disabled=on; ta.style.opacity=on?'.5':'1'; };
+  anyCb.checked=isAny; setAnyUI(isAny);
+  ta.addEventListener('input',()=>{ if(!anyCb.checked) btn.disabled=(ta.value.trim()===orig.trim()); });
+  anyCb.addEventListener('change',()=>{ setAnyUI(anyCb.checked); btn.disabled=false; });
   btn.addEventListener('click',()=>{
-    const ips=ta.value.split(/[\n,\s]+/).map(s=>s.trim()).filter(Boolean);
+    let ips;
+    if(anyCb.checked){ ips=['Any']; }                                  // zaškrtnuto = neomezeno
+    else { try{ localStorage.setItem('bct-wl-raw', ta.value); }catch(e){}   // zapamatuj literál (i kdyby PUT selhal)
+      ips=ta.value.split(/[\n,\s]+/).map(s=>s.trim()).filter(Boolean); }
     btn.disabled=true; msg.className='wl-msg'; msg.textContent='ukládám…';
     fetch('/firewall/whitelist',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ips})})
       .then(r=>r.json().then(j=>({ok:r.ok,j})))

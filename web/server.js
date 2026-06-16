@@ -105,9 +105,13 @@ $p = Get-NetFirewallProfile -Profile Domain -ErrorAction Stop
 }
 
 async function setAllowedIPs(ips) {
-  // Validate input — single IP, CIDR mask (x.x.x.x/n) nebo rozsah (x.x.x.x-y.y.y.y).
-  // (Set-NetFirewallRule -RemoteAddress umí všechny tři formy; pomlčka = rozsah.)
+  // Validate input — single IP, CIDR mask (x.x.x.x/n), rozsah (x.x.x.x-y.y.y.y)
+  // nebo wildcard "*"/"Any" = bez omezení (celá rule → Any).
+  // (Set-NetFirewallRule -RemoteAddress umí všechny formy; pomlčka = rozsah, Any = vše.)
+  const isWild = (ip) => ip === '*' || /^any$/i.test(ip);
+  const hasAny = ips.some(isWild);
   for (const ip of ips) {
+    if (isWild(ip)) continue;
     if (!/^[\d.:a-fA-F/-]+$/.test(ip)) {
       throw new Error(`Invalid IP/CIDR/range: ${ip}`);
     }
@@ -115,7 +119,9 @@ async function setAllowedIPs(ips) {
   if (ips.length === 0) {
     throw new Error('At least one allowed IP required (otherwise nobody can reach the API)');
   }
-  const jsonArray = JSON.stringify(ips);
+  // Jakýkoliv wildcard → celá rule = Any (mix s konkrétními IP nedává smysl).
+  const list = hasAny ? ['Any'] : ips;
+  const jsonArray = JSON.stringify(list);
   const ps = `
 $OutputEncoding = [System.Text.Encoding]::UTF8
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -125,7 +131,7 @@ Set-NetFirewallRule -DisplayName '${RULE_DISPLAY_NAME}' -RemoteAddress $ips -Err
 `;
   const out = await runPs(ps);
   if (out !== 'OK') throw new Error(`unexpected output: ${out}`);
-  logActivity('success', 'firewall', `Whitelist updated: ${ips.join(', ')}`);
+  logActivity('success', 'firewall', `Whitelist updated: ${list.join(', ')}`);
 }
 
 // ── PORT z ip-guard.ts ───────────────────────────────────────────────────────
@@ -150,6 +156,7 @@ function normalizeRequestIp(raw) {
 }
 
 function matchesEntry(remoteIp, entry) {
+  if (entry === '*' || /^any$/i.test(entry) || entry === '0.0.0.0/0') return true; // neomezeno
   if (entry === remoteIp) return true;
   // CIDR — prefix (x.x.x.x/24) i tečková maska (x.x.x.x/255.255.255.0)
   if (entry.includes('/')) {
