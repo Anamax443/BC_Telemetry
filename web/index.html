@@ -46,6 +46,8 @@ th:hover{color:var(--text);}
 td{padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text2);vertical-align:middle;}
 tr:hover td{background:var(--bg2);}
 td.num{text-align:right;font-family:var(--mono);white-space:nowrap;}
+/* hlavičky číselných/datových sloupců zarovnat vpravo (nad hodnoty td.num) */
+th.num,th[data-sort="TotalHits"],th[data-sort="LastUsed"],th[data-sort="DateKey"],th[data-sort="Failures"],th[data-sort="ChangedAt"],th[data-sort="TableNo"],th[data-sort="FieldNo"],th[data-sort="Hits"],th[data-sort="Users"],th[data-sort="Rows"],th[data-sort="TotalMB"]{text-align:right;}
 .mono{font-family:var(--mono);font-size:11px;background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:1px 6px;color:var(--accent2);}
 .bar{position:relative;background:var(--bg3);border-radius:4px;height:18px;min-width:40px;overflow:hidden;}
 .bar .fill{position:absolute;left:0;top:0;bottom:0;background:rgba(37,99,235,.25);border-right:2px solid var(--accent);}
@@ -169,6 +171,15 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
 .dbinfo-row{display:flex;justify-content:space-between;gap:12px;font-size:13px;border-bottom:1px solid var(--border);padding:5px 0;}
 .dbinfo-row span{color:var(--text3);}
 .dbinfo-row b{color:var(--text);font-family:var(--mono);font-size:12px;text-align:right;}
+/* === Export dropdown + manažerská zpráva === */
+.exp{position:relative;display:inline-block;}
+.exp-menu{position:absolute;right:0;top:calc(100% + 4px);z-index:30;background:var(--bg);border:1px solid var(--border);border-radius:8px;box-shadow:0 6px 24px rgba(0,0,0,.12);min-width:170px;padding:5px;display:none;}
+.exp.open .exp-menu{display:block;}
+.exp-menu button{display:flex;width:100%;gap:8px;align-items:center;font-family:var(--sans);font-size:13px;color:var(--text2);background:none;border:none;text-align:left;padding:7px 10px;border-radius:6px;cursor:pointer;}
+.exp-menu button:hover{background:var(--bg2);color:var(--text);}
+.exp-menu .ex-i{font-family:var(--mono);font-size:10px;color:var(--text3);width:34px;}
+.btn-report{font-family:var(--sans);font-size:13px;padding:7px 14px;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:8px;cursor:pointer;font-weight:600;}
+.btn-report:hover{background:var(--accent2);border-color:var(--accent2);}
 /* === Dokumentace === */
 .doc{max-width:920px;}
 .doc h2{font-size:18px;font-weight:600;margin:30px 0 8px;padding-bottom:6px;border-bottom:1px solid var(--border);}
@@ -284,7 +295,7 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
         <span class="wl-msg" id="umMsg"></span>
       </div>
       <table id="tblUsers"><thead><tr>
-        <th>Reálné jméno (vyplň)</th><th>GUID</th><th>Firmy</th><th>Top stránka</th><th>Otevření</th><th>Naposledy</th>
+        <th>Reálné jméno (vyplň)</th><th>GUID</th><th>Firmy</th><th>Top stránka</th><th class="num">Otevření</th><th class="num">Naposledy</th>
       </tr></thead><tbody></tbody></table>
     </section>
 
@@ -1081,7 +1092,7 @@ Promise.all([
   .catch(e=>{document.getElementById('loading').textContent='Chyba načtení data.json: '+e.message;});
 
 // verze nasazeneho dashboardu (bump pri kazdem deployi index.html); snapshot ji muze prebit (d.version)
-const APP_VER={push:62,commit:'97a33f0',repo:'https://github.com/Anamax443/BC_Telemetry'};
+const APP_VER={push:63,commit:'pending',repo:'https://github.com/Anamax443/BC_Telemetry'};
 function render(d){
   document.getElementById('loading').hidden=true;
   document.getElementById('app').hidden=false;
@@ -1095,9 +1106,9 @@ function render(d){
 
   const k=d.kpi||{};
   const kpis=[
-    {label:'Aktivní uživatelé · 30d',val:fmt(k.ActiveUsers30d),panel:'users'},
+    {label:'Aktivní uživatelé · 30d',val:fmt(k.ActiveUsers30d),panel:'activity'},
     {label:'Použité stránky · 30d',val:fmt(k.DistinctPages30d),panel:'activity'},
-    {label:'Otevření · 30d',val:fmt(k.Hits30d),panel:'trend'},
+    {label:'Otevření · 30d',val:fmt(k.Hits30d),panel:'activity'},
     {label:'RT0031 chyby · 14d',val:fmt(k.AuthFails14d),warn:(k.AuthFails14d>0),panel:'migration'},
   ];
   document.getElementById('kpis').innerHTML=kpis.map(x=>
