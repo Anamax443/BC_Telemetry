@@ -1,8 +1,13 @@
 # BC_Telemetry — HANDOFF (rolling)
 
 Aktuální stav projektu pro pokračování v další session. Updatuje se průběžně.
-Poslední update: **2026-06-16** (Push #48 / `b5618e1`) · repo `Anamax443/BC_Telemetry`.
-Filtry tabulek = zalamovací lišta `.filterbar` nad tabulkou (popisky + „Vyčistit filtry"), místo řádku v hlavičce.
+Poslední update: **2026-06-16** (Push #51 / `e32d087`) · repo `Anamax443/BC_Telemetry`.
+Filtry tabulek = zalamovací lišta `.filterbar` (popisky + „Vyčistit"); datum `2026.06.07`; filtr data rozmezí `od..do`; běžící čas + stáří dat v hlavičce.
+
+### Správa služby + retence z dashboardu (2026-06-16, Push #51, „dávka A")
+- **Nastavení → Správa služby a úloh:** `GET /tasks` (stav BC_Telemetry* úloh), `POST /import-stop` (Stop-ScheduledTask — zastaví i zaseknutý import), `POST /restart` (web `process.exit` → NSSM nahodí službu = self-service deploy server.js).
+- **Nastavení → Retenční politika:** `GET/PUT /retention` → `ops/retention.json` `{pageLogMonths:6, changeLogMonths:24, dailyLogDays:30}`. Importní skripty (modul A/B + wrapper) si ji čtou a přebijí defaulty.
+- ⚠ **Aktivace:** `/restart`+`/import-stop`+`/retention`+`/tasks` jsou nové v `server.js` → potřeba **jeden ruční restart služby** (Stop/Start-Service `BC_Telemetry_Web` jako admin), pak je vše self-service.
 
 > **Kompletní build návod:** [navod-interni-axima.md](navod-interni-axima.md) (INTERNÍ, plné hodnoty) ·
 > [navod-public.md](navod-public.md) (sanitizovaný, k publikaci) — sdílené tělo, liší se jen tabulka hodnot.
