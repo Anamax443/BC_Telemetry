@@ -1,9 +1,16 @@
 # BC_Telemetry — HANDOFF (rolling)
 
 Aktuální stav projektu pro pokračování v další session. Updatuje se průběžně.
-Poslední update: **2026-06-16** (Push #52 / `cdb5a06`) · repo `Anamax443/BC_Telemetry`.
-Modul B = **bulk insert** (SqlBulkCopy→#Staging→dedup, `fa08d7e`) místo row-by-row. Plán importu (okno+četnost) z dashboardu (`PUT /schedule`). Uživatelé filtr+export, KPI „Aktivní uživatelé"→záložka Uživatelé.
+Poslední update: **2026-06-16** (Push #56 / `69cc180`) · repo `Anamax443/BC_Telemetry`.
+Modul B = **bulk insert** (SqlBulkCopy→#Staging→dedup, `fa08d7e`) místo row-by-row. Plán importu (okno+četnost+**dny**, auto-start v okně) řídí wrapper (viz níže). Uživatelé filtr+export, KPI „Aktivní uživatelé"→záložka Uživatelé.
 Filtry tabulek = zalamovací lišta `.filterbar` (popisky + „Vyčistit"); datum `2026.06.07`; filtr data rozmezí `od..do`; běžící čas + stáří dat v hlavičce.
+
+### Plán importu (okno/četnost/dny) — řídí wrapper, ne OS scheduler (2026-06-16, Push #54–56)
+- **Proč:** trigger OS úlohy nejde z LocalSystem měnit bez **hesla svc** (`Set-ScheduledTask`/`schtasks /Change` → 0x8007052e / prompt na heslo → request visel). Proto OS úloha zůstává **1× denně v 02:00** a repetici/okno/dny řeší **wrapper**.
+- `PUT /schedule` jen zapíše `ops/schedule.json` `{startTime,endTime,intervalMinutes,days:[0=Ne..6=So]}` (instant). `Invoke-BCTelemetryDaily.ps1`: brána dle `days` (neplánovaný den → skip), pak `do{import}while` opakuje á `intervalMinutes` do `endTime`.
+- **Manuál /refresh** = `ops/oneshot.flag` → wrapper proběhne **1×** (neloopuje, ignoruje dny).
+- **Auto-start:** uložení plánu, když `startTime` už minul a jsme v okně + dnešní den je v plánu → spustí import hned (windowed). `runPs` má timeout 90 s.
+- Chceš-li, aby repetici řídil **nativně Windows scheduler** (vidět v „příští běh"): jednorázově `schtasks /Change … /RI … /RU svc /RP <heslo>` na serveru (admin) — viz reakce v chatu.
 
 ### Správa služby + retence z dashboardu (2026-06-16, Push #51, „dávka A")
 - **Nastavení → Správa služby a úloh:** `GET /tasks` (stav BC_Telemetry* úloh), `POST /import-stop` (Stop-ScheduledTask — zastaví i zaseknutý import), `POST /restart` (web `process.exit` → NSSM nahodí službu = self-service deploy server.js).
