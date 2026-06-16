@@ -17,6 +17,7 @@ header{border-bottom:1px solid var(--border);padding:24px 32px;display:flex;alig
 header .tag{font-family:var(--mono);font-size:10px;letter-spacing:2px;color:var(--accent);text-transform:uppercase;display:block;margin-bottom:4px;}
 header h1{font-size:19px;font-weight:600;}
 header .meta{font-family:var(--mono);font-size:11px;color:var(--text3);text-align:right;}
+#liveClock.stale{color:var(--red);font-weight:600;}
 main{padding:28px 32px;max-width:1200px;margin:0 auto;}
 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:28px;}
 .kpi{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 20px;}
@@ -140,6 +141,7 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
 <header>
   <div><span class="tag">AXIMA · interní</span><h1 id="homeLink" title="Domů — obnovit dashboard">BC Telemetrie — Admin dashboard</h1></div>
   <div class="hright">
+    <span class="meta" id="liveClock" title="Živý čas (heartbeat) — když stojí, stránka zamrzla">🕐 —</span>
     <button class="theme-btn" type="button" id="themeToggle" title="Světlý / tmavý režim" aria-label="Přepnout motiv">🌙</button>
     <div class="meta" id="meta">načítám…</div>
   </div>
@@ -338,6 +340,24 @@ const unameHtml = g => { const n=userMap[g]; return n ? `${esc(n)} <span class="
 // ── Klik na název = domů (obnovit dashboard) ─────────────────────────────────
 (function(){ const h=document.getElementById('homeLink'); if(h) h.addEventListener('click',()=>location.assign('/')); })();
 (function(){ const y=document.getElementById('cpYear'); if(y) y.textContent=new Date().getFullYear(); })();
+// Běžící čas (heartbeat) + stáří dat — když čas stojí, stránka zamrzla; stará data zčervenají.
+(function liveClock(){
+  const el=document.getElementById('liveClock'); if(!el) return;
+  const p=n=>String(n).padStart(2,'0');
+  function tick(){
+    const d=new Date(); let s='🕐 '+p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds());
+    if(state.generatedUtc){
+      const g=Date.parse(state.generatedUtc.replace(' ','T')+'Z');
+      if(!isNaN(g)){ const min=Math.max(0,Math.floor((Date.now()-g)/60000));
+        const age = min<60 ? min+' min' : Math.floor(min/60)+' h '+p(min%60);
+        s+=' · data '+age;
+        el.classList.toggle('stale', min>1560);  // >26 h = vynechaný denní běh
+      }
+    }
+    el.textContent=s;
+  }
+  tick(); setInterval(tick,1000);
+})();
 
 // ── Ruční obnova (Nastavení): POST /refresh → spustí denní task, poll na nový snapshot ──
 (function refreshCtl(){
