@@ -124,11 +124,10 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
   "repo": "Anamax443/BC_Telemetry",
   "repoUrl": "https://github.com/Anamax443/BC_Telemetry",
   "host": "10.8.2.225 (B-S-W-SQL-04)",
-  "version": "1.1",
+  "version": "1.2",
   "generated": "2026-06-16",
-  "commit": "44fb550",
-  "pushNo": 59,
-  "activeProjectNo": 5,
+  "commit": "a4c3c46",
+  "pushNo": 65,
   "milestones": [
     {
       "id": "M0", "title": "Azure + BC onboarding (LIVE rozjezd)", "status": "done",
@@ -277,8 +276,6 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
     }
   ],
   "decisions": [
-    {"h":"Whitelist rozsah ✅","p":"Jaké IP povolit pro zobrazení stránky.","o":"ROZHODNUTO: stejně jako ITDashboard — konkrétní admin IP (10.8.2.225/181/243); editor umí i CIDR masku a pomlčkový rozsah"},
-    {"h":"Umístění DB ✅","p":"Kde je BC_Telemetry SQL databáze.","o":"ROZHODNUTO: localhost na 10.8.2.225 (co-located) — skripty sjednoceny, GRANT na lokální Windows účet"},
     {"h":"GPO AllSigned","p":"Jak spustit PS import/export na doménovém serveru s AllSigned.","o":"A: podepsat skripty · B: běh z jiného boxu · C: GPO výjimka"}
   ],
   "arch": "BC Cloud ──telemetrie──▶ Azure App Insights / Log Analytics\n                          │  DCR filtr: clientType == \"Web\"\n                          ▼\n   wrapper Invoke-BCTelemetryDaily.ps1 (jako svc; OS úloha 1× ve startTime,\n     loop á intervalMinutes do endTime; okno+četnost+dny z ops/schedule.json)\n                          ▼  Service Principal, inkrementálně; modul B bulk insert\n   SQL 10.8.2.225:  dbo.BCPageLog (raw, miliony, retence dle ops/retention.json)\n                          │  usp_BCPageLog_Rollup\n                          ▼\n   dbo.BCPageDaily + vw_Dash*  (agregáty — malé, kumulují navždy)\n                          │  Export-DashboardSnapshot.ps1\n                          ▼\n   data.json ──▶ služba BC_Telemetry_Web (Node+NSSM, LocalSystem — NEsahá na SQL/BC)\n                 ├─ dashboard (anonymně, bez loginu) + záložka 🗄 Databáze\n                 ├─ ⚙ Nastavení → whitelist (firewall rule, port ITDashboard)\n                 └─ ⚙ Nastavení → Správa služby a úloh: /restart (exit→NSSM nahodí),\n                       /import-stop, /tasks, /schedule, /retention, /changelog-purge\n                          │  web zapíše do ops fronty   ▲ svc čte/zpracuje\n                          ▼                              │\n   C:\\Apps\\BC_Telemetry_Web\\ops\\  (ops-request.json / ops-status.json /\n     retention.json / schedule.json / oneshot.flag; ACL nastaví služba na bootu)",
@@ -349,7 +346,7 @@ const kpis = [
   {l:'Milestones hotové',v:`${done}<small>/${ms.length}</small>`},
   {l:'Dokončeno',v:`${pct}<small>%</small>`},
   {l:'Otevřená rozhodnutí',v:D.decisions.length},
-  {l:'Aktivní maxferit projekt',v:`#${D.activeProjectNo}`}
+  {l:'Stav nasazení',v:'🟢 LIVE'}
 ];
 document.getElementById('kpis').innerHTML = kpis.map(k=>`<div class="kpi"><div class="l">${k.l}</div><div class="v">${k.v}</div></div>`).join('');
 document.getElementById('pfill').style.width = pct+'%';

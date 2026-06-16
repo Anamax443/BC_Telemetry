@@ -128,7 +128,7 @@ Filtry tabulek = zalamovací lišta `.filterbar` (popisky + „Vyčistit"); datu
       (cloud: AppPageViews / AppTraces RT0031 / OData `$count`) → `dbo.BCSyncStatus` → snapshot. Krok ve wrapperu před snapshotem.
     - **↻ Ruční obnova** (Nastavení): POST `/refresh` spustí denní task. UI: default řazení newest-first, proklikávací KPI dlaždice, název→domů, favicon.
 
-## 🟢 STATUS: LIVE / kompletní (2026-06-10, rozšířeno 2026-06-16 — Push #58)
+## 🟢 STATUS: LIVE / kompletní (2026-06-10, rozšířeno 2026-06-16 — Push #65)
 Celý řetězec **BC → Azure App Insights → SQL (3 moduly) → rollup → snapshot → dashboard** běží **plně automaticky**
 (wrapper `Invoke-BCTelemetryDaily.ps1` jako `AXINETWORK\svc-bc-telemetry` dle `ops/schedule.json` — OS úloha 1× v 02:00,
 wrapper pak loopuje á interval v okně). Data ověřena, dashboard servíruje, dokumentace (interní + public) hotová.
@@ -141,6 +141,8 @@ retence / plán importu okno+četnost+dny+auto-start); záložky **Databáze** (
 datum `2026.06.07`, filtr data rozmezí, export CSV, velikost DB, běžící čas+stáří dat; access-check fail-open + tečková maska.
 Web služba (LocalSystem) **nesahá na SQL/BC** — vše přes svc/ops; whitelist = firewall rule, ostatní config = JSON.
 ESHOP/ESHOP02/TEST1/TEST2 vyřazeny + jejich audit (~340 000 řádků) smazán.
+
+**Přidáno (Push #60→#65):** záložka **📖 Dokumentace** (uživatelská příručka + technická vč. registrace u Microsoftu/Entra a v BC) s **🖨 tiskem/PDF**; zarovnání hlaviček + klikací KPI; **rozšířený export** tabulek **CSV/TXT/HTML/PDF**; **📊 Manažerská zpráva** (grafy + kumulace, HTML/PDF); whitelist se **zachováním literálu**, čitelným CIDR a **checkboxem „Neomezený přístup"** (`*`/`Any`). Vše klientsky (bez restartu), kromě `server.js` podpory `Any` (= jeden restart služby).
 
 ### Dashboard endpointy (Node služba)
 `/access-check` · `/firewall/whitelist` (GET/PUT) · `/firewall/domain-profile` · `/refresh` (POST) ·
@@ -205,7 +207,7 @@ ESHOP/ESHOP02/TEST1/TEST2 vyřazeny + jejich audit (~340 000 řádků) smazán.
 - ~~Modul A jména: korelace GUID ↔ Entra sign-in logy~~ ✅ **VYŘEŠENO jinak (2026-06-10):** telemetrický GUID = BC „Telemetry User ID" → BC Users OData → **SQL `dbo.BCUser`** (`BC_Users_Import.ps1`, v denním wrapperu) → `vw_UserMap` → `usermap.json`. **LIVE 2026-06-10** — nasazeno + ověřeno **63 jmen** na dashboardu (runbook [deploy-users-2026-06-10.md](deploy-users-2026-06-10.md)). Cesta past, co kously: filtrovaný index → `SET QUOTED_IDENTIFIER ON` (sqlcmd OFF); `server.js` musel dojet na server + restart služby (jinak `/usermap` 404); svc potřeboval `icacls (M)` na `usermap.json` (WriteAllText „Access denied"). OData pole: `User_Telemetry_ID`/`Full_Name`/… auto-detekováno.
 - ~~Import: stahovat z cloudu od nejnovějších po nejstarší~~ ✅ A/C KQL `order by timestamp desc`. Modul B ponechán `asc` (watermark + `$top=5000` — desc by při >5000 nových vynechal starší → díra).
 - ~~Dashboard: celkový počet záznamů cloud vs SQL~~ ✅ sync pruh má teď „Celkem SQL / cloud (%)" jako součet přes moduly z `BCSyncStatus`.
-- 📖 **Anonymizovaný public step-by-step návod** (na maxferit web, jako showcase/lead-gen) —
+- 📖 **Anonymizovaný public step-by-step návod** (jako showcase) —
   samostatný deliverable, **bez identifikace firmy**: nahradit AXIMA / company names / tenant+subscription
   GUIDy / SP client ID / iKey / reálná jména (MTRNKA) / interní IP (10.8.2.225, BSWNAV01) za placeholdery
   (`<tenant-id>`, `<company>`, `<server>`…). Interní docs proto píšeme sanitizovatelně (firemní hodnoty

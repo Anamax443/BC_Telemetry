@@ -225,9 +225,12 @@ dny v týdnu. Pokud čas „Od" už toho dne minul, import se spustí **hned**.
   stránkovač (« ‹ strana X/Y › ») s přepínačem počtu řádků na stránku (**50 / 100 / 200 / 500 / vše**).
   **Výchozí počet řádků na stránku** nastavíš v sekci Nastavení („Zobrazení tabulek"), uloží se v prohlížeči
   (localStorage). **Export do CSV exportuje celou filtrovanou sadu**, ne jen aktuální stránku.
-- **Export do CSV** — UTF-8 **BOM**, oddělovač `;` (otevře se rovnou v Excelu). Slouží jako **podklad pro tvorbu
-  permission setů**.
+- **Export do více formátů** — tlačítko **⬇ Export ▾** u tabulek nabídne **CSV** (UTF-8 BOM, oddělovač `;` →
+  rovnou Excel), **TXT** (tab-oddělený), **HTML** (samostatná tabulka) a **PDF** (přes tisk). Exportuje **celou
+  filtrovanou sadu** s reálnými jmény — **podklad pro tvorbu permission setů**.
 - Trend dle společnosti; v auditu sloupce **Číslo tabulky / Číslo pole**.
+- Hlavičky **číselných a datových sloupců** jsou zarovnané vpravo (nad hodnoty); KPI dlaždice jsou **klikací**
+  (přejdou na odpovídající záložku).
 
 **Responzivní layout (mobil / tablet):** KPI dlaždice se samy přeskládají (**4→2→1 sloupec**), široké tabulky
 (audit s mnoha sloupci) se na úzké obrazovce **horizontálně scrollují** místo rozbití, záložky se vodorovně
@@ -240,6 +243,24 @@ posouvají a hlavička i toolbary se zalamují (media queries **≤820 px** a **
 - **Průběžná obnova autentizačního tokenu** u dlouhých běhů (token nevyprší uprostřed importu).
 - Change log se nově stahuje **„od nejnovějšího"** + postupné doplňování historie.
 - **Dedup oprava** u page-view importu.
+
+**Vestavěná dokumentace v dashboardu:**
+- Záložka **📖 Dokumentace** přímo na homepage s přepínačem **Uživatelská příručka** (jak dashboard používat —
+  orientace, popis záložek, workflow tvorby permission setů, práce s tabulkami, provoz, řešení potíží) a
+  **Technická dokumentace** (architektura, **registrace u Microsoftu / Entra a v Business Centralu**, 3 moduly,
+  klíčové identifikátory, endpointy).
+- **🖨 Tisk / PDF** — vytiskne nebo uloží do PDF právě zobrazenou příručku, vždy ve světlém režimu (`@media print`).
+
+**📊 Manažerská zpráva:**
+- Tlačítko v hlavičce otevře přehledovou zprávu (vlastní okno) s **grafy a kumulacemi**: KPI souhrn, trend
+  využití (otevření/den + kumulativně), žebříčky **top uživatelé / stránky / firmy**, audit dle typu a firmy,
+  permission errors. Uvnitř **🖨 Tisk / PDF** a **⬇ Uložit HTML** (samostatný soubor, grafy inline → funguje offline).
+- Generuje se **klientsky** z agregovaných dat (žádný server ani restart služby).
+
+**Síťový whitelist (rozšíření):**
+- Editor **zachová přesně zadaný text** (pamatuje si prohlížeč), i kdyby ho firewall přepsal nebo odmítl;
+  samostatný řádek ukazuje **reálně vynucený** stav (tečková maska se zobrazí čitelně jako CIDR `…/24`).
+- **Checkbox „Neomezený přístup"** (nebo zápis `*` / `Any`) = vypne IP filtr (port odpoví komukoliv) — ⚠ jen vědomě.
 
 # Verifikace (end-to-end smoke test)
 

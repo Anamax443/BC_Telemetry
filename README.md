@@ -3,7 +3,7 @@
 Telemetrie aktivity uživatelů **Business Central Cloud** → **Azure Application Insights** → **SQL** →
 **interní admin dashboard**. Sbíraná data slouží k sestavení Permission Setů (kdo co reálně používá).
 
-> Interní nástroj AXIMA spol. s r.o. · BC Production/CZ · **🟢 LIVE od 2026-06-10** (10.8.2.225) · **Push #59**
+> Interní nástroj AXIMA spol. s r.o. · BC Production/CZ · **🟢 LIVE od 2026-06-10** (10.8.2.225) · **Push #65**
 
 ## Architektura
 
@@ -19,15 +19,16 @@ BC Cloud ──telemetrie──▶ Azure App Insights / Log Analytics
                           │  Update-SyncStatus + Export-DashboardSnapshot.ps1
                           ▼
    web/data.json ──▶ služba BC_Telemetry_Web (Node+NSSM na 10.8.2.225, LocalSystem)
-                     ├─ dashboard (bez loginu): KPI + velikost DB + běžící čas/stáří dat, Aktivita, Uživatelé, Audit (Firma/Table No/Field No), RT0031, Trend (dle firmy), Databáze (stav SQL), Terminál (per-sloupcové filtry + stránkování tabulek + ⬇ export CSV celé filtrované sady pro permission mining; responzivní layout pro mobil/tablet)
+                     ├─ dashboard (bez loginu): KPI + velikost DB + běžící čas/stáří dat, Aktivita, Uživatelé, Audit (Firma/Table No/Field No), RT0031, Trend (dle firmy), Databáze (stav SQL), Terminál (per-sloupcové filtry + stránkování + ⬇ export CSV/TXT/HTML/PDF celé filtrované sady; responzivní mobil/tablet)
+                     ├─ 📊 Manažerská zpráva (grafy + kumulace, HTML/PDF) · 📖 Dokumentace (uživatelská příručka + technická, tisk/PDF)
                      ├─ ⚙ Nastavení auditu → výběr firem modulu B + počty/firma + ↻ refresh + 🗑 mazání audit záznamů
-                     └─ ⚙ Nastavení → whitelist (firewall rule) + ruční obnova + Správa služby/úloh (stop/restart/plán importu/retence)
+                     └─ ⚙ Nastavení → whitelist (firewall rule; literál + CIDR zobrazení + ☑ neomezený přístup) + ruční obnova + Správa služby/úloh (stop/restart/plán importu/retence)
 ```
 
 Raw log se po retenci maže; **agregáty se kumulují** — dashboard čte jen z nich, takže je rychlý
 i při milionech raw záznamů. Web hostuje malá Node služba (kvůli editovatelnému whitelistu).
 
-> **Architektonický princip (Push #41→#59):** web služba běží pod **LocalSystem** a **NEsahá na SQL ani BC**
+> **Architektonický princip (Push #41→#65):** web služba běží pod **LocalSystem** a **NEsahá na SQL ani BC**
 > — veškerý přístup k datům jde přes účet **`svc-bc-telemetry`** (denní úloha / ops fronta). Dashboard žádá
 > akce přes JSON ops soubory v `C:\Apps\BC_Telemetry_Web\ops`, které vyřídí svc (mazání auditu, import,
 > plán). Reálné vynucení viditelnosti = **Windows Firewall rule** (whitelist); ostatní konfigurace
@@ -75,13 +76,16 @@ importy + `Register-ScheduledTask.ps1` → dashboard `install-service.cmd`.
 
 ## Stav
 
-**🟢 LIVE od 2026-06-10** na 10.8.2.225, aktuálně **Push #59** — celý řetězec běží plně automaticky
+**🟢 LIVE od 2026-06-10** na 10.8.2.225, aktuálně **Push #65** — celý řetězec běží plně automaticky
 (wrapper jako `svc-bc-telemetry` dle `ops/schedule.json`): import 3 modulů + rollup + sync-status +
 snapshot → dashboard. Hlavní cíl (podklad pro permission sety per uživatel místo SUPER) naplněn — po
 namapování jmen (záložka Uživatelé) je vidět, kdo co reálně používá. Dashboard nově umí provozní
 ovládání (stop/restart importu, plán, retence, mazání auditu) přes ops frontu vyřizovanou svc účtem.
 Modul B přepsán na newest-first + backfill s bulk insertem. Firmy ESHOP/ESHOP02/TEST1/TEST2 vyřazeny
 ze sledování (jejich ~340 000 audit řádků smazáno).
+**Push #60→#65:** vestavěná **📖 Dokumentace** (uživatelská příručka + technická, tisk/PDF), **rozšířený
+export** tabulek (CSV/TXT/HTML/PDF), **📊 Manažerská zpráva** (grafy + kumulace, HTML/PDF), whitelist se
+**zachováním literálu**, čitelným CIDR a **checkboxem „Neomezený přístup"** (`*`/`Any`).
 
 ## Licence
 

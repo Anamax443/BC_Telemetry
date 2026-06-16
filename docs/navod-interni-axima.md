@@ -245,9 +245,12 @@ dny v týdnu. Pokud čas „Od" už toho dne minul, import se spustí **hned**.
   stránkovač (« ‹ strana X/Y › ») s přepínačem počtu řádků na stránku (**50 / 100 / 200 / 500 / vše**).
   **Výchozí počet řádků na stránku** se nastaví v ⚙ Nastavení („Zobrazení tabulek"), uloženo v prohlížeči
   (localStorage). **Export do CSV exportuje celou filtrovanou sadu**, ne jen aktuální stránku.
-- **Export do CSV** — UTF-8 **BOM**, oddělovač `;` (otevře se rovnou v Excelu). Slouží jako **podklad pro tvorbu
-  permission setů**.
+- **Export do více formátů (Push #64):** tlačítko **⬇ Export ▾** u tabulek (Aktivita / Uživatelé / Audit /
+  RT0031 / Databáze) → **CSV** (UTF-8 BOM, `;`), **TXT** (tab), **HTML** (samostatná tabulka), **PDF** (přes tisk).
+  Exportuje **celou filtrovanou sadu** s reálnými jmény. Klientsky z `data.json` (bez serveru/restartu).
 - Trend dle společnosti; v auditu sloupce **Číslo tabulky / Číslo pole**.
+- **Zarovnání hlaviček (Push #63):** číselné a datové sloupce mají hlavičku zarovnanou vpravo (nad hodnoty
+  `td.num`). KPI **„Aktivní uživatelé" i „Otevření"** vedou na záložku **Aktivita uživatelů**.
 
 **Responzivní layout (mobil / tablet, Push #59):** KPI dlaždice se samy přeskládají (**4→2→1 sloupec**),
 široké tabulky (Audit s mnoho sloupci) se na úzké obrazovce **horizontálně scrollují** místo rozbití, záložky

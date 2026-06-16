@@ -145,7 +145,9 @@ AppPageViews
 
 > **Provoz z dashboardu (Push #58):** retenční politika a plán importu se konfigurují přes JSON v `ops/` (`retention.json`, `schedule.json`), importní skripty + wrapper je čtou. Web (LocalSystem) je jen zapisuje — **nesahá na SQL ani BC**, viz §11.
 
-> **UI tabulek a layout (Push #59):** tabulky dashboardu (Aktivita, Audit, RT0031/Permission errors, Databáze) mají **stránkovač** (« ‹ strana X/Y › ») s přepínačem počtu řádků na stránku (50 / 100 / 200 / 500 / vše); **výchozí počet** se nastaví v ⚙ Nastavení („Zobrazení tabulek") a uloží do prohlížeče (localStorage). Export CSV exportuje **celou filtrovanou sadu**, ne jen aktuální stránku. Layout je **responzivní** — KPI dlaždice se přeskládají (4→2→1 sloupec), široké tabulky (Audit s mnoho sloupci) se na úzké obrazovce **horizontálně scrollují** místo rozbití, záložky se vodorovně posouvají a hlavička/toolbary se zalamují (media queries ≤820 px a ≤480 px).
+> **UI tabulek a layout (Push #59):** tabulky dashboardu (Aktivita, Audit, RT0031/Permission errors, Databáze) mají **stránkovač** (« ‹ strana X/Y › ») s přepínačem počtu řádků na stránku (50 / 100 / 200 / 500 / vše); **výchozí počet** se nastaví v ⚙ Nastavení („Zobrazení tabulek") a uloží do prohlížeče (localStorage). Export exportuje **celou filtrovanou sadu**, ne jen aktuální stránku. Layout je **responzivní** — KPI dlaždice se přeskládají (4→2→1 sloupec), široké tabulky (Audit s mnoho sloupci) se na úzké obrazovce **horizontálně scrollují** místo rozbití, záložky se vodorovně posouvají a hlavička/toolbary se zalamují (media queries ≤820 px a ≤480 px).
+>
+> **Dokumentace, export a zpráva (Push #60→#65):** zarovnání hlaviček číselných/datových sloupců vpravo + klikací KPI (Push #63). Záložka **📖 Dokumentace** přímo v dashboardu (přepínač *uživatelská příručka* / *technická dokumentace* vč. registrace u Microsoftu a v BC) s **🖨 tiskem/PDF** (`@media print`, vždy světle). **Export do více formátů** (Push #64): tlačítko ⬇ Export ▾ → **CSV / TXT / HTML / PDF** (klientsky z `data.json`). **📊 Manažerská zpráva** (Push #64): vlastní okno s grafy (bar) a **kumulacemi** trendu, žebříčky top uživatelé/stránky/firmy, audit dle typu/firmy, RT0031; uvnitř tisk/PDF + uložení HTML. Vše bez serveru/restartu (statika z agregátů).
 
 ## 11 · RBAC — servisní účet `AXINETWORK\svc-bc-telemetry`
 
@@ -164,6 +166,7 @@ Azure auth přes **Service Principal** (Client Secret v Credential Manageru / Ke
 > (web zakládá adresář + ACL pro svc na bootu, `runPs` má timeout 90 s); vyřídí je svc. **Reálné vynucení** viditelnosti
 > dashboardu = **Windows Firewall rule** (whitelist); ostatní konfigurace jsou jen JSON.
 > Access-check (whitelist) je **fail-open při prázdné cache** (po restartu nezamkne přístup) a umí i tečkovou masku CIDR (`10.8.2.0/255.255.255.0`).
+> **Whitelist editor (Push #65):** zachová **přesně zadaný text** (localStorage `bct-wl-raw`, i kdyby firewall přepsal/odmítl), „reálně vynucené" řádek zobrazuje tečkovou masku čitelně jako **CIDR** (`maskToCidr`), a podporuje **`*` / `Any` = neomezený přístup** (checkbox; `setAllowedIPs` → rule `Any`, `matchesEntry` bere `Any`/`*`/`0.0.0.0/0` jako match-all). ⚠ vypnutí IP filtru = port odpoví komukoliv.
 
 ## 12 · Workflow sestavení Permission Setů
 
