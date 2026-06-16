@@ -135,6 +135,11 @@ html[data-theme="dark"] .spark .col{background:rgba(96,165,250,.35);}
 /* ── Patička ── */
 footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;text-align:center;color:var(--text3);font-size:12px;font-family:var(--mono);}
 .trend-sel{font-family:var(--sans);font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg);color:var(--text);}
+.tasks-box{margin-top:10px;max-height:200px;}
+.ret-grid{display:grid;grid-template-columns:1fr auto;gap:8px 14px;align-items:center;max-width:420px;margin-bottom:12px;}
+.ret-grid label{font-size:13px;color:var(--text2);}
+.ret-grid input{width:90px;font-family:var(--mono);font-size:13px;padding:6px 9px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);text-align:right;}
+.ret-grid input:focus{outline:none;border-color:var(--accent);}
 </style>
 </head>
 <body>
@@ -270,6 +275,24 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
         </div>
       </div>
       <div class="set-section">
+        <h3>Správa služby a úloh</h3>
+        <p class="set-desc">Stav naplánovaných úloh, zastavení běžícího (i zaseknutého) importu a restart web služby
+        (nasadí změny <span class="mono">server.js</span> — služba se sama nahodí přes NSSM).</p>
+        <div class="wl-row">
+          <button class="btn-ghost" type="button" id="tasksReload">↻ Stav úloh</button>
+          <button class="btn-danger" type="button" id="importStopBtn">⏹ Zastavit import</button>
+          <button class="btn-danger" type="button" id="restartBtn">🔄 Restartovat službu</button>
+          <span class="wl-msg" id="svcMsg"></span>
+        </div>
+        <div class="term tasks-box" id="tasksBox">— klikni „Stav úloh" —</div>
+      </div>
+      <div class="set-section">
+        <h3>Retenční politika</h3>
+        <p class="set-desc">Jak dlouho se drží data; projeví se při dalším běhu importu. Raw page log (modul A)
+        i Change Log (modul B) se po této době mažou, <strong>agregáty kumulují navždy</strong>.</p>
+        <div id="retHost">načítám…</div>
+      </div>
+      <div class="set-section">
         <h3>Síťový whitelist</h3>
         <p class="set-desc">Formální omezení zobrazení této stránky na vymezené IP adresy / rozsahy.
         Zdroj pravdy je Windows Firewall rule <span class="mono">BC Telemetry Dashboard (8080)</span>.
@@ -385,6 +408,69 @@ const unameHtml = g => { const n=userMap[g]; return n ? `${esc(n)} <span class="
     }catch(e){ say('⚠ '+(e.message||e),'err'); btn.disabled=false; }
   });
 })();
+
+// ── Správa služby a úloh (Nastavení) ─────────────────────────────────────────
+async function loadTasks(){
+  const box=document.getElementById('tasksBox'); if(!box) return;
+  box.textContent='načítám…';
+  try{
+    const j=await (await fetch('/tasks',{cache:'no-store'})).json();
+    const ts=j.tasks||[];
+    if(!ts.length){ box.textContent='— žádné úlohy BC_Telemetry* —'; return; }
+    box.innerHTML = ts.map(t=>{ const run=t.state==='Running';
+      return `<div><span class="ev-${run?'WARN':'success'}">[${esc(t.state)}]</span> ${esc(t.name)} `
+        +`<span class="ts">· poslední ${esc(t.last||'—')} · příští ${esc(t.next||'—')} · výsledek ${esc(t.result||'—')}</span></div>`;
+    }).join('');
+  }catch(e){ box.textContent='nedostupné: '+(e.message||e); }
+}
+(function svcCtl(){
+  const rel=document.getElementById('tasksReload'), stop=document.getElementById('importStopBtn'),
+        rest=document.getElementById('restartBtn'), msg=document.getElementById('svcMsg');
+  const say=(t,c)=>{ if(msg){ msg.className='wl-msg'+(c?' '+c:''); msg.textContent=t; } };
+  if(rel) rel.addEventListener('click',loadTasks);
+  if(stop) stop.addEventListener('click', async ()=>{
+    if(!confirm('Zastavit běžící import (úloha BC_Telemetry_Daily)?')) return;
+    say('zastavuji…');
+    try{ const r=await fetch('/import-stop',{method:'POST'}); const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.error||r.status);
+      say('✓ '+(j.status||'stopped'),'ok'); loadTasks();
+    }catch(e){ say('⚠ '+(e.message||e),'err'); }
+  });
+  if(rest) rest.addEventListener('click', async ()=>{
+    if(!confirm('Restartovat web službu? Stránka se na pár sekund odpojí a sama se načte.')) return;
+    say('restartuji… služba se nahazuje');
+    try{ await fetch('/restart',{method:'POST'}); }catch(e){}
+    const t0=Date.now();
+    const poll=async()=>{
+      try{ const r=await fetch('/access-check',{cache:'no-store'}); if(r.ok){ say('✓ služba běží — načítám','ok'); setTimeout(()=>location.reload(),700); return; } }catch(e){}
+      if(Date.now()-t0>30000){ say('⚠ timeout — zkus Ctrl+F5','err'); return; }
+      setTimeout(poll,1500);
+    };
+    setTimeout(poll,2500);
+  });
+})();
+
+// ── Retenční politika (Nastavení) ────────────────────────────────────────────
+function buildRetention(host){
+  if(!host) return;
+  host.innerHTML='<div class="wl-cur">načítám…</div>';
+  fetch('/retention').then(r=>{if(!r.ok)throw new Error(r.status);return r.json();})
+    .then(d=>{
+      host.innerHTML='<div class="ret-grid">'
+        +'<label>Raw page log (modul A) — měsíců</label><input type="number" min="1" max="1200" id="retPage" value="'+esc(d.pageLogMonths)+'">'
+        +'<label>Change Log (modul B) — měsíců</label><input type="number" min="1" max="1200" id="retCl" value="'+esc(d.changeLogMonths)+'">'
+        +'<label>Denní importní logy — dní</label><input type="number" min="1" max="1200" id="retLog" value="'+esc(d.dailyLogDays)+'">'
+        +'</div><div class="wl-row"><button class="btn" id="retSave">Uložit retenci</button> <span class="wl-msg" id="retMsg"></span></div>';
+      document.getElementById('retSave').addEventListener('click',()=>{
+        const body={ pageLogMonths:+document.getElementById('retPage').value, changeLogMonths:+document.getElementById('retCl').value, dailyLogDays:+document.getElementById('retLog').value };
+        const m=document.getElementById('retMsg'); m.className='wl-msg'; m.textContent='ukládám…';
+        fetch('/retention',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+          .then(r=>r.json().then(j=>({ok:r.ok,j})))
+          .then(({ok,j})=>{ if(!ok)throw new Error(j.error||'chyba'); m.className='wl-msg ok'; m.textContent='✓ uloženo — projeví se při dalším importu'; })
+          .catch(e=>{ m.className='wl-msg err'; m.textContent='⚠ '+e.message; });
+      });
+    })
+    .catch(e=>{host.innerHTML='<div class="wl-banner warn"><span>⚠</span><div>Retence nedostupná ('+esc(e.message)+').</div></div>';});
+}
 
 // ── Terminál (aktivita služby + log posledního importu) ──────────────────────
 let termTimer=null;
@@ -537,7 +623,7 @@ function render(d){
     t.classList.add('active');
     document.getElementById('panel-'+t.dataset.panel).classList.add('active');
     if(t.dataset.panel==='terminal') loadTerminal();
-    if(t.dataset.panel==='settings') loadLogFiles();
+    if(t.dataset.panel==='settings'){ loadLogFiles(); loadTasks(); buildRetention(document.getElementById('retHost')); }
     if(t.dataset.panel==='auditcfg'){ buildCompaniesEditor(document.getElementById('clHost')); buildPurgeEditor(document.getElementById('purgeHost')); }
     if(t.dataset.panel==='users') buildUsers();
   }));

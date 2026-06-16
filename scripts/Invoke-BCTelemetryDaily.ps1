@@ -26,6 +26,9 @@ param(
 # fallback, kdyby ScriptDir nesedl
 if (-not $ScriptDir -or -not (Test-Path $ScriptDir)) { if ($PSScriptRoot) { $ScriptDir = $PSScriptRoot } }
 $ErrorActionPreference = 'Continue'
+# Retence logu z dashboardu (ops/retention.json) prebije default
+$rf = Join-Path $WebDir 'ops\retention.json'
+if (Test-Path $rf) { try { $rc = Get-Content -Raw $rf | ConvertFrom-Json; if ($rc.dailyLogDays) { $LogRetentionDays = [int]$rc.dailyLogDays } } catch {} }
 if (-not (Test-Path $LogDir)) { New-Item -ItemType Directory -Force $LogDir | Out-Null }
 $log = Join-Path $LogDir ('bct-daily-' + [DateTime]::Now.ToString('yyyyMMdd') + '.log')
 function Log([string]$m) { ("$([DateTime]::Now.ToString('yyyy-MM-dd HH:mm:ss')) $m") | Tee-Object -FilePath $log -Append }

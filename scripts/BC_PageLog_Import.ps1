@@ -40,6 +40,10 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# Retence z dashboardu (ops/retention.json) prebije default parametru
+$rf = 'C:\Apps\BC_Telemetry_Web\ops\retention.json'
+if (Test-Path $rf) { try { $rc = Get-Content -Raw $rf | ConvertFrom-Json; if ($rc.pageLogMonths) { $RetentionMonths = [int]$rc.pageLogMonths } } catch {} }
+
 # region ── Logging ──────────────────────────────────────────────────────────
 function Write-Log {
     param([string]$Message, [ValidateSet('INFO','WARN','ERROR')][string]$Level = 'INFO')

@@ -33,6 +33,11 @@ param(
 $ErrorActionPreference = 'Stop'
 Import-Module CredentialManager
 
+# Retence change logu z dashboardu (ops/retention.json), default 24 mesicu
+$ChangeLogRetentionMonths = 24
+$rf = 'C:\Apps\BC_Telemetry_Web\ops\retention.json'
+if (Test-Path $rf) { try { $rc = Get-Content -Raw $rf | ConvertFrom-Json; if ($rc.changeLogMonths) { $ChangeLogRetentionMonths = [int]$rc.changeLogMonths } } catch {} }
+
 # Vlozi stranku Change Log zaznamu (dedup pres UX index = swallow duplicit). Vraci pocet vlozenych.
 function Add-ChangeLogPage {
     param($Conn, $Entries, [string]$Company)
@@ -156,7 +161,8 @@ try {
     }
     Write-Host "Change Log: vloženo $inserted nových záznamů napříč $($companyList.Count) firmami."
 
-    $cmdP = $conn.CreateCommand(); $cmdP.CommandText = 'EXEC dbo.usp_BCChangeLog_Purge @RetentionMonths=24'
+    $cmdP = $conn.CreateCommand(); $cmdP.CommandText = 'EXEC dbo.usp_BCChangeLog_Purge @RetentionMonths=@rm'
+    $cmdP.Parameters.AddWithValue('@rm', $ChangeLogRetentionMonths) | Out-Null
     $cmdP.ExecuteNonQuery() | Out-Null
 }
 finally { if ($conn.State -eq 'Open') { $conn.Close() } }

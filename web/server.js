@@ -42,6 +42,8 @@ const CHANGELOG_COMPANIES_FILE = path.join(__dirname, 'changelog-companies.json'
 const OPS_DIR = path.join(__dirname, 'ops');
 const OPS_REQUEST_FILE = path.join(OPS_DIR, 'ops-request.json');   // { action:'purge', companies:[], requestedAt }
 const OPS_STATUS_FILE = path.join(OPS_DIR, 'ops-status.json');     // výsledek od svc (purge)
+const RETENTION_FILE = path.join(OPS_DIR, 'retention.json');       // retenční politika (čtou importní skripty)
+const RETENTION_DEFAULTS = { pageLogMonths: 6, changeLogMonths: 24, dailyLogDays: 30 };
 const SVC_ACCT = 'AXINETWORK\\svc-bc-telemetry';
 
 // Zajisti ops dir + práva pro svc (denní úloha čte/maže request a píše status). LocalSystem to zvládne.
@@ -358,6 +360,64 @@ if ($t.State -eq 'Running') { 'running' } else { Start-ScheduledTask -TaskName '
     });
     return;
   }
+  // GET /tasks — stav naplánovaných úloh BC_Telemetry* (state / poslední / příští běh).
+  if (url === '/tasks' && req.method === 'GET') {
+    const ps = `
+$OutputEncoding = [System.Text.Encoding]::UTF8
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$ts = Get-ScheduledTask -ErrorAction SilentlyContinue | Where-Object { $_.TaskName -like 'BC_Telemetry*' }
+$out = @(foreach ($t in $ts) {
+  $i = $t | Get-ScheduledTaskInfo -ErrorAction SilentlyContinue
+  $lr = $null; if ($i -and $i.LastRunTime) { $lr = $i.LastRunTime.ToString('yyyy-MM-dd HH:mm:ss') }
+  $nr = $null; if ($i -and $i.NextRunTime) { $nr = $i.NextRunTime.ToString('yyyy-MM-dd HH:mm:ss') }
+  [pscustomobject]@{ name=$t.TaskName; state="$($t.State)"; last=$lr; next=$nr; result=("0x{0:X}" -f [int]$i.LastTaskResult) }
+})
+$out | ConvertTo-Json -Compress -Depth 3
+`;
+    return runPs(ps)
+      .then((o) => { let j = []; try { j = JSON.parse(o || '[]'); if (!Array.isArray(j)) j = [j]; } catch { } sendJson(res, 200, { tasks: j }); })
+      .catch((e) => sendJson(res, 500, { error: String(e.message || e) }));
+  }
+  // POST /import-stop — zastaví běžící (i zaseknutý) import (úloha BC_Telemetry_Daily).
+  if (url === '/import-stop' && req.method === 'POST') {
+    const ps = `Stop-ScheduledTask -TaskName 'BC_Telemetry_Daily' -ErrorAction Stop; 'stopped'`;
+    return runPs(ps)
+      .then((o) => { logActivity('warn', 'import-stop', `import zastaven z ${reqIp(req)}`); sendJson(res, 200, { status: o.trim() }); })
+      .catch((e) => sendJson(res, 500, { error: String(e.message || e) }));
+  }
+  // POST /restart — restart web služby: proces skončí, NSSM ji nahodí znovu (s novým server.js).
+  if (url === '/restart' && req.method === 'POST') {
+    logActivity('warn', 'restart', `restart služby vyžádán z ${reqIp(req)}`);
+    sendJson(res, 200, { status: 'restarting' });
+    setTimeout(() => process.exit(0), 600);
+    return;
+  }
+  // GET/PUT /retention — retenční politika (soubor retention.json, čtou ji importní skripty).
+  if (url === '/retention' && req.method === 'GET') {
+    let r = { ...RETENTION_DEFAULTS };
+    try { const o = JSON.parse(fs.readFileSync(RETENTION_FILE, 'utf8')); for (const k of Object.keys(RETENTION_DEFAULTS)) if (Number.isFinite(+o[k])) r[k] = +o[k]; } catch { }
+    return sendJson(res, 200, r);
+  }
+  if (url === '/retention' && req.method === 'PUT') {
+    let body = '';
+    req.on('data', (c) => { body += c; if (body.length > 1e5) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const o = JSON.parse(body || '{}'); const out = {};
+        for (const k of Object.keys(RETENTION_DEFAULTS)) {
+          const v = Math.round(+o[k]);
+          if (!Number.isFinite(v) || v < 1 || v > 1200) throw new Error(`neplatná hodnota pro ${k}`);
+          out[k] = v;
+        }
+        ensureOpsDir();
+        fs.writeFileSync(RETENTION_FILE, JSON.stringify(out, null, 2), 'utf8');
+        logActivity('success', 'retention', `retence uložena z ${reqIp(req)}: ${JSON.stringify(out)}`);
+        sendJson(res, 200, { ok: true, ...out });
+      } catch (e) { sendJson(res, 500, { error: String(e.message || e) }); }
+    });
+    return;
+  }
+
   // GET /ops-status — výsledek poslední ops operace (purge) + jestli ještě čeká požadavek.
   if (url === '/ops-status' && req.method === 'GET') {
     let status = null, pending = false;
@@ -390,7 +450,7 @@ if ($t.State -eq 'Running') { 'running' } else { Start-ScheduledTask -TaskName '
       .then((o) => { logActivity('info', 'refresh', `manual refresh: ${o.trim()}`); sendJson(res, 200, { status: o.trim() }); })
       .catch((e) => sendJson(res, 500, { error: String(e.message || e) }));
   }
-  if (url.startsWith('/firewall/') || url.startsWith('/api/') || url === '/refresh' || url === '/activity' || url === '/logs' || url === '/logfiles' || url === '/usermap' || url === '/changelog-companies' || url === '/changelog-purge' || url === '/ops-status') return sendJson(res, 404, { error: 'unknown endpoint' });
+  if (url.startsWith('/firewall/') || url.startsWith('/api/') || url === '/refresh' || url === '/activity' || url === '/logs' || url === '/logfiles' || url === '/usermap' || url === '/changelog-companies' || url === '/changelog-purge' || url === '/ops-status' || url === '/import-stop' || url === '/restart' || url === '/retention' || url === '/tasks') return sendJson(res, 404, { error: 'unknown endpoint' });
   return serveStatic(req, res);
 });
 
