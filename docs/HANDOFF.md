@@ -1,7 +1,7 @@
 # BC_Telemetry — HANDOFF (rolling)
 
 Aktuální stav projektu pro pokračování v další session. Updatuje se průběžně.
-Poslední update: **2026-06-16** (Push #43 / `c44a0f9`) · repo `Anamax443/BC_Telemetry`.
+Poslední update: **2026-06-16** (Push #44 / `aca9ead`) · repo `Anamax443/BC_Telemetry`.
 
 > **Kompletní build návod:** [navod-interni-axima.md](navod-interni-axima.md) (INTERNÍ, plné hodnoty) ·
 > [navod-public.md](navod-public.md) (sanitizovaný, k publikaci) — sdílené tělo, liší se jen tabulka hodnot.
@@ -109,6 +109,13 @@ ukazuje Aktivita/Kandidáti **kdo** co reálně používá → z toho se sestav�
   `AXIMA_CZ_ESHOP` má `EntryNo ~814M` → ascending backfill k současnosti nereálný.
 - **Mazání záznamů (od 2026-06-16):** danger-zone „🗑 Smazat audit záznamy" (checkbox firem + potvrzení „SMAZAT") → `POST /changelog-purge` zapíše `ops/ops-request.json` → denní úloha (svc) v **purge-only režimu** provede `DELETE FROM dbo.BCChangeLog WHERE CompanyName IN(...)` + snapshot a **přeskočí import** (jinak by se smazané hned natáhly zpět); web na SQL nesahá. Skript `BC_ChangeLog_Purge.ps1`, hook v `Invoke-BCTelemetryDaily.ps1`, status přes `GET /ops-status`. ⚠ „Jen smazat" — pokud firma zůstává v `enabled`, příští normální import ji natáhne znovu od nejstarších; pro trvalé odstranění ji nejdřív odškrtni.
 - **ESHOP vyřešeno 2026-06-16:** ESHOP je v `enabled` odškrtnutý (netáhne se) a jeho záznamy v `dbo.BCChangeLog` smazány přes purge (**85000 řádků**).
+
+### Export CSV pro permission mining (2026-06-16, Push #44)
+- Tlačítko **⬇ Export CSV** v tabulkách Aktivita / Kandidáti / Audit / RT0031 → stáhne **aktuálně filtrované + seřazené** řádky jako CSV
+  (**UTF-8 BOM + oddělovač `;`** = otevře se rovnou v českém Excelu), s **reálnými jmény** (z `usermap`) místo GUID.
+- **Workflow role miningu:** vyfiltruj (Firma / uživatel) → Export CSV → v Excelu kontingenční tabulka (řádky = Page ID/Stránka, sloupce/filtr = uživatel)
+  → seznam objektů, kam uživatel/role reálně chodí → z toho permission set v BC. Generuje se klientsky z `data.json` (žádný server/restart).
+- ⚠ Pozor na strop snapshotu `TopRows=5000`/sekce (teď ~400 řádků, bez dopadu); kdyby kombinací user×page přibylo přes 5000, dlouhý ocas (málo používané stránky) by se ořízl → řešit server-side CSV endpointem.
 
 ### Dashboard rozšíření (2026-06-16, Push #43)
 - **Velikost lokální DB** v sync pruhu (data využito/alok. + log MB). Exportér počítá ze `sys.database_files` → `data.json.dbSize`.

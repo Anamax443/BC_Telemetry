@@ -19,7 +19,7 @@ BC Cloud ──telemetrie──▶ Azure App Insights / Log Analytics
                           │  Update-SyncStatus + Export-DashboardSnapshot.ps1
                           ▼
    web/data.json ──▶ služba BC_Telemetry_Web (Node+NSSM na 10.8.2.225)
-                     ├─ dashboard (bez loginu): KPI + velikost DB, Aktivita, Kandidáti, Uživatelé, Audit, RT0031, Trend, Terminál (vše s per-sloupcovými filtry)
+                     ├─ dashboard (bez loginu): KPI + velikost DB, Aktivita, Kandidáti, Uživatelé, Audit, RT0031, Trend, Terminál (per-sloupcové filtry + ⬇ export CSV pro permission mining)
                      ├─ ⚙ Nastavení auditu → výběr firem modulu B + počty/firma + ↻ refresh + 🗑 mazání audit záznamů
                      └─ ⚙ Nastavení → whitelist (firewall rule) + ruční obnova + údržba logů
 ```
