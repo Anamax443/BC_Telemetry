@@ -160,6 +160,7 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
       <div class="toolbar">
         <input type="text" id="searchActivity" placeholder="Filtr: uživatel / stránka…">
         <span class="count" id="countActivity"></span>
+        <button class="btn-ghost" data-export="Activity" title="Stáhne aktuálně filtrované řádky jako CSV (Excel, oddělovač ;) — podklad pro permission sety">⬇ Export CSV</button>
       </div>
       <table id="tblActivity"><thead><tr>
         <th data-sort="UserName">Uživatel</th><th data-sort="PageId">Page ID</th>
@@ -172,6 +173,7 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
       <div class="toolbar">
         <input type="text" id="searchTrim" placeholder="Filtr: uživatel / stránka…">
         <span class="count" id="countTrim"></span>
+        <button class="btn-ghost" data-export="Trim" title="Stáhne aktuálně filtrované řádky jako CSV (Excel, oddělovač ;)">⬇ Export CSV</button>
       </div>
       <p style="display:none"></p>
       <table id="tblTrim"><thead><tr>
@@ -198,6 +200,7 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
       <div class="toolbar">
         <input type="text" id="searchMig" placeholder="Filtr: uživatel / objekt…">
         <span class="count" id="countMig"></span>
+        <button class="btn-ghost" data-export="Mig" title="Stáhne aktuálně filtrované řádky jako CSV (Excel, oddělovač ;)">⬇ Export CSV</button>
       </div>
       <table id="tblMig"><thead><tr>
         <th data-sort="DateKey">Datum</th><th data-sort="UserName">Uživatel</th>
@@ -210,6 +213,7 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
       <div class="toolbar">
         <input type="text" id="searchAudit" placeholder="Filtr: uživatel / tabulka / pole…">
         <span class="count" id="countAudit"></span>
+        <button class="btn-ghost" data-export="Audit" title="Stáhne aktuálně filtrované řádky jako CSV (Excel, oddělovač ;)">⬇ Export CSV</button>
       </div>
       <table id="tblAudit"><thead><tr>
         <th data-sort="ChangedAt">Kdy</th><th data-sort="UserId">Kdo</th>
@@ -749,6 +753,7 @@ function draw(key){
   });
   if(s.sortKey){rows.sort((a,b)=>{const x=a[s.sortKey],y=b[s.sortKey];
     return (x<y?-1:x>y?1:0)*s.sortDir;});}
+  s.view=rows;   // aktuálně zobrazené (filtrované+seřazené) řádky — zdroj pro Export CSV
   const tbody=document.querySelector('#tbl'+key+' tbody');
   if(!rows.length){tbody.innerHTML=`<tr><td colspan="6"><div class="empty">Žádná data</div></td></tr>`;}
   else{tbody.innerHTML=rows.map(r=>s.rowFn(r,s.max)).join('');}
@@ -760,6 +765,33 @@ function draw(key){
   const c=document.getElementById('count'+key);
   if(c)c.textContent=rows.length+' / '+s.rows.length+' řádků';
 }
+
+// ── Export CSV (Excel-friendly: BOM + oddělovač „;") z aktuálně filtrovaných řádků ─
+const _expUser = r => userMap[r.UserName]||'';
+const EXPORT_COLS = {
+  Activity:[{header:'Uživatel',get:_expUser},{header:'GUID',get:r=>r.UserName},{header:'Page ID',get:r=>r.PageId},
+    {header:'Stránka',get:r=>r.PageName},{header:'Firma',get:r=>r.CompanyName},{header:'Otevření',get:r=>r.TotalHits},{header:'Naposledy',get:r=>r.LastUsed}],
+  Trim:[{header:'Uživatel',get:_expUser},{header:'GUID',get:r=>r.UserName},{header:'Page ID',get:r=>r.PageId},
+    {header:'Stránka',get:r=>r.PageName},{header:'Firma',get:r=>r.CompanyName},{header:'Otevření',get:r=>r.TotalHits},{header:'Naposledy',get:r=>r.LastUsed}],
+  Mig:[{header:'Datum',get:r=>r.DateKey},{header:'Uživatel',get:_expUser},{header:'GUID',get:r=>r.UserName},
+    {header:'Objekt',get:r=>r.ObjectId},{header:'Název',get:r=>r.ObjectName},{header:'RT0031',get:r=>r.Failures}],
+  Audit:[{header:'Kdy',get:r=>r.ChangedAt},{header:'Kdo',get:r=>r.UserId},{header:'Akce',get:r=>r.ChangeType},
+    {header:'Tabulka',get:r=>r.TableName},{header:'Pole',get:r=>r.FieldName},{header:'Klíč',get:r=>r.PrimaryKey},
+    {header:'Stará',get:r=>r.OldValue},{header:'Nová',get:r=>r.NewValue}],
+};
+function csvCell(v){ v=(v==null?'':String(v)); return /[";\n\r]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; }
+function exportCsv(key){
+  const cfg=EXPORT_COLS[key]; if(!cfg) return;
+  const rows=(state[key]&&state[key].view)||[];
+  const sep=';';
+  const lines=[cfg.map(c=>csvCell(c.header)).join(sep)];
+  rows.forEach(r=>lines.push(cfg.map(c=>csvCell(c.get(r))).join(sep)));
+  const blob=new Blob(['﻿'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob), a=document.createElement('a');
+  a.href=url; a.download='bc-telemetrie-'+key.toLowerCase()+'-'+new Date().toISOString().slice(0,10)+'.csv';
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),2000);
+}
+document.addEventListener('click',e=>{ const b=e.target.closest('[data-export]'); if(b) exportCsv(b.dataset.export); });
 
 function renderTrend(trend){
   const spark=document.getElementById('spark');
