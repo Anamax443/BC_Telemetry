@@ -426,11 +426,16 @@ async function loadTasks(){
   try{
     const j=await (await fetch('/tasks',{cache:'no-store'})).json();
     const ts=j.tasks||[];
-    if(!ts.length){ box.textContent='— žádné úlohy BC_Telemetry* —'; return; }
-    box.innerHTML = ts.map(t=>{ const run=t.state==='Running';
+    let html = ts.length ? ts.map(t=>{ const run=t.state==='Running';
       return `<div><span class="ev-${run?'WARN':'success'}">[${esc(t.state)}]</span> ${esc(t.name)} `
-        +`<span class="ts">· poslední ${esc(t.last||'—')} · příští ${esc(t.next||'—')} · výsledek ${esc(t.result||'—')}</span></div>`;
-    }).join('');
+        +`<span class="ts">· poslední ${esc(t.last||'—')} · OS-trigger ${esc(t.next||'—')} · výsledek ${esc(t.result||'—')}</span></div>`;
+    }).join('') : '— žádné úlohy BC_Telemetry* —';
+    try{
+      const s=await (await fetch('/schedule',{cache:'no-store'})).json();
+      const plan = (s.intervalMinutes>0) ? ('opakování á '+s.intervalMinutes+' min v okně '+esc(s.startTime)+'–'+esc(s.endTime)) : ('jednou denně v '+esc(s.startTime));
+      html += '<div class="ev-info">Plán (řídí wrapper od OS-triggeru): '+plan+'</div>';
+    }catch(e){}
+    box.innerHTML = html;
   }catch(e){ box.textContent='nedostupné: '+(e.message||e); }
 }
 (function svcCtl(){
