@@ -1,7 +1,7 @@
 # BC_Telemetry — HANDOFF (rolling)
 
 Aktuální stav projektu pro pokračování v další session. Updatuje se průběžně.
-Poslední update: **2026-06-16** (Push #44 / `aca9ead`) · repo `Anamax443/BC_Telemetry`.
+Poslední update: **2026-06-16** (Push #45 / `1c4915c`) · repo `Anamax443/BC_Telemetry`.
 
 > **Kompletní build návod:** [navod-interni-axima.md](navod-interni-axima.md) (INTERNÍ, plné hodnoty) ·
 > [navod-public.md](navod-public.md) (sanitizovaný, k publikaci) — sdílené tělo, liší se jen tabulka hodnot.
@@ -109,6 +109,10 @@ ukazuje Aktivita/Kandidáti **kdo** co reálně používá → z toho se sestav�
   `AXIMA_CZ_ESHOP` má `EntryNo ~814M` → ascending backfill k současnosti nereálný.
 - **Mazání záznamů (od 2026-06-16):** danger-zone „🗑 Smazat audit záznamy" (checkbox firem + potvrzení „SMAZAT") → `POST /changelog-purge` zapíše `ops/ops-request.json` → denní úloha (svc) v **purge-only režimu** provede `DELETE FROM dbo.BCChangeLog WHERE CompanyName IN(...)` + snapshot a **přeskočí import** (jinak by se smazané hned natáhly zpět); web na SQL nesahá. Skript `BC_ChangeLog_Purge.ps1`, hook v `Invoke-BCTelemetryDaily.ps1`, status přes `GET /ops-status`. ⚠ „Jen smazat" — pokud firma zůstává v `enabled`, příští normální import ji natáhne znovu od nejstarších; pro trvalé odstranění ji nejdřív odškrtni.
 - **ESHOP vyřešeno 2026-06-16:** ESHOP je v `enabled` odškrtnutý (netáhne se) a jeho záznamy v `dbo.BCChangeLog` smazány přes purge (**85000 řádků**).
+
+### Trend dle firmy + úklid (2026-06-16, Push #45)
+- **Trend** má dropdown firmy (Všechny / konkrétní) → sparkline + tabulka se přepočítají per firma. Data: `trendByCompany` (`BCPageDaily` GROUP BY DateKey,CompanyName) ve snapshotu.
+- **Odebrána záložka „Kandidáti na vyřazení"** — byla redundantní (= Aktivita s `≤2` otevřeními, dnes řešitelné řazením sloupce Otevření / filtrem / exportem). SQL pohled `vw_DashTrimCandidates` v `sql/` ponechán (neškodný orphan, drop by chtěl DDL); snapshot už pole `trimCandidates` negeneruje.
 
 ### Export CSV pro permission mining (2026-06-16, Push #44)
 - Tlačítko **⬇ Export CSV** v tabulkách Aktivita / Kandidáti / Audit / RT0031 → stáhne **aktuálně filtrované + seřazené** řádky jako CSV

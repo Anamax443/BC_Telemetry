@@ -19,7 +19,7 @@ BC Cloud ──telemetrie──▶ Azure App Insights / Log Analytics
                           │  Update-SyncStatus + Export-DashboardSnapshot.ps1
                           ▼
    web/data.json ──▶ služba BC_Telemetry_Web (Node+NSSM na 10.8.2.225)
-                     ├─ dashboard (bez loginu): KPI + velikost DB, Aktivita, Kandidáti, Uživatelé, Audit, RT0031, Trend, Terminál (per-sloupcové filtry + ⬇ export CSV pro permission mining)
+                     ├─ dashboard (bez loginu): KPI + velikost DB, Aktivita, Uživatelé, Audit, RT0031, Trend (dle firmy), Terminál (per-sloupcové filtry + ⬇ export CSV pro permission mining)
                      ├─ ⚙ Nastavení auditu → výběr firem modulu B + počty/firma + ↻ refresh + 🗑 mazání audit záznamů
                      └─ ⚙ Nastavení → whitelist (firewall rule) + ruční obnova + údržba logů
 ```
@@ -52,7 +52,7 @@ whitelist je formální visibility gate přes Windows Firewall rule.
 | [scripts/Register-ScheduledTask.ps1](scripts/Register-ScheduledTask.ps1) | Denní úloha 02:00 (LogonType Password) |
 | [scripts/install-service.cmd](scripts/install-service.cmd) | Instalace web služby `BC_Telemetry_Web` (Node+NSSM) na 10.8.2.225 |
 | [scripts/Set-DashboardWhitelist.cmd](scripts/Set-DashboardWhitelist.cmd) | CLI změna whitelistu (firewall rule remoteip) |
-| [web/index.html](web/index.html) | Admin dashboard — KPI + velikost DB + Aktivita / Kandidáti / Uživatelé / Audit / RT0031 / Trend / Terminál / Nastavení auditu / Nastavení; per-sloupcové filtry; dark mode |
+| [web/index.html](web/index.html) | Admin dashboard — KPI + velikost DB + Aktivita / Uživatelé / Audit / RT0031 / Trend (dle firmy) / Terminál / Nastavení auditu / Nastavení; per-sloupcové filtry + export CSV; dark mode |
 | [web/server.js](web/server.js) | Web služba — dashboard + API (whitelist, /refresh, /activity, /logs, /logfiles, /usermap, /changelog-companies, /changelog-purge, /ops-status) |
 | [scripts/BC_ChangeLog_Purge.ps1](scripts/BC_ChangeLog_Purge.ps1) | Modul B — smazání audit záznamů vybraných firem (ops-request od dashboardu, běží jako svc) |
 | [sql/deploy.cmd](sql/deploy.cmd) · [sql/deploy-full.sql](sql/deploy-full.sql) | SQL deploy (GPO-safe `sqlcmd` / konsolidovaný blok pro SSMS) |

@@ -68,7 +68,6 @@ FROM sys.database_files
         dbSize         = $dbSize
         changeLogByCompany = $clByCompany
         userActivity   = Invoke-Sql $conn "SELECT TOP ($TopRows) * FROM dbo.vw_DashUserActivity ORDER BY TotalHits DESC"
-        trimCandidates = Invoke-Sql $conn "SELECT TOP ($TopRows) * FROM dbo.vw_DashTrimCandidates ORDER BY UserName, PageName"
         trend          = Invoke-Sql $conn 'SELECT * FROM dbo.vw_DashTrend ORDER BY DateKey'
         trendByCompany = Invoke-Sql $conn 'SELECT DateKey, CompanyName, SUM(Hits) AS Hits, COUNT(DISTINCT UserName) AS Users FROM dbo.BCPageDaily GROUP BY DateKey, CompanyName ORDER BY DateKey'
         authFails      = Invoke-Sql $conn "SELECT TOP ($TopRows) DateKey, UserName, ObjectId, ObjectName, Failures FROM dbo.BCAuthFailDaily ORDER BY DateKey DESC, Failures DESC"
