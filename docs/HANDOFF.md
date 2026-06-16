@@ -1,7 +1,7 @@
 # BC_Telemetry — HANDOFF (rolling)
 
 Aktuální stav projektu pro pokračování v další session. Updatuje se průběžně.
-Poslední update: **2026-06-16** (Push #65 / `pending`) · repo `Anamax443/BC_Telemetry`.
+Poslední update: **2026-06-16** (Push #65 / `a4c3c46`) · repo `Anamax443/BC_Telemetry`.
 Push #65 (whitelist): editor **zachová přesně zadaný text** (localStorage `bct-wl-raw`, i kdyby firewall přepsal/odmítl); „Reálně vynucené" řádek normalizuje tečkovou masku → **CIDR** (`maskToCidr`); **checkbox „Neomezený přístup"** = pošle `Any`. `server.js` **`setAllowedIPs` přijímá `*`/`Any` → rule `Any`** + **`matchesEntry` bere `Any`/`*`/`0.0.0.0/0` jako match-all**. ⚠ **server.js = restart služby** (⚙ Nastavení → Restartovat).
 Push #64: **rozšířený export** tabulek (Aktivita/Audit/RT0031/Databáze/Uživatelé) — dropdown **CSV / TXT / HTML / PDF** (klientsky, `doExport`/`exportTableDocHtml`/`openPrint`); **📊 Manažerská zpráva** (tlačítko v hlavičce → nové okno, `buildMgmtReportHtml`): KPI souhrn, **grafy** (bar) + **kumulace** trendu, top uživatelé/stránky/firmy, audit dle typu/firmy, RT0031; uvnitř tlačítka 🖨 Tisk/PDF + ⬇ Uložit HTML. Vše z `data.json` (global `DATA`), bez serveru/restartu.
 Push #63: **zarovnání hlaviček číselných/datových sloupců vpravo** (`th.num` + atributové selektory data-sort → hlavička sedí nad `td.num`); KPI **„Aktivní uživatelé" i „Otevření" → vedou na Aktivitu uživatelů** (dřív users/trend). Pozn.: aktivních uživatelů 30d = 19, ale modul A má data jen od 8.6. (~8 dní) → krátké okno, poroste.
