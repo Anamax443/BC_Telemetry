@@ -80,6 +80,7 @@ if (-not $oneShot -and (Test-Path $schedFile)) {
     } catch { Log "plan(dny): chyba cteni schedule.json: $($_.Exception.Message)" }
 }
 
+$lastSync = $null   # sync-status (drahy cloud $count) v loopu jen 1x/hodinu
 do {
 Log "--- modul A (page views): BC_PageLog_Import.ps1 ---"
 & $ps -NoProfile -ExecutionPolicy Bypass -File $A *>> $log
@@ -97,9 +98,14 @@ Log "--- uzivatele (BC Users -> dbo.BCUser + usermap.json): BC_Users_Import.ps1 
 & $ps -NoProfile -ExecutionPolicy Bypass -File $USR *>> $log
 Log "uzivatele exit=$LASTEXITCODE"
 
-Log "--- sync-status: Update-SyncStatus.ps1 ---"
-& $ps -NoProfile -ExecutionPolicy Bypass -File $U *>> $log
-Log "sync-status exit=$LASTEXITCODE"
+if ($null -eq $lastSync -or ((Get-Date) - $lastSync).TotalMinutes -ge 60) {
+    Log "--- sync-status: Update-SyncStatus.ps1 ---"
+    & $ps -NoProfile -ExecutionPolicy Bypass -File $U *>> $log
+    Log "sync-status exit=$LASTEXITCODE"
+    $lastSync = Get-Date
+} else {
+    Log "--- sync-status preskoceno (v loopu se pocita cloud jen 1x/hod) ---"
+}
 
 Log "--- snapshot: Export-DashboardSnapshot.ps1 ---"
 & $ps -NoProfile -ExecutionPolicy Bypass -File $E -SqlServer $SqlServer -OutPath $Snapshot *>> $log
