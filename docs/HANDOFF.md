@@ -1,7 +1,7 @@
 # BC_Telemetry — HANDOFF (rolling)
 
 Aktuální stav projektu pro pokračování v další session. Updatuje se průběžně.
-Poslední update: **2026-06-16** (Push #46 / `db73774`) · repo `Anamax443/BC_Telemetry`.
+Poslední update: **2026-06-16** (Push #47 / `f9bb1ed`) · repo `Anamax443/BC_Telemetry`.
 
 > **Kompletní build návod:** [navod-interni-axima.md](navod-interni-axima.md) (INTERNÍ, plné hodnoty) ·
 > [navod-public.md](navod-public.md) (sanitizovaný, k publikaci) — sdílené tělo, liší se jen tabulka hodnot.
@@ -109,6 +109,15 @@ ukazuje Aktivita/Kandidáti **kdo** co reálně používá → z toho se sestav�
   `AXIMA_CZ_ESHOP` má `EntryNo ~814M` → ascending backfill k současnosti nereálný.
 - **Mazání záznamů (od 2026-06-16):** danger-zone „🗑 Smazat audit záznamy" (checkbox firem + potvrzení „SMAZAT") → `POST /changelog-purge` zapíše `ops/ops-request.json` → denní úloha (svc) v **purge-only režimu** provede `DELETE FROM dbo.BCChangeLog WHERE CompanyName IN(...)` + snapshot a **přeskočí import** (jinak by se smazané hned natáhly zpět); web na SQL nesahá. Skript `BC_ChangeLog_Purge.ps1`, hook v `Invoke-BCTelemetryDaily.ps1`, status přes `GET /ops-status`. ⚠ „Jen smazat" — pokud firma zůstává v `enabled`, příští normální import ji natáhne znovu od nejstarších; pro trvalé odstranění ji nejdřív odškrtni.
 - **ESHOP vyřešeno 2026-06-16:** ESHOP je v `enabled` odškrtnutý (netáhne se) a jeho záznamy v `dbo.BCChangeLog` smazány přes purge (**85000 řádků**).
+
+### Modul B import: newest-first + backfill (2026-06-16, Push #47)
+- **Problém:** import jel jen `Entry_No gt MAX` vzestupně → u firmy s velkým objemem (0002 měl burst 7.6.) se zasekl ve staré historii a **k dnešku nedojel** (audit „nesynchronizoval" reálně, ne jen v zobrazení).
+- **Nová strategie** (`BC_ChangeLog_Import.ps1`, gap-free, bez resetu, MAX/MIN drží hrany souvislého rozsahu):
+  - **Phase 0** — prázdná firma → seed `orderby Entry_No desc top 5000` (nejnovější blok hned).
+  - **Phase A** — dosync k současnosti: `Entry_No gt MAX` vzestupně, re-query do vyčerpání (gap-free, dojede k dnešku; jednorázový catch-up u 0002 ~100k).
+  - **Phase B** — backfill historie: `Entry_No lt MIN` sestupně, **bounded `-BackfillRowsPerRun` (default 50000/firma/běh)** → historie se doplní za N běhů.
+- **Optimální objem:** `BackfillRowsPerRun` = strop backfillu/firma/běh; 50000 ≈ pár minut/firma. Phase A je bez stropu (jen reálná nová data). 0 = backfill vypnut (jen current).
+- **Audit Table/Field No:** snapshot+UI+export doplněn o `TableNo` (Číslo tabulky, např. 2000000053 = Access Control) a `FieldNo` (Číslo pole) — důležité pro permission mining (přiřazení rolí). Access Control změny se logují a stahují.
 
 ### Audit — nejnovější + filtr Firma (2026-06-16, Push #46)
 - **Bug:** `vw_DashAudit` = `TOP 100 PERCENT ... ORDER BY ChangedAt DESC` → SQL pořadí **ignoruje**; snapshot `SELECT TOP 5000 FROM vw_DashAudit` **bez ORDER BY** bral nejstarší blok (na dashboardu chyběl dnešek, audit „nesynchronizoval"). Fix: snapshot `SELECT TOP 5000 ... FROM dbo.BCChangeLog ORDER BY ChangedAt DESC` (+ `CompanyName`).
