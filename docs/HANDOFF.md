@@ -1,7 +1,8 @@
 # BC_Telemetry — HANDOFF (rolling)
 
 Aktuální stav projektu pro pokračování v další session. Updatuje se průběžně.
-Poslední update: **2026-06-16** (Push #47 / `f9bb1ed`) · repo `Anamax443/BC_Telemetry`.
+Poslední update: **2026-06-16** (Push #48 / `b5618e1`) · repo `Anamax443/BC_Telemetry`.
+Filtry tabulek = zalamovací lišta `.filterbar` nad tabulkou (popisky + „Vyčistit filtry"), místo řádku v hlavičce.
 
 > **Kompletní build návod:** [navod-interni-axima.md](navod-interni-axima.md) (INTERNÍ, plné hodnoty) ·
 > [navod-public.md](navod-public.md) (sanitizovaný, k publikaci) — sdílené tělo, liší se jen tabulka hodnot.

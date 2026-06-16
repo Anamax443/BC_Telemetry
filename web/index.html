@@ -294,6 +294,29 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
 <script>
 const fmt = n => (n==null?'—':Number(n).toLocaleString('cs-CZ'));
 const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+// Zobrazení data: 2026-06-07 06:35:50 -> 2026.06.07 06:35:50 (rok.měsíc.den)
+const fdate = s => (s==null?'':String(s)).replace(/-/g,'.');
+// Parsuje datum na číslo YYYYMMDD (year-first i český DD.MM.YYYY); null když nejde.
+function dateKey(s){
+  if(s==null) return null; const t=String(s).trim(); if(!t) return null;
+  let m=t.match(/^(\d{4})[-./](\d{1,2})[-./](\d{1,2})/); if(m) return (+m[1])*10000+(+m[2])*100+(+m[3]);
+  m=t.match(/^(\d{1,2})[-./](\d{1,2})[-./](\d{4})/);     if(m) return (+m[3])*10000+(+m[2])*100+(+m[1]);
+  return null;
+}
+// Filtr data: "od..do", "od..", "..do" (rozmezí) nebo částečný text (2026.06).
+function matchDateFilter(rowVal, fv){
+  const f=String(fv);
+  if(f.includes('..')){
+    const p=f.split('..'); const lo=dateKey(p[0]); const hi=dateKey(p[1]); const rk=dateKey(rowVal);
+    if(rk==null) return false;
+    if(lo!=null && rk<lo) return false;
+    if(hi!=null && rk>hi) return false;
+    return true;
+  }
+  const fd=f.replace(/\D/g,''); if(!fd) return true;
+  return String(rowVal||'').replace(/\D/g,'').includes(fd);
+}
+const DATE_FILTER = new Set(['ChangedAt','LastUsed','DateKey']);
 const state = {};
 let userMap = {};   // pseudonymní GUID → reálné jméno (z /usermap)
 // zobrazení uživatele: namapované jméno + zkrácený GUID, nebo holý GUID když není mapováno
@@ -408,7 +431,7 @@ function buildUsers(){
     <td>${esc([...u.companies].join(', '))}</td>
     <td>${esc(u.top||'')}</td>
     <td class="num">${fmt(u.hits)}</td>
-    <td class="num">${esc(u.last)}</td></tr>`).join('') : `<tr><td colspan="6"><div class="empty">Žádní uživatelé</div></td></tr>`;
+    <td class="num">${esc(fdate(u.last))}</td></tr>`).join('') : `<tr><td colspan="6"><div class="empty">Žádní uživatelé</div></td></tr>`;
   const save=document.getElementById('umSave');
   tb.querySelectorAll('input[data-guid]').forEach(i=>i.addEventListener('input',()=>{ if(save) save.disabled=false; }));
 }
@@ -436,7 +459,7 @@ Promise.all([
   .catch(e=>{document.getElementById('loading').textContent='Chyba načtení data.json: '+e.message;});
 
 // verze nasazeneho dashboardu (bump pri kazdem deployi index.html); snapshot ji muze prebit (d.version)
-const APP_VER={push:47,commit:'f9bb1ed',repo:'https://github.com/Anamax443/BC_Telemetry'};
+const APP_VER={push:48,commit:'b5618e1',repo:'https://github.com/Anamax443/BC_Telemetry'};
 function render(d){
   document.getElementById('loading').hidden=true;
   document.getElementById('app').hidden=false;
@@ -672,16 +695,16 @@ function activityRow(r,max){
   return `<tr><td>${unameHtml(r.UserName)}</td><td><span class="mono">${esc(r.PageId)}</span></td>
   <td>${esc(r.PageName)}</td><td>${esc(r.CompanyName)}</td>
   <td class="num"><div class="bar" data-pct="${Math.round(100*(r.TotalHits||0)/(max||1))}"><span>${fmt(r.TotalHits)}</span></div></td>
-  <td class="num">${esc(r.LastUsed)}</td></tr>`;
+  <td class="num">${esc(fdate(r.LastUsed))}</td></tr>`;
 }
 function migRow(r){
-  return `<tr><td class="num">${esc(r.DateKey)}</td><td>${unameHtml(r.UserName)}</td>
+  return `<tr><td class="num">${esc(fdate(r.DateKey))}</td><td>${unameHtml(r.UserName)}</td>
   <td><span class="mono">${esc(r.ObjectId)}</span></td><td>${esc(r.ObjectName)}</td>
   <td class="num"><span class="pill pill-red">${fmt(r.Failures)}</span></td></tr>`;
 }
 function auditRow(r){
   const ct=String(r.ChangeType||''); const pc=/Delet/i.test(ct)?'pill-red':/Insert/i.test(ct)?'pill-blue':'pill-gray';
-  return `<tr><td class="num">${esc(r.ChangedAt)}</td><td>${esc(r.UserId)}</td>
+  return `<tr><td class="num">${esc(fdate(r.ChangedAt))}</td><td>${esc(r.UserId)}</td>
   <td>${esc(r.CompanyName)}</td>
   <td><span class="pill ${pc}">${esc(ct)}</span></td>
   <td class="num">${esc(r.TableNo)}</td><td>${esc(r.TableName)}</td>
@@ -722,7 +745,9 @@ function buildFilterBar(key,rows){
       sel.addEventListener('change',()=>{ state[key].colFilters[f]=sel.value; draw(key); });
       item.appendChild(sel);
     } else {
-      const inp=document.createElement('input'); inp.type='text'; inp.placeholder='filtr…';
+      const inp=document.createElement('input'); inp.type='text';
+      inp.placeholder = DATE_FILTER.has(f) ? 'rozmezí: 2026.06.01..2026.06.30' : 'filtr…';
+      if(DATE_FILTER.has(f)) inp.title='Datum nebo rozmezí od..do (2026.06.01..2026.06.30), otevřené ..2026.06.30 nebo 2026.06.01.., i částečně 2026.06';
       inp.value=state[key].colFilters[f]||'';
       inp.addEventListener('input',()=>{ state[key].colFilters[f]=inp.value.toLowerCase(); draw(key); });
       item.appendChild(inp);
@@ -742,7 +767,8 @@ function draw(key){
   const cf=s.colFilters||{};
   rows=rows.filter(r=>{
     for(const f in cf){ const v=cf[f]; if(!v) continue;
-      if(SELECT_FILTER.has(f)){ if(String(r[f]==null?'':r[f])!==v) return false; }
+      if(DATE_FILTER.has(f)){ if(!matchDateFilter(r[f],v)) return false; }
+      else if(SELECT_FILTER.has(f)){ if(String(r[f]==null?'':r[f])!==v) return false; }
       else { let hay=String(r[f]||'').toLowerCase(); if(f==='UserName') hay+=' '+String(userMap[r.UserName]||'').toLowerCase(); if(!hay.includes(v)) return false; }
     }
     return true;
@@ -811,7 +837,7 @@ function drawTrend(company){
   spark.querySelectorAll('.col[data-pct]').forEach(c=>{c.style.height=Math.max(2,c.dataset.pct)+'%';});
   const tbody=document.querySelector('#tblTrend tbody');
   tbody.innerHTML=trend.slice().reverse().map(t=>
-    `<tr><td class="num">${esc(t.DateKey)}</td><td class="num">${fmt(t.Hits)}</td><td class="num">${fmt(t.Users)}</td></tr>`).join('')
+    `<tr><td class="num">${esc(fdate(t.DateKey))}</td><td class="num">${fmt(t.Hits)}</td><td class="num">${fmt(t.Users)}</td></tr>`).join('')
     ||`<tr><td colspan="3"><div class="empty">Žádná data</div></td></tr>`;
   const c=document.getElementById('countTrend');
   if(c) c.textContent=(company?company:'všechny firmy')+' · '+trend.length+' dní';
