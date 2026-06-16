@@ -1,7 +1,7 @@
 # BC_Telemetry — HANDOFF (rolling)
 
 Aktuální stav projektu pro pokračování v další session. Updatuje se průběžně.
-Poslední update: **2026-06-16** (Push #64 / `pending`) · repo `Anamax443/BC_Telemetry`.
+Poslední update: **2026-06-16** (Push #64 / `3c7d81f`) · repo `Anamax443/BC_Telemetry`.
 Push #64: **rozšířený export** tabulek (Aktivita/Audit/RT0031/Databáze/Uživatelé) — dropdown **CSV / TXT / HTML / PDF** (klientsky, `doExport`/`exportTableDocHtml`/`openPrint`); **📊 Manažerská zpráva** (tlačítko v hlavičce → nové okno, `buildMgmtReportHtml`): KPI souhrn, **grafy** (bar) + **kumulace** trendu, top uživatelé/stránky/firmy, audit dle typu/firmy, RT0031; uvnitř tlačítka 🖨 Tisk/PDF + ⬇ Uložit HTML. Vše z `data.json` (global `DATA`), bez serveru/restartu.
 Push #63: **zarovnání hlaviček číselných/datových sloupců vpravo** (`th.num` + atributové selektory data-sort → hlavička sedí nad `td.num`); KPI **„Aktivní uživatelé" i „Otevření" → vedou na Aktivitu uživatelů** (dřív users/trend). Pozn.: aktivních uživatelů 30d = 19, ale modul A má data jen od 8.6. (~8 dní) → krátké okno, poroste.
 Záložka **📖 Dokumentace** přímo v dashboardu má **přepínač** *👤 Uživatelská příručka* (default — orientace, záložky, workflow oprávnění na míru, práce s tabulkami, provoz, potíže) / *🛠 Technická dokumentace* (architektura + **registrace u Microsoftu/Entra a v BC**, 3 moduly, klíčové ID maskovaně, endpointy). **🖨 Tisk/PDF** vytiskne **právě zobrazenou** příručku (`@media print`, vždy světle). Jen `index.html` (no-store, bez restartu).
