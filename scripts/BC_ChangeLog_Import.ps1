@@ -26,10 +26,38 @@ param(
     [string] $ServiceName = 'ChangelogEntry',           # publikovaný web service (přesný název z BC)
     [string] $SqlServer   = 'localhost',
     [string] $SqlDatabase = 'BC_Telemetry',
-    [string] $CompaniesFile = ''                          # vyber firem z dashboardu (Nastaveni)
+    [string] $CompaniesFile = '',                         # vyber firem z dashboardu (Nastaveni)
+    [int]    $BackfillRowsPerRun = 50000                  # strop backfillu historie na firmu/beh (0 = backfill vypnut)
 )
 $ErrorActionPreference = 'Stop'
 Import-Module CredentialManager
+
+# Vlozi stranku Change Log zaznamu (dedup pres UX index = swallow duplicit). Vraci pocet vlozenych.
+function Add-ChangeLogPage {
+    param($Conn, $Entries, [string]$Company)
+    $n = 0
+    foreach ($e in $Entries) {
+        $c = $Conn.CreateCommand()
+        $c.CommandText = @"
+INSERT INTO dbo.BCChangeLog (EntryNo,ChangedAt,UserId,CompanyName,TableNo,TableName,FieldNo,FieldName,ChangeType,PrimaryKey,OldValue,NewValue)
+VALUES (@EntryNo,@ChangedAt,@UserId,@Company,@TableNo,@TableName,@FieldNo,@FieldName,@ChangeType,@PK,@Old,@New)
+"@
+        $c.Parameters.AddWithValue('@EntryNo',   [int64]$e.Entry_No)         | Out-Null
+        $c.Parameters.AddWithValue('@ChangedAt', [datetime]$e.Date_and_Time) | Out-Null
+        $c.Parameters.AddWithValue('@UserId',    "$($e.User_ID)")            | Out-Null
+        $c.Parameters.AddWithValue('@Company',   $Company)                   | Out-Null
+        $c.Parameters.AddWithValue('@TableNo',   [int]$e.Table_No)           | Out-Null
+        $c.Parameters.AddWithValue('@TableName', "$($e.Table_Caption)")      | Out-Null
+        $c.Parameters.AddWithValue('@FieldNo',   [int]$e.Field_No)           | Out-Null
+        $c.Parameters.AddWithValue('@FieldName', "$($e.Field_Caption)")      | Out-Null
+        $c.Parameters.AddWithValue('@ChangeType',"$($e.Type_of_Change)")     | Out-Null
+        $c.Parameters.AddWithValue('@PK',        "$($e.Primary_Key)")        | Out-Null
+        $c.Parameters.AddWithValue('@Old',       "$($e.Old_Value)")          | Out-Null
+        $c.Parameters.AddWithValue('@New',       "$($e.New_Value)")          | Out-Null
+        try { $c.ExecuteNonQuery() | Out-Null; $n++ } catch { }
+    }
+    return $n
+}
 
 # changelog-companies.json patri tam, odkud ho cte/pise dashboard (web sluzba)
 if (-not $CompaniesFile) {
@@ -78,40 +106,52 @@ try {
     }
     Write-Host "Firmy ($($companyList.Count)): $($companyList -join ', ')"
 
+    # Strategie (newest-first + backfill, gap-free, bez nutnosti resetu):
+    #   Phase 0: prazdna firma -> seed NEJNOVEJSIM blokem (orderby desc), aby se dnesek ukazal hned.
+    #   Phase A: dosync k SOUCASNOSTI -> Entry_No gt MAX vzestupne, re-query az do vycerpani (gap-free).
+    #   Phase B: backfill HISTORIE -> Entry_No lt MIN sestupne, bounded -BackfillRowsPerRun (gap-free).
+    # MAX/MIN drzi horni i dolni hranu souvisleho rozsahu -> zadne diry.
     $inserted = 0
+    function Get-MinMax($conn, $company) {
+        $cmd = $conn.CreateCommand()
+        $cmd.CommandText = "SELECT ISNULL(MAX(EntryNo),0), ISNULL(MIN(EntryNo),0), COUNT_BIG(*) FROM dbo.BCChangeLog WHERE CompanyName=@c"
+        $cmd.Parameters.AddWithValue('@c', $company) | Out-Null
+        $r = $cmd.ExecuteReader(); [void]$r.Read()
+        $o = [pscustomobject]@{ Max=[int64]$r.GetValue(0); Min=[int64]$r.GetValue(1); Count=[int64]$r.GetValue(2) }
+        $r.Close(); return $o
+    }
     foreach ($company in $companyList) {
-        # per-firma watermark
-        $cmdMax = $conn.CreateCommand()
-        $cmdMax.CommandText = "SELECT ISNULL(MAX(EntryNo),0) FROM dbo.BCChangeLog WHERE CompanyName=@c"
-        $cmdMax.Parameters.AddWithValue('@c', $company) | Out-Null
-        $lastEntry = [int64]$cmdMax.ExecuteScalar()
+        $svc = "$base/Company('$company')/$ServiceName"
+        $mm = Get-MinMax $conn $company
 
-        $url = "$base/Company('$company')/$ServiceName`?`$filter=Entry_No gt $lastEntry&`$orderby=Entry_No&`$top=5000"
-        while ($url) {
-            $resp = Invoke-RestMethod -Headers $headers -Uri $url
-            foreach ($e in $resp.value) {
-                # Pole ověřena na reálném OData 2026-06-08 (Page 405 ChangelogEntry):
-                $c = $conn.CreateCommand()
-                $c.CommandText = @"
-INSERT INTO dbo.BCChangeLog (EntryNo,ChangedAt,UserId,CompanyName,TableNo,TableName,FieldNo,FieldName,ChangeType,PrimaryKey,OldValue,NewValue)
-VALUES (@EntryNo,@ChangedAt,@UserId,@Company,@TableNo,@TableName,@FieldNo,@FieldName,@ChangeType,@PK,@Old,@New)
-"@
-                $c.Parameters.AddWithValue('@EntryNo',   [int64]$e.Entry_No)              | Out-Null
-                $c.Parameters.AddWithValue('@ChangedAt', [datetime]$e.Date_and_Time)      | Out-Null
-                $c.Parameters.AddWithValue('@UserId',    "$($e.User_ID)")                 | Out-Null
-                $c.Parameters.AddWithValue('@Company',   $company)                        | Out-Null
-                $c.Parameters.AddWithValue('@TableNo',   [int]$e.Table_No)               | Out-Null
-                $c.Parameters.AddWithValue('@TableName', "$($e.Table_Caption)")           | Out-Null
-                $c.Parameters.AddWithValue('@FieldNo',   [int]$e.Field_No)               | Out-Null
-                $c.Parameters.AddWithValue('@FieldName', "$($e.Field_Caption)")           | Out-Null
-                $c.Parameters.AddWithValue('@ChangeType',"$($e.Type_of_Change)")          | Out-Null
-                $c.Parameters.AddWithValue('@PK',        "$($e.Primary_Key)")             | Out-Null
-                $c.Parameters.AddWithValue('@Old',       "$($e.Old_Value)")               | Out-Null
-                $c.Parameters.AddWithValue('@New',       "$($e.New_Value)")               | Out-Null
-                try { $c.ExecuteNonQuery() | Out-Null; $inserted++ } catch { } # UX index = dedup
-            }
-            $url = $resp.'@odata.nextLink'
+        # Phase 0 — prazdna firma: seed nejnovejsim blokem
+        if ($mm.Count -eq 0) {
+            $resp = Invoke-RestMethod -Headers $headers -Uri "$svc`?`$orderby=Entry_No desc&`$top=5000"
+            $inserted += (Add-ChangeLogPage $conn @($resp.value) $company)
+            $mm = Get-MinMax $conn $company
         }
+
+        # Phase A — dosync k soucasnosti (vzestupne nad MAX, do vycerpani)
+        $cursor = $mm.Max; $fwd = 0
+        while ($true) {
+            $resp = Invoke-RestMethod -Headers $headers -Uri "$svc`?`$filter=Entry_No gt $cursor&`$orderby=Entry_No&`$top=5000"
+            $page = @($resp.value); if (-not $page.Count) { break }
+            $inserted += (Add-ChangeLogPage $conn $page $company); $fwd += $page.Count
+            $cursor = [int64]($page | Measure-Object -Property Entry_No -Maximum).Maximum
+        }
+
+        # Phase B — backfill historie (sestupne pod MIN, bounded)
+        $bf = 0
+        if ($BackfillRowsPerRun -gt 0 -and $mm.Min -gt 1) {
+            $cursor = $mm.Min
+            while ($bf -lt $BackfillRowsPerRun) {
+                $resp = Invoke-RestMethod -Headers $headers -Uri "$svc`?`$filter=Entry_No lt $cursor&`$orderby=Entry_No desc&`$top=5000"
+                $page = @($resp.value); if (-not $page.Count) { break }
+                $inserted += (Add-ChangeLogPage $conn $page $company); $bf += $page.Count
+                $cursor = [int64]($page | Measure-Object -Property Entry_No -Minimum).Minimum
+            }
+        }
+        Write-Host "  $company : forward +$fwd, backfill +$bf (max=$($mm.Max), min=$($mm.Min))"
     }
     Write-Host "Change Log: vloženo $inserted nových záznamů napříč $($companyList.Count) firmami."
 

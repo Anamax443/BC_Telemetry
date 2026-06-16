@@ -71,7 +71,7 @@ FROM sys.database_files
         trend          = Invoke-Sql $conn 'SELECT * FROM dbo.vw_DashTrend ORDER BY DateKey'
         trendByCompany = Invoke-Sql $conn 'SELECT DateKey, CompanyName, SUM(Hits) AS Hits, COUNT(DISTINCT UserName) AS Users FROM dbo.BCPageDaily GROUP BY DateKey, CompanyName ORDER BY DateKey'
         authFails      = Invoke-Sql $conn "SELECT TOP ($TopRows) DateKey, UserName, ObjectId, ObjectName, Failures FROM dbo.BCAuthFailDaily ORDER BY DateKey DESC, Failures DESC"
-        changeLog      = Invoke-Sql $conn "SELECT TOP ($TopRows) CONVERT(varchar(19),ChangedAt,120) AS ChangedAt, UserId, CompanyName, ChangeType, TableName, FieldName, PrimaryKey, OldValue, NewValue FROM dbo.BCChangeLog ORDER BY ChangedAt DESC"
+        changeLog      = Invoke-Sql $conn "SELECT TOP ($TopRows) CONVERT(varchar(19),ChangedAt,120) AS ChangedAt, UserId, CompanyName, ChangeType, TableNo, TableName, FieldNo, FieldName, PrimaryKey, OldValue, NewValue FROM dbo.BCChangeLog ORDER BY ChangedAt DESC"
     }
 
     $json = $snapshot | ConvertTo-Json -Depth 6 -Compress

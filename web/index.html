@@ -44,7 +44,7 @@ th{background:var(--bg3);color:var(--text3);font-family:var(--mono);font-size:10
 th:hover{color:var(--text);}
 td{padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text2);vertical-align:middle;}
 tr:hover td{background:var(--bg2);}
-td.num{text-align:right;font-family:var(--mono);}
+td.num{text-align:right;font-family:var(--mono);white-space:nowrap;}
 .mono{font-family:var(--mono);font-size:11px;background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:1px 6px;color:var(--accent2);}
 .bar{position:relative;background:var(--bg3);border-radius:4px;height:18px;min-width:40px;overflow:hidden;}
 .bar .fill{position:absolute;left:0;top:0;bottom:0;background:rgba(37,99,235,.25);border-right:2px solid var(--accent);}
@@ -204,8 +204,9 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
       <table id="tblAudit"><thead><tr>
         <th data-sort="ChangedAt">Kdy</th><th data-sort="UserId">Kdo</th>
         <th data-sort="CompanyName">Firma</th>
-        <th data-sort="ChangeType">Akce</th><th data-sort="TableName">Tabulka</th>
-        <th data-sort="FieldName">Pole</th><th data-sort="PrimaryKey">Klíč</th>
+        <th data-sort="ChangeType">Akce</th>
+        <th data-sort="TableNo">Tab. č.</th><th data-sort="TableName">Tabulka</th>
+        <th data-sort="FieldNo">Pole č.</th><th data-sort="FieldName">Pole</th><th data-sort="PrimaryKey">Klíč</th>
         <th data-sort="OldValue">Stará</th><th data-sort="NewValue">Nová</th>
       </tr></thead><tbody></tbody></table>
     </section>
@@ -479,7 +480,7 @@ function render(d){
 
   setupTable('Activity',d.userActivity||[],activityRow,['UserName','PageName'],maxHits(d.userActivity),{key:'LastUsed',dir:-1});
   setupTable('Mig',d.authFails||[],migRow,['UserName','ObjectName'],null,{key:'DateKey',dir:-1});
-  setupTable('Audit',d.changeLog||[],auditRow,['UserId','CompanyName','TableName','FieldName','PrimaryKey','OldValue','NewValue'],null,{key:'ChangedAt',dir:-1});
+  setupTable('Audit',d.changeLog||[],auditRow,['UserId','CompanyName','TableNo','TableName','FieldNo','FieldName','PrimaryKey','OldValue','NewValue'],null,{key:'ChangedAt',dir:-1});
   setupTrend(d.trend||[], d.trendByCompany||[]);
   buildUsers();
 
@@ -678,8 +679,9 @@ function auditRow(r){
   const ct=String(r.ChangeType||''); const pc=/Delet/i.test(ct)?'pill-red':/Insert/i.test(ct)?'pill-blue':'pill-gray';
   return `<tr><td class="num">${esc(r.ChangedAt)}</td><td>${esc(r.UserId)}</td>
   <td>${esc(r.CompanyName)}</td>
-  <td><span class="pill ${pc}">${esc(ct)}</span></td><td>${esc(r.TableName)}</td>
-  <td>${esc(r.FieldName)}</td><td><span class="mono">${esc(r.PrimaryKey)}</span></td>
+  <td><span class="pill ${pc}">${esc(ct)}</span></td>
+  <td class="num">${esc(r.TableNo)}</td><td>${esc(r.TableName)}</td>
+  <td class="num">${esc(r.FieldNo)}</td><td>${esc(r.FieldName)}</td><td><span class="mono">${esc(r.PrimaryKey)}</span></td>
   <td>${esc(r.OldValue)}</td><td>${esc(r.NewValue)}</td></tr>`;
 }
 
@@ -759,7 +761,7 @@ const EXPORT_COLS = {
   Mig:[{header:'Datum',get:r=>r.DateKey},{header:'Uživatel',get:_expUser},{header:'GUID',get:r=>r.UserName},
     {header:'Objekt',get:r=>r.ObjectId},{header:'Název',get:r=>r.ObjectName},{header:'RT0031',get:r=>r.Failures}],
   Audit:[{header:'Kdy',get:r=>r.ChangedAt},{header:'Kdo',get:r=>r.UserId},{header:'Firma',get:r=>r.CompanyName},{header:'Akce',get:r=>r.ChangeType},
-    {header:'Tabulka',get:r=>r.TableName},{header:'Pole',get:r=>r.FieldName},{header:'Klíč',get:r=>r.PrimaryKey},
+    {header:'Tab. č.',get:r=>r.TableNo},{header:'Tabulka',get:r=>r.TableName},{header:'Pole č.',get:r=>r.FieldNo},{header:'Pole',get:r=>r.FieldName},{header:'Klíč',get:r=>r.PrimaryKey},
     {header:'Stará',get:r=>r.OldValue},{header:'Nová',get:r=>r.NewValue}],
 };
 function csvCell(v){ v=(v==null?'':String(v)); return /[";\n\r]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; }
