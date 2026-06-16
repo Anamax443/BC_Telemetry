@@ -1,10 +1,22 @@
 # BC_Telemetry — HANDOFF (rolling)
 
 Aktuální stav projektu pro pokračování v další session. Updatuje se průběžně.
-Poslední update: **2026-06-16** (Push #59 / `44fb550`) · repo `Anamax443/BC_Telemetry`.
+Poslední update: **2026-06-16** (Push #60 / `44fb550`) · repo `Anamax443/BC_Telemetry`.
+Nová záložka **📖 Dokumentace** přímo v dashboardu (architektura + **registrace u Microsoftu/Entra a v Business Centralu**, 3 moduly, klíčové ID maskovaně „posl. znaky", bezpečnost/endpointy). Jen `index.html` (no-store, bez restartu).
 Tabulky: **stránkování** (50/100/200/500/vše, default v Nastavení = localStorage) + **responzivní** layout (mobil/tablet; široký Audit horizontálně scrolluje). Záložka **🗄 Databáze** (stav SQL).
 Modul B = **bulk insert** (SqlBulkCopy→#Staging→dedup, `fa08d7e`) místo row-by-row. Plán importu (okno+četnost+**dny**, auto-start v okně) řídí wrapper (viz níže). Uživatelé filtr+export, KPI „Aktivní uživatelé"→záložka Uživatelé.
 Filtry tabulek = zalamovací lišta `.filterbar` (popisky + „Vyčistit"); datum `2026.06.07`; filtr data rozmezí `od..do`; běžící čas + stáří dat v hlavičce.
+
+### Záložka 📖 Dokumentace v dashboardu (2026-06-16, Push #60)
+- Nová záložka v `index.html` (vedle ⚙ Nastavení) = **kompletní technická dokumentace přímo na homepage**:
+  přehled (3 moduly), architektura (tok dat + princip 2 identit), **§3 Registrace u Microsoftu** (Azure/App Insights +
+  Entra App registration `BC_Telemetry_SP`: secret/Value vs Secret ID, Redirect URI OAuthLanding.htm, `API.ReadWrite.All`
+  + admin consent, Log Analytics Reader), **§4 Registrace v BC** (telemetry connection string, Change Log + web service
+  Page 405 `ChangelogEntry`, app user Page 9861 + `D365 BUS PREMIUM`, SUPER nelze), 3 moduly detailně, data/servisní účet,
+  tabulka klíčových ID, bezpečnost/endpointy + caveat firewall Domain profil.
+- **Citlivé ID maskovaná** (posl. znaky, např. client ID `…0135`, tenant `…dca6`); plné hodnoty zůstávají jen v
+  `docs/navod-interni-axima.md`, **secret nikde**. Čistě klientská statická sekce (žádný endpoint) → **bez restartu** služby.
+- Styl: scoped CSS `.doc*` (karty, flow diagram, callouty, TOC kotvy) — respektuje dark/light přes `--var`.
 
 ### Plán importu (okno/četnost/dny) — řídí wrapper, ne OS scheduler (2026-06-16, Push #54–56)
 - **Proč:** trigger OS úlohy nejde z LocalSystem měnit bez **hesla svc** (`Set-ScheduledTask`/`schtasks /Change` → 0x8007052e / prompt na heslo → request visel). Proto OS úloha zůstává **1× denně v 02:00** a repetici/okno/dny řeší **wrapper**.

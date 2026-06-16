@@ -169,6 +169,35 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
 .dbinfo-row{display:flex;justify-content:space-between;gap:12px;font-size:13px;border-bottom:1px solid var(--border);padding:5px 0;}
 .dbinfo-row span{color:var(--text3);}
 .dbinfo-row b{color:var(--text);font-family:var(--mono);font-size:12px;text-align:right;}
+/* === Dokumentace === */
+.doc{max-width:920px;}
+.doc h2{font-size:18px;font-weight:600;margin:30px 0 8px;padding-bottom:6px;border-bottom:1px solid var(--border);}
+.doc h2:first-child{margin-top:4px;}
+.doc h3{font-size:14px;font-weight:600;margin:18px 0 6px;color:var(--text);}
+.doc p{font-size:13px;color:var(--text2);margin-bottom:10px;}
+.doc ul,.doc ol{font-size:13px;color:var(--text2);margin:0 0 12px 20px;}
+.doc li{margin-bottom:5px;}
+.doc li strong{color:var(--text);}
+.doc .lead{font-size:13px;color:var(--text3);margin-bottom:18px;}
+.doc code{font-family:var(--mono);font-size:11.5px;background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:1px 5px;color:var(--accent2);}
+.doc .step{counter-reset:none;}
+.doc-flow{font-family:var(--mono);font-size:11px;line-height:1.7;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin:0 0 18px;color:var(--text2);white-space:pre;overflow-x:auto;}
+.doc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;margin-bottom:18px;}
+.doc-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;}
+.doc-card h4{font-size:13px;font-weight:600;margin-bottom:6px;color:var(--accent2);}
+.doc-card .k{font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--text3);}
+.doc-card p{font-size:12px;margin-bottom:4px;}
+.doc table{margin-bottom:18px;}
+.doc table td{font-size:12px;}
+.doc table td.mono-cell{font-family:var(--mono);font-size:11px;color:var(--accent2);white-space:nowrap;}
+.doc .note{border-left:3px solid var(--accent);background:var(--bg2);padding:10px 14px;border-radius:0 8px 8px 0;font-size:12.5px;color:var(--text2);margin:0 0 14px;}
+.doc .warn-note{border-left-color:var(--yellow);}
+.doc .warn-note strong{color:var(--yellow);}
+.doc .tag-step{display:inline-block;font-family:var(--mono);font-size:10px;background:var(--accent);color:#fff;border-radius:4px;padding:1px 7px;margin-right:6px;}
+.doc a{color:var(--accent2);text-decoration:none;}
+.doc a:hover{text-decoration:underline;}
+.doc .toc{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;}
+.doc .toc a{font-size:12px;background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:4px 12px;}
 </style>
 </head>
 <body>
@@ -195,6 +224,7 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
       <button class="tab" data-panel="terminal">🖥 Terminál</button>
       <button class="tab" data-panel="auditcfg">⚙ Nastavení auditu</button>
       <button class="tab" data-panel="settings">⚙ Nastavení</button>
+      <button class="tab" data-panel="docs">📖 Dokumentace</button>
     </div>
 
     <section class="panel active" id="panel-activity">
@@ -373,6 +403,212 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
         <span class="count" id="lgMsg"></span></div>
         <div class="term" id="lgBox">— klikni „Zobrazit soubory" —</div>
       </div>
+    </section>
+
+    <section class="panel" id="panel-docs">
+     <div class="doc">
+      <p class="lead">Kompletní technická dokumentace řešení BC&nbsp;Telemetrie — co to dělá, jak je propojené
+      a <strong>jak je aplikace zaregistrovaná u Microsoftu (Entra / Azure) a v Business Centralu</strong>.
+      Citlivé identifikátory jsou zde uvedené <strong>zkráceně (poslední znaky)</strong> kvůli bezpečnosti;
+      plné hodnoty jsou v interním návodu <code>docs/navod-interni-axima.md</code>, secret je jen v Credential
+      Manageru servisního účtu (nikde v textu).</p>
+
+      <div class="toc">
+        <a href="#d-prehled">Přehled</a><a href="#d-arch">Architektura</a>
+        <a href="#d-ms">Registrace u Microsoftu</a><a href="#d-bc">Registrace v BC</a>
+        <a href="#d-moduly">Tři moduly</a><a href="#d-data">Data &amp; servisní účet</a>
+        <a href="#d-ids">Klíčové identifikátory</a><a href="#d-sec">Bezpečnost</a>
+      </div>
+
+      <h2 id="d-prehled">1 · Přehled — k čemu to je</h2>
+      <p>Nad <strong>Microsoft Dynamics 365 Business Central (Cloud / SaaS)</strong> staví systém, který
+      odpovídá na tři otázky, na něž BC SaaS sám přímou odpověď nedá:</p>
+      <div class="doc-grid">
+        <div class="doc-card"><span class="k">Modul A</span><h4>Co uživatelé reálně používají</h4>
+          <p>Telemetrie využití stránek → podklad pro <strong>permission&nbsp;set&nbsp;mining</strong> (seškrtat
+          oprávnění na to, co je opravdu potřeba, místo plošného SUPER).</p></div>
+        <div class="doc-card"><span class="k">Modul B</span><h4>Kdo co vytvořil / změnil / smazal</h4>
+          <p>Audit změn z BC Change Logu s <strong>reálným jménem</strong> uživatele (kdo, kdy, jaká tabulka/pole,
+          stará→nová hodnota).</p></div>
+        <div class="doc-card"><span class="k">Modul C</span><h4>Komu po zúžení práv chybí oprávnění</h4>
+          <p>Permission errors <strong>RT0031</strong> z telemetrie — hlídá, kde uživateli po nasazení rolí chybí
+          přístup.</p></div>
+      </div>
+      <p class="note">Architektura záměrně stojí na <strong>free tieru</strong> (Application Insights 5&nbsp;GB/měs
+      zdarma) + on-prem SQL + lehkém Node dashboardu → provoz prakticky zdarma a data zůstávají v doméně.</p>
+
+      <h2 id="d-arch">2 · Architektura — tok dat</h2>
+      <div class="doc-flow">BC Cloud ──telemetrie──▶ Azure Application Insights / Log Analytics
+                              │   (Service Principal, neinteraktivně)
+        ┌─────────────────────┼─────────────────────┐
+   modul A             modul C             modul B (BC Change Log → OData)
+ (AppPageViews)       (AppTraces)
+        └─────────────────────┼─────────────────────┘
+                              ▼
+        SQL  (raw → inkrementální rollup → agregáty)   ← servisní účet, přes denní úlohu
+                              ▼
+        data.json  ──▶  Node služba (dashboard + IP whitelist)  ← web NEsahá na SQL/BC</div>
+      <p>Dvě oddělené identity podle principu nejmenších oprávnění:</p>
+      <ul>
+        <li><strong>Web služba <code>BC_Telemetry_Web</code></strong> (Node + NSSM, běží jako LocalSystem) —
+          servíruje dashboard a <strong>nesahá</strong> přímo na SQL ani BC. Požadavky z UI (import, mazání,
+          plán…) zapisuje jako soubory do <code>ops/</code> fronty.</li>
+        <li><strong>Servisní účet <code>AXINETWORK\svc-bc-telemetry</code></strong> — pod ním běží denní úloha
+          <code>BC_Telemetry_Daily</code> (wrapper), která jako jediná přistupuje na <strong>SQL</strong> a
+          <strong>BC OData</strong> a zpracovává ops frontu.</li>
+      </ul>
+
+      <h2 id="d-ms">3 · Registrace u Microsoftu (Azure + Entra)</h2>
+      <p>Pro neinteraktivní (server-to-server) čtení telemetrie i BC API slouží jedna aplikace v Microsoft Entra
+      ID — <strong>App registration <code>BC_Telemetry_SP</code></strong> (Service Principal).</p>
+
+      <h3><span class="tag-step">3.1</span> Azure subscription + Application Insights (moduly A/C)</h3>
+      <ol class="step">
+        <li>Azure Portal → <strong>Předplatná</strong> → Pay-as-you-go (App Insights jede ve free tieru = $0;
+          karta jen kvůli identitě).</li>
+        <li><strong>Resource Group</strong> <code>rg-bc-telemetry</code>, region West Europe.</li>
+        <li><strong>Application Insights</strong> <code>appinsights-bc-production</code>,
+          <strong>Resource Mode: Workspace-based</strong> (vytvoří se Log Analytics workspace).</li>
+        <li>Workspace → <em>Usage and estimated costs</em> → Data Retention <strong>31 dní</strong> +
+          <strong>Daily cap 0,5 GB/den</strong> (pojistka nákladů).</li>
+        <li>Workspace → Overview → zkopíruj <strong>Workspace ID</strong> (do importních skriptů A/C).</li>
+        <li>App Insights → Overview → zkopíruj <strong>Connection String</strong> (vloží se v BC, viz §4).</li>
+      </ol>
+
+      <h3><span class="tag-step">3.2</span> Entra App registration (Service Principal)</h3>
+      <ol class="step">
+        <li>Entra → <strong>App registrations → New registration</strong> → <code>BC_Telemetry_SP</code>,
+          <strong>Single tenant</strong> → Register.</li>
+        <li>Zkopíruj <strong>Application (client) ID</strong> <em>(NE „Object ID" — to je něco jiného)</em>.</li>
+        <li><strong>Certificates &amp; secrets → New client secret</strong> → zkopíruj <strong>Value</strong>
+          (ukáže se jen jednou).</li>
+      </ol>
+      <p class="note warn-note"><strong>⚠ Past:</strong> secret je <strong>Value</strong> (~40 znaků,
+      <code>mzm8Q~…</code>), <strong>NE Secret ID</strong> (36-znakový GUID) — záměna → token request vrací 401.
+      Secret se nikam nepíše, leží v Credential Manageru servisního účtu (targety <code>BC_Telemetry_SP</code> a
+      <code>BC_Telemetry_BCAPI</code>). Aktuální expirace <strong>2028-06-07</strong> — sledovat.</p>
+
+      <h3><span class="tag-step">3.3</span> Zmocnění pro App Insights (moduly A/C)</h3>
+      <p>Log Analytics workspace → <strong>Access control (IAM) → Add role assignment → Log Analytics Reader</strong>
+      → member <code>BC_Telemetry_SP</code> → Review + assign. Tím SP smí číst <code>AppPageViews</code> /
+      <code>AppTraces</code> přes KQL.</p>
+
+      <h3><span class="tag-step">3.4</span> Zmocnění pro BC API (modul B, S2S) — tři pasti</h3>
+      <ol class="step">
+        <li><strong>Redirect URI</strong> — App registration → Authentication → Add a platform → <strong>Web</strong>
+          → <code>https://businesscentral.dynamics.com/OAuthLanding.htm</code> (Implicit grant NEzaškrtávat).
+          <br><em>Bez něj spadne „Udělit souhlas" v BC na AADSTS500113.</em></li>
+        <li><strong>API permission + admin consent</strong> — API permissions → Add → APIs my organization uses →
+          <strong>Dynamics 365 Business Central</strong> → <strong>Application permissions</strong> →
+          <code>API.ReadWrite.All</code> → Add → <strong>Grant admin consent</strong> (musí být zelené
+          <em>Granted</em>). <br><em>Bez něj má token prázdné <code>roles</code> → 401 i s BC sadami.</em></li>
+        <li>Registrace app usera přímo v BC — viz §4.3.</li>
+      </ol>
+
+      <h2 id="d-bc">4 · Registrace v Business Centralu</h2>
+
+      <h3><span class="tag-step">4.1</span> Zapnout telemetrii</h3>
+      <p>BC <strong>Admin Center</strong> (<code>…/&lt;tenant&gt;/admin</code>) → Environments →
+      <strong>Production</strong> → Telemetry → <strong>Define</strong> → vlož <strong>Connection String</strong>
+      z App Insights → Save. V aktuální verzi BC <strong>bez restartu</strong> prostředí; data tečou do ~5 min při
+      reálné aktivitě uživatelů (Desktop / WebClient).</p>
+
+      <h3><span class="tag-step">4.2</span> Change Log + web service (modul B)</h3>
+      <ol class="step">
+        <li><strong>Change Log Setup → Change Log Activated = ON</strong>.</li>
+        <li><strong>Tables</strong> → pro citlivé tabulky zapni Log Insertion / Modification / Deletion
+          (např. Access Control <code>2000000053</code>, User <code>2000000120</code>, doklady, položky).
+          <em>Neloguje zpětně.</em></li>
+        <li><strong>Web Services → New</strong> → Type <strong>Page</strong>, Object ID <strong>405</strong>,
+          Service Name <code>ChangelogEntry</code>, <strong>Published</strong>.</li>
+      </ol>
+      <p class="note warn-note"><strong>⚠</strong> Microsoft postupně ruší publikování UI stránek jako web service →
+      durable varianta = vlastní AL API page (plánováno).</p>
+
+      <h3><span class="tag-step">4.3</span> App user pro Service Principal (S2S)</h3>
+      <ol class="step">
+        <li>BC web klient → vyhledej <strong>„Aplikace Microsoft Entra"</strong> (Page <strong>9861</strong>) →
+          <strong>New</strong>.</li>
+        <li><strong>Client ID</strong> = Application (client) ID z §3.2 + popis.</li>
+        <li><strong>Sady oprávnění</strong> → přidej <code>D365 BUS PREMIUM</code> (nebo vlastní read sadu).</li>
+        <li><strong>Společnost</strong> nech prázdné = platí pro všechny firmy.</li>
+        <li><strong>Stav → Povolený</strong> → <strong>Udělit souhlas</strong> (přihlaš se jako admin) → naplní se
+          <strong>ID uživatele</strong>. OData pak čte všech 12 firem.</li>
+      </ol>
+      <p class="note warn-note"><strong>⚠</strong> <code>SUPER</code> ani <code>SUPER (DATA)</code> NELZE app userovi
+      přiřadit — BC je odmítne. Použij <code>D365</code> sady nebo custom read.</p>
+
+      <h2 id="d-moduly">5 · Tři moduly — co čtou</h2>
+      <div class="doc-grid">
+        <div class="doc-card"><span class="k">A · Využití stránek</span><h4>Log Analytics → AppPageViews</h4>
+          <p>Identita = <code>UserId</code> = <strong>pseudonymní GUID</strong> (NE AAD object id; Microsoft ho
+          nerozkrývá). BC dimenze v <code>Properties.*</code> (alObjectId, companyName, clientType). Klienti =
+          <code>Desktop</code>/<code>WebClient</code>.</p>
+          <p>Jméno k GUID se doplní přes BC „Telemetry User ID" → BC Users OData → <code>dbo.BCUser</code> →
+          záložka <strong>👤 Uživatelé</strong>.</p></div>
+        <div class="doc-card"><span class="k">B · Audit změn</span><h4>BC Change Log (Page 405) → OData</h4>
+          <p>Pole: <code>Entry_No</code>, <code>Date_and_Time</code>, <code>User_ID</code>
+          (<strong>reálné jméno</strong>), <code>Table_No/Caption</code>, <code>Field_No/Caption</code>,
+          <code>Type_of_Change</code>, <code>Old/New_Value</code>, <code>Primary_Key</code>.</p>
+          <p><code>Entry_No</code> je <strong>per-firma</strong> sekvence → watermark + dedup per firma.</p></div>
+        <div class="doc-card"><span class="k">C · Permission errors</span><h4>Log Analytics → AppTraces (RT0031)</h4>
+          <p>Záznamy o chybějícím oprávnění. Vznikají typicky až po zúžení práv → slouží jako kontrola po nasazení
+          permission setů.</p></div>
+      </div>
+
+      <h2 id="d-data">6 · Datová vrstva &amp; servisní účet</h2>
+      <ul>
+        <li><strong>SQL</strong> <code>BC_Telemetry</code> <strong>co-located</strong> na serveru
+          <code>10.8.2.225</code> (SQL Server 2022, DEFAULT instance). Schéma: raw tabulky → inkrementální rollup
+          → agregáty + <code>vw_Dash*</code> pohledy.</li>
+        <li>Importy se připojují přes <strong>Integrated Security</strong> jako <code>svc-bc-telemetry</code>
+          (<code>db_datareader</code> + <code>db_datawriter</code> + EXECUTE na ETL procy). Web na SQL nesahá.</li>
+        <li><strong>Snapshot</strong> (<code>Export-DashboardSnapshot.ps1</code>) čte jen agregáty →
+          <code>data.json</code> (malý i nad miliony raw řádků) → dashboard.</li>
+        <li><strong>Ops fronta</strong> — web (LocalSystem) zapíše požadavek do <code>ops/</code>, denní úloha
+          (svc) ho vykoná. Tak běží import / mazání auditu / plán / restart bez toho, aby web měl práva na SQL/BC.</li>
+        <li><strong>Plán importu</strong> řídí <strong>wrapper</strong> (OS úloha 1× v <code>startTime</code>, pak
+          loop á <code>intervalMinutes</code> v okně dle vybraných dnů) — trigger OS úlohy nejde z LocalSystem
+          měnit bez hesla svc.</li>
+      </ul>
+
+      <h2 id="d-ids">7 · Klíčové identifikátory <span style="font-weight:400;font-size:12px;color:var(--text3)">(zkráceně — plné hodnoty v interním návodu)</span></h2>
+      <table><thead><tr><th>Co</th><th>Hodnota (maskováno)</th><th>Role</th></tr></thead><tbody>
+        <tr><td>Tenant (Directory) ID</td><td class="mono-cell">…dca6</td><td>Entra tenant axima.cz</td></tr>
+        <tr><td>Subscription ID</td><td class="mono-cell">…9d75</td><td>Azure (Pay-as-you-go)</td></tr>
+        <tr><td>App Insights iKey / AppId</td><td class="mono-cell">06cb351f-… / 03c2f43a-…</td><td>cíl telemetrie</td></tr>
+        <tr><td>Log Analytics Workspace ID</td><td class="mono-cell">…4590</td><td>moduly A/C (KQL)</td></tr>
+        <tr><td>Service Principal (client) ID</td><td class="mono-cell">…0135</td><td><code>BC_Telemetry_SP</code></td></tr>
+        <tr><td>SP secret</td><td class="mono-cell">— (Credential Manager)</td><td>expirace 2028-06-07</td></tr>
+        <tr><td>BC app user (object id)</td><td class="mono-cell">8de43095-…</td><td>S2S identita v BC</td></tr>
+        <tr><td>BC environment</td><td class="mono-cell">Production</td><td>12 firem</td></tr>
+        <tr><td>Change Log web service</td><td class="mono-cell">ChangelogEntry · Page 405</td><td>modul B OData</td></tr>
+        <tr><td>SQL server / DB</td><td class="mono-cell">10.8.2.225 · BC_Telemetry</td><td>co-located</td></tr>
+        <tr><td>Servisní účet</td><td class="mono-cell">AXINETWORK\svc-bc-telemetry</td><td>SQL + BC OData</td></tr>
+      </tbody></table>
+
+      <h2 id="d-sec">8 · Bezpečnost &amp; provoz</h2>
+      <ul>
+        <li><strong>Přístup k dashboardu</strong> = <strong>Windows Firewall rule</strong>
+          <code>BC Telemetry Dashboard (8080)</code> (reálné vynucení), editovatelný v ⚙ Nastavení → Síťový
+          whitelist (single IP / CIDR / rozsah). Ostatní konfigurace = JSON soubory v repu.</li>
+        <li class="note warn-note" style="list-style:none;margin-left:-20px"><strong>⚠ Pozor:</strong> firewall
+          <em>allow</em> rule platí jen když je <strong>Domain profil</strong> aktivní — když se NIC serveru
+          překlopí mimo Domain (reboot / výpadek DC), 8080 spadne do default block a dashboard je z venku
+          nedostupný (timeout) i pro povolené IP. Náprava na serveru:
+          <code>Set-NetFirewallRule -DisplayName "BC Telemetry Dashboard (8080)" -Profile Any -Enabled True</code>.</li>
+        <li><strong>Nasazení změn:</strong> <code>index.html</code> = no-store, stačí Ctrl+F5 (bez restartu).
+          <code>server.js</code> = vyžaduje restart služby → self-service v ⚙ Nastavení → Restartovat službu.</li>
+        <li><strong>Endpointy:</strong> <code>/access-check</code>, <code>/firewall/whitelist</code>,
+          <code>/firewall/domain-profile</code>, <code>/refresh</code>, <code>/usermap</code>,
+          <code>/changelog-companies</code>, <code>/changelog-purge</code>, <code>/ops-status</code>,
+          <code>/tasks</code>, <code>/import-stop</code>, <code>/restart</code>, <code>/retention</code>,
+          <code>/schedule</code>.</li>
+      </ul>
+      <p class="note">Plné návody v repu: <code>docs/navod-interni-axima.md</code> (interní, plné hodnoty) ·
+      <code>docs/SETUP-STEP-BY-STEP.md</code> (runbook) · <code>docs/modules.md</code> (3 moduly) ·
+      <code>docs/HANDOFF.md</code> (rolling stav).</p>
+     </div>
     </section>
   </div>
 </main>
@@ -688,7 +924,7 @@ Promise.all([
   .catch(e=>{document.getElementById('loading').textContent='Chyba načtení data.json: '+e.message;});
 
 // verze nasazeneho dashboardu (bump pri kazdem deployi index.html); snapshot ji muze prebit (d.version)
-const APP_VER={push:59,commit:'44fb550',repo:'https://github.com/Anamax443/BC_Telemetry'};
+const APP_VER={push:60,commit:'pending',repo:'https://github.com/Anamax443/BC_Telemetry'};
 function render(d){
   document.getElementById('loading').hidden=true;
   document.getElementById('app').hidden=false;
