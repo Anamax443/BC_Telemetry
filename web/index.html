@@ -203,6 +203,7 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
       </div>
       <table id="tblAudit"><thead><tr>
         <th data-sort="ChangedAt">Kdy</th><th data-sort="UserId">Kdo</th>
+        <th data-sort="CompanyName">Firma</th>
         <th data-sort="ChangeType">Akce</th><th data-sort="TableName">Tabulka</th>
         <th data-sort="FieldName">Pole</th><th data-sort="PrimaryKey">Klíč</th>
         <th data-sort="OldValue">Stará</th><th data-sort="NewValue">Nová</th>
@@ -478,7 +479,7 @@ function render(d){
 
   setupTable('Activity',d.userActivity||[],activityRow,['UserName','PageName'],maxHits(d.userActivity),{key:'LastUsed',dir:-1});
   setupTable('Mig',d.authFails||[],migRow,['UserName','ObjectName'],null,{key:'DateKey',dir:-1});
-  setupTable('Audit',d.changeLog||[],auditRow,['UserId','TableName','FieldName','PrimaryKey'],null,{key:'ChangedAt',dir:-1});
+  setupTable('Audit',d.changeLog||[],auditRow,['UserId','CompanyName','TableName','FieldName','PrimaryKey','OldValue','NewValue'],null,{key:'ChangedAt',dir:-1});
   setupTrend(d.trend||[], d.trendByCompany||[]);
   buildUsers();
 
@@ -676,6 +677,7 @@ function migRow(r){
 function auditRow(r){
   const ct=String(r.ChangeType||''); const pc=/Delet/i.test(ct)?'pill-red':/Insert/i.test(ct)?'pill-blue':'pill-gray';
   return `<tr><td class="num">${esc(r.ChangedAt)}</td><td>${esc(r.UserId)}</td>
+  <td>${esc(r.CompanyName)}</td>
   <td><span class="pill ${pc}">${esc(ct)}</span></td><td>${esc(r.TableName)}</td>
   <td>${esc(r.FieldName)}</td><td><span class="mono">${esc(r.PrimaryKey)}</span></td>
   <td>${esc(r.OldValue)}</td><td>${esc(r.NewValue)}</td></tr>`;
@@ -756,7 +758,7 @@ const EXPORT_COLS = {
     {header:'Stránka',get:r=>r.PageName},{header:'Firma',get:r=>r.CompanyName},{header:'Otevření',get:r=>r.TotalHits},{header:'Naposledy',get:r=>r.LastUsed}],
   Mig:[{header:'Datum',get:r=>r.DateKey},{header:'Uživatel',get:_expUser},{header:'GUID',get:r=>r.UserName},
     {header:'Objekt',get:r=>r.ObjectId},{header:'Název',get:r=>r.ObjectName},{header:'RT0031',get:r=>r.Failures}],
-  Audit:[{header:'Kdy',get:r=>r.ChangedAt},{header:'Kdo',get:r=>r.UserId},{header:'Akce',get:r=>r.ChangeType},
+  Audit:[{header:'Kdy',get:r=>r.ChangedAt},{header:'Kdo',get:r=>r.UserId},{header:'Firma',get:r=>r.CompanyName},{header:'Akce',get:r=>r.ChangeType},
     {header:'Tabulka',get:r=>r.TableName},{header:'Pole',get:r=>r.FieldName},{header:'Klíč',get:r=>r.PrimaryKey},
     {header:'Stará',get:r=>r.OldValue},{header:'Nová',get:r=>r.NewValue}],
 };
