@@ -439,11 +439,17 @@ $out | ConvertTo-Json -Compress -Depth 3
         let iv = Math.round(+o.intervalMinutes || 0);
         if (iv < 0 || iv > 1440) throw new Error('interval 0–1440 min');
         let dur = (eh * 60 + em) - (sh * 60 + sm); if (dur <= 0) dur = 240;
-        let ps = `$start=[datetime]::Today.AddHours(${sh}).AddMinutes(${sm})\n$trg = New-ScheduledTaskTrigger -Daily -At $start\n`;
-        if (iv > 0) ps += `$trg.Repetition = (New-ScheduledTaskTrigger -Once -At $start -RepetitionInterval (New-TimeSpan -Minutes ${iv}) -RepetitionDuration (New-TimeSpan -Minutes ${dur})).Repetition\n`;
-        ps += `Set-ScheduledTask -TaskName 'BC_Telemetry_Daily' -Trigger $trg -ErrorAction Stop | Out-Null\n'OK'`;
-        const out = (await runPs(ps)).trim();
-        if (out !== 'OK') throw new Error('Set-ScheduledTask: ' + out);
+        // schtasks /Change mění rozvrh BEZ re-validace hesla (Set-ScheduledTask -Trigger vyžaduje heslo svc → 0x8007052e).
+        const st = `${String(sh).padStart(2, '0')}:${String(sm).padStart(2, '0')}`;
+        let ps;
+        if (iv > 0) {
+          const du = `${String(Math.floor(dur / 60)).padStart(4, '0')}:${String(dur % 60).padStart(2, '0')}`;
+          ps = `schtasks /Change /TN "BC_Telemetry_Daily" /ST ${st} /RI ${iv} /DU ${du} 2>&1 | Out-String`;
+        } else {
+          ps = `schtasks /Change /TN "BC_Telemetry_Daily" /ST ${st} 2>&1 | Out-String`;
+        }
+        ps += `\nif ($LASTEXITCODE -ne 0) { throw "schtasks exit $LASTEXITCODE" }\n'OK'`;
+        await runPs(ps);
         ensureOpsDir();
         const saved = { startTime: `${String(sh).padStart(2, '0')}:${String(sm).padStart(2, '0')}`, endTime: `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`, intervalMinutes: iv };
         fs.writeFileSync(SCHEDULE_FILE, JSON.stringify(saved, null, 2), 'utf8');
