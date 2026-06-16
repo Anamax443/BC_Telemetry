@@ -61,11 +61,38 @@ FROM sys.database_files
     $clByCompany = @()
     try { $clByCompany = Invoke-Sql $conn 'SELECT CompanyName, COUNT_BIG(*) AS Rows FROM dbo.BCChangeLog GROUP BY CompanyName ORDER BY COUNT_BIG(*) DESC' } catch { }
 
+    # Stav SQL serveru/DB (zalozka Databaze)
+    $dbInfo = $null
+    try {
+        $dbInfo = (Invoke-Sql $conn @"
+SELECT CONVERT(varchar(30),SERVERPROPERTY('ProductVersion')) AS Version,
+       CONVERT(varchar(80),SERVERPROPERTY('Edition')) AS Edition,
+       d.recovery_model_desc AS Recovery, d.state_desc AS State,
+       d.collation_name AS Collation, CONVERT(int,d.compatibility_level) AS CompatLevel,
+       CONVERT(varchar(19),d.create_date,120) AS Created
+FROM sys.databases d WHERE d.name = DB_NAME()
+"@)[0]
+    } catch { }
+
+    # Tabulky: pocet radku + velikost (MB) — sys catalog (cte i db_datareader)
+    $dbTables = @()
+    try {
+        $dbTables = Invoke-Sql $conn @"
+SELECT t.name AS TableName,
+  (SELECT ISNULL(SUM(p2.rows),0) FROM sys.partitions p2 WHERE p2.object_id=t.object_id AND p2.index_id IN (0,1)) AS [Rows],
+  CAST((SELECT ISNULL(SUM(au.total_pages),0) FROM sys.partitions p JOIN sys.allocation_units au ON au.container_id=p.partition_id WHERE p.object_id=t.object_id)*8/1024.0 AS decimal(18,1)) AS TotalMB
+FROM sys.tables t WHERE t.is_ms_shipped = 0
+ORDER BY TotalMB DESC
+"@
+    } catch { }
+
     $snapshot = [ordered]@{
         generatedUtc   = [DateTime]::UtcNow.ToString('yyyy-MM-dd HH:mm:ss')
         kpi            = $kpi
         sync           = $sync
         dbSize         = $dbSize
+        dbInfo         = $dbInfo
+        dbTables       = $dbTables
         changeLogByCompany = $clByCompany
         userActivity   = Invoke-Sql $conn "SELECT TOP ($TopRows) * FROM dbo.vw_DashUserActivity ORDER BY TotalHits DESC"
         trend          = Invoke-Sql $conn 'SELECT * FROM dbo.vw_DashTrend ORDER BY DateKey'

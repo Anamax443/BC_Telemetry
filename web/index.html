@@ -142,6 +142,10 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
 .ret-grid input:focus{outline:none;border-color:var(--accent);}
 .sched-days{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:2px 0 12px;font-size:13px;color:var(--text2);}
 .sched-days .cl-item{gap:5px;}
+.dbinfo{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:6px 18px;margin-bottom:18px;}
+.dbinfo-row{display:flex;justify-content:space-between;gap:12px;font-size:13px;border-bottom:1px solid var(--border);padding:5px 0;}
+.dbinfo-row span{color:var(--text3);}
+.dbinfo-row b{color:var(--text);font-family:var(--mono);font-size:12px;text-align:right;}
 </style>
 </head>
 <body>
@@ -164,6 +168,7 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
       <button class="tab" data-panel="audit">Audit změn</button>
       <button class="tab" data-panel="migration">Permission errors (RT0031)</button>
       <button class="tab" data-panel="trend">Trend</button>
+      <button class="tab" data-panel="dbstat">🗄 Databáze</button>
       <button class="tab" data-panel="terminal">🖥 Terminál</button>
       <button class="tab" data-panel="auditcfg">⚙ Nastavení auditu</button>
       <button class="tab" data-panel="settings">⚙ Nastavení</button>
@@ -235,6 +240,18 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
       <div class="spark" id="spark"></div>
       <table id="tblTrend"><thead><tr>
         <th data-sort="DateKey">Datum</th><th data-sort="Hits">Otevření</th><th data-sort="Users">Aktivní uživatelé</th>
+      </tr></thead><tbody></tbody></table>
+    </section>
+
+    <section class="panel" id="panel-dbstat">
+      <div id="dbInfoHost"></div>
+      <div class="toolbar">
+        <input type="text" id="searchDbTables" placeholder="Filtr: tabulka…">
+        <span class="count" id="countDbTables"></span>
+        <button class="btn-ghost" data-export="DbTables" title="Stáhne seznam tabulek (řádky + velikost) jako CSV">⬇ Export CSV</button>
+      </div>
+      <table id="tblDbTables"><thead><tr>
+        <th data-sort="TableName">Tabulka</th><th data-sort="Rows">Řádků</th><th data-sort="TotalMB">Velikost</th>
       </tr></thead><tbody></tbody></table>
     </section>
 
@@ -632,6 +649,7 @@ function render(d){
   document.getElementById('app').hidden=false;
   state.generatedUtc=d.generatedUtc||'';
   state.dbSize=d.dbSize||null;
+  state.dbInfo=d.dbInfo||null;
   state.clByCompany=Array.isArray(d.changeLogByCompany)?d.changeLogByCompany:[];
   const v=(d.version&&d.version.commit)?d.version:APP_VER;
   document.getElementById('meta').innerHTML='snapshot '+(d.generatedUtc||'?')+' UTC'
@@ -676,6 +694,8 @@ function render(d){
   setupTable('Mig',d.authFails||[],migRow,['UserName','ObjectName'],null,{key:'DateKey',dir:-1});
   setupTable('Audit',d.changeLog||[],auditRow,['UserId','CompanyName','TableNo','TableName','FieldNo','FieldName','PrimaryKey','OldValue','NewValue'],null,{key:'ChangedAt',dir:-1});
   setupTrend(d.trend||[], d.trendByCompany||[]);
+  setupTable('DbTables',d.dbTables||[],dbTableRow,['TableName'],null,{key:'TotalMB',dir:-1});
+  renderDbInfo();
   buildUsers();
 
   document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
@@ -882,6 +902,23 @@ function auditRow(r){
 // Sloupce s rozbalovacím filtrem (kategorie) vs. bez filtru (čísla).
 const SELECT_FILTER=new Set(['CompanyName','ChangeType']);
 const NO_FILTER=new Set(['TotalHits','Failures','Hits','Users']);
+function dbTableRow(r){
+  return `<tr><td>${esc(r.TableName)}</td><td class="num">${fmt(r.Rows)}</td><td class="num">${fmt(r.TotalMB)} MB</td></tr>`;
+}
+function renderDbInfo(){
+  const h=document.getElementById('dbInfoHost'); if(!h) return;
+  const i=state.dbInfo||{}, s=state.dbSize||{};
+  const row=(k,v)=>`<div class="dbinfo-row"><span>${esc(k)}</span><b>${esc(v==null||v===''?'—':v)}</b></div>`;
+  h.innerHTML='<div class="dbinfo">'
+    +row('SQL Server', (i.Version||'?')+(i.Edition?(' · '+i.Edition):''))
+    +row('Stav / recovery', (i.State||'?')+' / '+(i.Recovery||'?'))
+    +row('Collation', i.Collation)
+    +row('Compat level', i.CompatLevel)
+    +row('DB vytvořena', i.Created)
+    +row('Data soubor', fmt(s.DataUsedMB)+' MB využito / '+fmt(s.DataAllocMB)+' MB alok.')
+    +row('Log soubor', fmt(s.LogAllocMB)+' MB')
+    +'</div>';
+}
 function setupTable(key,rows,rowFn,searchFields,max,defaultSort){
   const ds=defaultSort||{};
   state[key]={rows,rowFn,searchFields,max,sortKey:ds.key||null,sortDir:ds.dir||1,filter:'',colFilters:{}};
@@ -965,6 +1002,7 @@ const EXPORT_COLS = {
   Audit:[{header:'Kdy',get:r=>r.ChangedAt},{header:'Kdo',get:r=>r.UserId},{header:'Firma',get:r=>r.CompanyName},{header:'Akce',get:r=>r.ChangeType},
     {header:'Tab. č.',get:r=>r.TableNo},{header:'Tabulka',get:r=>r.TableName},{header:'Pole č.',get:r=>r.FieldNo},{header:'Pole',get:r=>r.FieldName},{header:'Klíč',get:r=>r.PrimaryKey},
     {header:'Stará',get:r=>r.OldValue},{header:'Nová',get:r=>r.NewValue}],
+  DbTables:[{header:'Tabulka',get:r=>r.TableName},{header:'Řádků',get:r=>r.Rows},{header:'Velikost MB',get:r=>r.TotalMB}],
 };
 function csvCell(v){ v=(v==null?'':String(v)); return /[";\n\r]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; }
 function exportCsv(key){
