@@ -27,6 +27,7 @@ param(
     [string] $SqlServer   = 'localhost',
     [string] $SqlDatabase = 'BC_Telemetry',
     [string] $CompaniesFile = '',                         # vyber firem z dashboardu (Nastaveni)
+    [int]    $ForwardRowsPerRun  = 150000,                # strop dosyncu k soucasnosti na firmu/beh (bezpecnostni pojistka proti zaseknuti)
     [int]    $BackfillRowsPerRun = 50000                  # strop backfillu historie na firmu/beh (0 = backfill vypnut)
 )
 $ErrorActionPreference = 'Stop'
@@ -131,9 +132,9 @@ try {
             $mm = Get-MinMax $conn $company
         }
 
-        # Phase A — dosync k soucasnosti (vzestupne nad MAX, do vycerpani)
+        # Phase A — dosync k soucasnosti (vzestupne nad MAX), bounded (pojistka proti zaseknuti)
         $cursor = $mm.Max; $fwd = 0
-        while ($true) {
+        while ($fwd -lt $ForwardRowsPerRun) {
             $resp = Invoke-RestMethod -Headers $headers -Uri "$svc`?`$filter=Entry_No gt $cursor&`$orderby=Entry_No&`$top=5000"
             $page = @($resp.value); if (-not $page.Count) { break }
             $inserted += (Add-ChangeLogPage $conn $page $company); $fwd += $page.Count
