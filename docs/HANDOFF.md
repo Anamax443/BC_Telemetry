@@ -1,14 +1,21 @@
 # BC_Telemetry — HANDOFF (rolling)
 
 Aktuální stav projektu pro pokračování v další session. Updatuje se průběžně.
-Poslední update: **2026-06-16** (Push #61 / `9521574`) · repo `Anamax443/BC_Telemetry`.
-Nová záložka **📖 Dokumentace** přímo v dashboardu (architektura + **registrace u Microsoftu/Entra a v Business Centralu**, 3 moduly, klíčové ID maskovaně „posl. znaky", bezpečnost/endpointy) + **🖨 Tisk/PDF** (`@media print` → tiskne jen dokumentaci, vždy světle; `window.print()` = i „Uložit jako PDF"). Jen `index.html` (no-store, bez restartu).
+Poslední update: **2026-06-16** (Push #62 / `pending`) · repo `Anamax443/BC_Telemetry`.
+Záložka **📖 Dokumentace** přímo v dashboardu má **přepínač** *👤 Uživatelská příručka* (default — orientace, záložky, workflow oprávnění na míru, práce s tabulkami, provoz, potíže) / *🛠 Technická dokumentace* (architektura + **registrace u Microsoftu/Entra a v BC**, 3 moduly, klíčové ID maskovaně, endpointy). **🖨 Tisk/PDF** vytiskne **právě zobrazenou** příručku (`@media print`, vždy světle). Jen `index.html` (no-store, bez restartu).
 Tabulky: **stránkování** (50/100/200/500/vše, default v Nastavení = localStorage) + **responzivní** layout (mobil/tablet; široký Audit horizontálně scrolluje). Záložka **🗄 Databáze** (stav SQL).
 Modul B = **bulk insert** (SqlBulkCopy→#Staging→dedup, `fa08d7e`) místo row-by-row. Plán importu (okno+četnost+**dny**, auto-start v okně) řídí wrapper (viz níže). Uživatelé filtr+export, KPI „Aktivní uživatelé"→záložka Uživatelé.
 Filtry tabulek = zalamovací lišta `.filterbar` (popisky + „Vyčistit"); datum `2026.06.07`; filtr data rozmezí `od..do`; běžící čas + stáří dat v hlavičce.
 
-### Záložka 📖 Dokumentace v dashboardu (2026-06-16, Push #60)
-- Nová záložka v `index.html` (vedle ⚙ Nastavení) = **kompletní technická dokumentace přímo na homepage**:
+### Záložka 📖 Dokumentace v dashboardu (2026-06-16, Push #60–62)
+- **Push #62:** záložka má **přepínač view** (`.doc-switch` → `.doc-view#docUser` / `#docTech`, JS `docViews()`):
+  *👤 Uživatelská příručka* (default) = netechnický návod k používání dashboardu (orientace v hlavičce/KPI,
+  popis všech záložek, **krok-za-krokem workflow tvorby permission setů**, práce s tabulkami/filtry/exportem,
+  provozní úkony v ⚙ Nastavení, tipy & řešení potíží vč. firewall timeoutu) · *🛠 Technická dokumentace* = původní
+  build/registrace obsah. Tisk/PDF tiskne **jen viditelný view** (skrytý má `[hidden]` → `display:none`).
+- **Push #61:** tlačítko **🖨 Tisk/PDF** (`window.print()`) + `@media print` — vytiskne jen `#panel-docs`, vždy
+  světle (override `--var` i pro dark), skryje header/taby/KPI, `break-inside` u karet, skrytý tiskový titulek.
+- **Push #60 (technický obsah):** kompletní technická dokumentace přímo na homepage:
   přehled (3 moduly), architektura (tok dat + princip 2 identit), **§3 Registrace u Microsoftu** (Azure/App Insights +
   Entra App registration `BC_Telemetry_SP`: secret/Value vs Secret ID, Redirect URI OAuthLanding.htm, `API.ReadWrite.All`
   + admin consent, Log Analytics Reader), **§4 Registrace v BC** (telemetry connection string, Change Log + web service

@@ -199,6 +199,12 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
 .doc .toc{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;}
 .doc .toc a{font-size:12px;background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:4px 12px;}
 .doc-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
+.doc-switch{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+.doc-sw{font-family:var(--sans);font-size:12.5px;padding:6px 14px;border:none;background:var(--bg2);color:var(--text2);cursor:pointer;}
+.doc-sw + .doc-sw{border-left:1px solid var(--border);}
+.doc-sw.active{background:var(--accent);color:#fff;font-weight:600;}
+#docPrint{margin-left:auto;}
+.doc-view[hidden]{display:none;}
 .doc-print-hint{font-size:11px;color:var(--text3);}
 .doc-print-title{display:none;}
 /* === Tisk / PDF: jen dokumentace, vždy světle === */
@@ -434,10 +440,118 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
     <section class="panel" id="panel-docs">
      <div class="doc">
       <div class="doc-actions no-print">
-        <button class="btn-ghost" type="button" id="docPrint" title="Vytiskne / uloží do PDF jen tuto dokumentaci, vždy ve světlém režimu">🖨 Tisk / PDF</button>
-        <span class="doc-print-hint">Tlačítko otevře dialog tisku — v něm zvol „Uložit jako PDF". Tiskne se vždy bíle, jen dokumentace.</span>
+        <div class="doc-switch" role="tablist">
+          <button type="button" class="doc-sw active" data-view="docUser">👤 Uživatelská příručka</button>
+          <button type="button" class="doc-sw" data-view="docTech">🛠 Technická dokumentace</button>
+        </div>
+        <button class="btn-ghost" type="button" id="docPrint" title="Vytiskne / uloží do PDF právě zobrazenou příručku, vždy ve světlém režimu">🖨 Tisk / PDF</button>
+        <span class="doc-print-hint">Vytiskne / uloží do PDF <strong>právě zobrazenou</strong> příručku, vždy bíle.</span>
       </div>
-      <h1 class="doc-print-title">BC&nbsp;Telemetrie — technická dokumentace</h1>
+      <h1 class="doc-print-title">BC&nbsp;Telemetrie — dokumentace</h1>
+
+      <!-- ================= UŽIVATELSKÁ PŘÍRUČKA ================= -->
+      <div id="docUser" class="doc-view">
+      <p class="lead">Příručka pro práci s dashboardem. Dashboard ukazuje, <strong>kdo co v Business Centralu
+      reálně používá</strong>, <strong>kdo co vytvořil, změnil nebo smazal</strong> a <strong>komu po zúžení práv
+      chybí oprávnění</strong> — slouží jako podklad pro nastavení oprávnění (permission setů) na míru místo
+      plošného&nbsp;SUPER.</p>
+
+      <div class="toc">
+        <a href="#u-orient">Orientace</a><a href="#u-tabs">Záložky</a>
+        <a href="#u-flow">Hlavní úkol: oprávnění na míru</a><a href="#u-tables">Práce s tabulkami</a>
+        <a href="#u-ops">Provozní úkony</a><a href="#u-tips">Tipy &amp; potíže</a>
+      </div>
+
+      <h2 id="u-orient">1 · Orientace na stránce</h2>
+      <ul>
+        <li><strong>Hlavička</strong> — název vlevo (klik = zpět na úvod), <strong>živý čas</strong> (tiká jako
+          kontrola, že stránka žije; když stojí, stránka zamrzla → <code>Ctrl+F5</code>), <strong>stáří dat</strong>
+          (jak dávno proběhl poslední import) a přepínač <strong>🌙 / ☀ světlý/tmavý režim</strong>.</li>
+        <li><strong>KPI dlaždice</strong> — souhrnná čísla (aktivní uživatelé za 30 dní, použité stránky, otevření,
+          RT0031 chyby). Jsou <strong>klikací</strong> — kliknutím skočíš na odpovídající záložku.</li>
+        <li><strong>Pruh pod KPI (synchronizace)</strong> — kolik záznamů je v cloudu vs. staženo do databáze
+          (per modul) + velikost lokální DB.</li>
+      </ul>
+
+      <h2 id="u-tabs">2 · Záložky — co kde najdeš</h2>
+      <div class="doc-grid">
+        <div class="doc-card"><h4>Aktivita uživatelů</h4><p>Kdo otevírá které <strong>stránky BC</strong> a jak
+          často. Základ pro návrh rolí — vidíš reálné využití. Filtruj podle uživatele/firmy, seřaď podle
+          „Otevření", exportuj.</p></div>
+        <div class="doc-card"><h4>👤 Uživatelé</h4><p>Telemetrie zná uživatele jen jako <strong>pseudonymní
+          GUID</strong>. Tady k němu <strong>přiřadíš reálné jméno</strong> (podle firem/stránek v nápovědě);
+          jméno se pak ukáže všude. Vyplň pole „Reálné jméno" → <strong>Uložit jména</strong>.</p></div>
+        <div class="doc-card"><h4>Audit změn</h4><p><strong>Kdo</strong> kdy co vytvořil/změnil/smazal — s reálným
+          jménem, firmou, tabulkou/polem a starou→novou hodnotou. Filtr Firma a Akce = rozbalovací, datum jako
+          rozmezí od–do.</p></div>
+        <div class="doc-card"><h4>Permission errors (RT0031)</h4><p>Komu <strong>chybí oprávnění</strong>. Hlídej
+          ho hlavně první 2 týdny po zúžení práv — doplníš podle něj chybějící přístupy.</p></div>
+        <div class="doc-card"><h4>Trend</h4><p>Vývoj otevření a aktivních uživatelů <strong>v čase</strong>, lze
+          přepnout na konkrétní firmu (graf + tabulka).</p></div>
+        <div class="doc-card"><h4>🗄 Databáze</h4><p>Stav SQL serveru, velikost databáze a seznam tabulek s počty
+          řádků — provozní přehled.</p></div>
+        <div class="doc-card"><h4>🖥 Terminál</h4><p>Živá aktivita služby a log posledního importu (auto-obnova
+          10&nbsp;s) — když chceš vidět, co systém právě dělá.</p></div>
+        <div class="doc-card"><h4>⚙ Nastavení auditu</h4><p>Výběr <strong>firem</strong>, u kterých se sleduje
+          Audit změn (vypni obří firmy), a <strong>mazání</strong> naimportovaných audit záznamů.</p></div>
+        <div class="doc-card"><h4>⚙ Nastavení</h4><p>Ruční obnova dat, retenční politika, plán importu, síťový
+          whitelist, restart služby, údržba logů.</p></div>
+      </div>
+
+      <h2 id="u-flow">3 · Hlavní úkol: sestavení oprávnění na míru</h2>
+      <p>Postup, jak z dat dashboardu vytvořit permission set per uživatel/roli místo plošného SUPER:</p>
+      <ol class="step">
+        <li><strong>Sběr dat</strong> — uživatel jede pod plným přístupem, data se kumulují (ideálně ~3 měsíce).</li>
+        <li><strong>Namapuj jména</strong> — záložka <strong>👤 Uživatelé</strong> → ke GUID doplň reálná jména a ulož.</li>
+        <li><strong>Zúžení výběru</strong> — záložka <strong>Aktivita uživatelů</strong> → vyfiltruj uživatele /
+          firmu, seřaď podle „Otevření".</li>
+        <li><strong>Export</strong> — <strong>⬇ Export CSV</strong> (otevře se v Excelu, oddělovač <code>;</code>,
+          s reálnými jmény). Exportuje se <strong>celá filtrovaná sada</strong>, ne jen zobrazená stránka.</li>
+        <li><strong>Analýza</strong> — v Excelu kontingenční tabulka (řádky = Page&nbsp;ID/Stránka, filtr =
+          uživatel) → seznam objektů, kam uživatel reálně chodí.</li>
+        <li><strong>Nasazení</strong> — z toho sestav <strong>permission set v BC</strong>, odeber plný přístup.</li>
+        <li><strong>Kontrola</strong> — sleduj záložku <strong>Permission errors (RT0031)</strong> a doplň, co chybí.</li>
+      </ol>
+      <p class="note">Telemetrie využití (Aktivita) má jen pseudonym → proto je krok 2 (namapování jmen) klíčový.
+      Audit změn má reálné jméno nativně.</p>
+
+      <h2 id="u-tables">4 · Práce s tabulkami</h2>
+      <ul>
+        <li><strong>Hledání</strong> — pole nahoře filtruje přes všechny sloupce („obsahuje").</li>
+        <li><strong>Per-sloupcové filtry</strong> — řádek pod hlavičkou: Firma/Akce = rozbalovací seznam, text =
+          „obsahuje", datum = rozmezí <strong>od–do</strong>. „Vyčistit" zruší vše.</li>
+        <li><strong>Řazení</strong> — klik na hlavičku sloupce (druhý klik obrátí směr).</li>
+        <li><strong>Stránkování</strong> — dole « ‹ strana X/Y › » + přepínač <strong>50 / 100 / 200 / 500 / vše</strong>.
+          Výchozí počet řádků nastavíš v ⚙ Nastavení (uloží se v prohlížeči).</li>
+        <li><strong>⬇ Export CSV</strong> — stáhne <strong>aktuálně filtrované a seřazené</strong> řádky (UTF-8,
+          oddělovač <code>;</code> → rovnou Excel).</li>
+      </ul>
+
+      <h2 id="u-ops">5 · Provozní úkony (⚙ Nastavení)</h2>
+      <ul>
+        <li><strong>Ruční obnova dat</strong> — vynutí okamžitý import + snapshot (jinak běží automaticky dle plánu).</li>
+        <li><strong>Plán importu</strong> — okno „Od–Do", četnost (á N minut) a dny v týdnu.</li>
+        <li><strong>Retenční politika</strong> — kolik měsíců/dní se data drží.</li>
+        <li><strong>Síťový whitelist</strong> — které IP adresy smí dashboard zobrazit (jedna IP / CIDR / rozsah).</li>
+        <li><strong>Restartovat službu</strong> — bezpečný self-service restart (po nasazení změn serveru).</li>
+      </ul>
+
+      <h2 id="u-tips">6 · Tipy &amp; řešení potíží</h2>
+      <ul>
+        <li><strong>Dashboard se nenačte / „web není dostupný" (timeout)</strong> — nejčastěji firewall na serveru
+          (pravidlo dashboardu neplatí na aktuálním síťovém profilu po rebootu). Řeší správce na serveru; běžnému
+          uživateli pomůže <code>Ctrl+F5</code> až po obnově.</li>
+        <li><strong>Data vypadají stará</strong> — zkontroluj „stáří dat" v hlavičce; ruční obnovu spustíš v
+          ⚙ Nastavení → Ruční obnova.</li>
+        <li><strong>Živý čas stojí</strong> — stránka zamrzla, obnov <code>Ctrl+F5</code>.</li>
+        <li><strong>Tmavý / světlý režim</strong> — přepínač 🌙/☀ v hlavičce (volba se pamatuje).</li>
+        <li><strong>Tisk / PDF</strong> — tlačítko 🖨 nahoře v této záložce; vytiskne právě zobrazenou příručku
+          vždy bíle. V dialogu zvol cíl „Uložit jako PDF".</li>
+      </ul>
+      </div><!-- /docUser -->
+
+      <!-- ================= TECHNICKÁ DOKUMENTACE ================= -->
+      <div id="docTech" class="doc-view" hidden>
       <p class="lead">Kompletní technická dokumentace řešení BC&nbsp;Telemetrie — co to dělá, jak je propojené
       a <strong>jak je aplikace zaregistrovaná u Microsoftu (Entra / Azure) a v Business Centralu</strong>.
       Citlivé identifikátory jsou zde uvedené <strong>zkráceně (poslední znaky)</strong> kvůli bezpečnosti;
@@ -639,6 +753,7 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
       <p class="note">Plné návody v repu: <code>docs/navod-interni-axima.md</code> (interní, plné hodnoty) ·
       <code>docs/SETUP-STEP-BY-STEP.md</code> (runbook) · <code>docs/modules.md</code> (3 moduly) ·
       <code>docs/HANDOFF.md</code> (rolling stav).</p>
+      </div><!-- /docTech -->
      </div>
     </section>
   </div>
@@ -689,7 +804,16 @@ const unameHtml = g => { const n=userMap[g]; return n ? `${esc(n)} <span class="
   });
 })();
 
-// ── Tisk / PDF dokumentace (@media print vytiskne jen #panel-docs, vždy světle) ──
+// ── Přepínač Uživatelská příručka / Technická dokumentace ────────────────────
+(function docViews(){
+  const sws=document.querySelectorAll('.doc-sw'); if(!sws.length) return;
+  sws.forEach(b=>b.addEventListener('click',()=>{
+    sws.forEach(x=>x.classList.toggle('active',x===b));
+    document.querySelectorAll('.doc-view').forEach(v=>{ v.hidden = (v.id!==b.dataset.view); });
+    const d=document.querySelector('.doc'); if(d) d.scrollIntoView({block:'start'});
+  }));
+})();
+// ── Tisk / PDF dokumentace (@media print vytiskne jen viditelný #panel-docs view, vždy světle) ──
 (function(){ const b=document.getElementById('docPrint'); if(b) b.addEventListener('click',()=>window.print()); })();
 // ── Klik na název = domů (obnovit dashboard) ─────────────────────────────────
 (function(){ const h=document.getElementById('homeLink'); if(h) h.addEventListener('click',()=>location.assign('/')); })();
@@ -957,7 +1081,7 @@ Promise.all([
   .catch(e=>{document.getElementById('loading').textContent='Chyba načtení data.json: '+e.message;});
 
 // verze nasazeneho dashboardu (bump pri kazdem deployi index.html); snapshot ji muze prebit (d.version)
-const APP_VER={push:61,commit:'9521574',repo:'https://github.com/Anamax443/BC_Telemetry'};
+const APP_VER={push:62,commit:'pending',repo:'https://github.com/Anamax443/BC_Telemetry'};
 function render(d){
   document.getElementById('loading').hidden=true;
   document.getElementById('app').hidden=false;
