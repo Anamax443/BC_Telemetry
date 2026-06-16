@@ -38,31 +38,59 @@ $ChangeLogRetentionMonths = 24
 $rf = 'C:\Apps\BC_Telemetry_Web\ops\retention.json'
 if (Test-Path $rf) { try { $rc = Get-Content -Raw $rf | ConvertFrom-Json; if ($rc.changeLogMonths) { $ChangeLogRetentionMonths = [int]$rc.changeLogMonths } } catch {} }
 
-# Vlozi stranku Change Log zaznamu (dedup pres UX index = swallow duplicit). Vraci pocet vlozenych.
-function Add-ChangeLogPage {
+# Bulk: stranku Change Log zaznamu nahraje do #Staging (rychle). Vraci pocet nahranych radku.
+function Add-StagePage {
     param($Conn, $Entries, [string]$Company)
-    $n = 0
-    foreach ($e in $Entries) {
-        $c = $Conn.CreateCommand()
-        $c.CommandText = @"
-INSERT INTO dbo.BCChangeLog (EntryNo,ChangedAt,UserId,CompanyName,TableNo,TableName,FieldNo,FieldName,ChangeType,PrimaryKey,OldValue,NewValue)
-VALUES (@EntryNo,@ChangedAt,@UserId,@Company,@TableNo,@TableName,@FieldNo,@FieldName,@ChangeType,@PK,@Old,@New)
-"@
-        $c.Parameters.AddWithValue('@EntryNo',   [int64]$e.Entry_No)         | Out-Null
-        $c.Parameters.AddWithValue('@ChangedAt', [datetime]$e.Date_and_Time) | Out-Null
-        $c.Parameters.AddWithValue('@UserId',    "$($e.User_ID)")            | Out-Null
-        $c.Parameters.AddWithValue('@Company',   $Company)                   | Out-Null
-        $c.Parameters.AddWithValue('@TableNo',   [int]$e.Table_No)           | Out-Null
-        $c.Parameters.AddWithValue('@TableName', "$($e.Table_Caption)")      | Out-Null
-        $c.Parameters.AddWithValue('@FieldNo',   [int]$e.Field_No)           | Out-Null
-        $c.Parameters.AddWithValue('@FieldName', "$($e.Field_Caption)")      | Out-Null
-        $c.Parameters.AddWithValue('@ChangeType',"$($e.Type_of_Change)")     | Out-Null
-        $c.Parameters.AddWithValue('@PK',        "$($e.Primary_Key)")        | Out-Null
-        $c.Parameters.AddWithValue('@Old',       "$($e.Old_Value)")          | Out-Null
-        $c.Parameters.AddWithValue('@New',       "$($e.New_Value)")          | Out-Null
-        try { $c.ExecuteNonQuery() | Out-Null; $n++ } catch { }
+    $rows = @($Entries)
+    if (-not $rows.Count) { return 0 }
+    $dt = New-Object System.Data.DataTable
+    foreach ($c in 'EntryNo','ChangedAt','UserId','CompanyName','TableNo','TableName','FieldNo','FieldName','ChangeType','PrimaryKey','OldValue','NewValue') { [void]$dt.Columns.Add($c) }
+    $dt.Columns['EntryNo'].DataType   = [int64]
+    $dt.Columns['ChangedAt'].DataType = [datetime]
+    $dt.Columns['TableNo'].DataType   = [int]
+    $dt.Columns['FieldNo'].DataType   = [int]
+    foreach ($e in $rows) {
+        $tn = 0; if ($null -ne $e.Table_No -and "$($e.Table_No)" -ne '') { $tn = [int]$e.Table_No }
+        $fn = 0; if ($null -ne $e.Field_No -and "$($e.Field_No)" -ne '') { $fn = [int]$e.Field_No }
+        $r = $dt.NewRow()
+        $r['EntryNo']     = [int64]$e.Entry_No
+        $r['ChangedAt']   = [datetime]$e.Date_and_Time
+        $r['UserId']      = "$($e.User_ID)"
+        $r['CompanyName'] = $Company
+        $r['TableNo']     = $tn
+        $r['TableName']   = "$($e.Table_Caption)"
+        $r['FieldNo']     = $fn
+        $r['FieldName']   = "$($e.Field_Caption)"
+        $r['ChangeType']  = "$($e.Type_of_Change)"
+        $r['PrimaryKey']  = "$($e.Primary_Key)"
+        $r['OldValue']    = "$($e.Old_Value)"
+        $r['NewValue']    = "$($e.New_Value)"
+        $dt.Rows.Add($r)
     }
-    return $n
+    $bulk = New-Object System.Data.SqlClient.SqlBulkCopy($Conn)
+    try {
+        $bulk.DestinationTableName = '#Staging'; $bulk.BatchSize = 5000; $bulk.BulkCopyTimeout = 600
+        foreach ($c in $dt.Columns) { [void]$bulk.ColumnMappings.Add($c.ColumnName, $c.ColumnName) }
+        $bulk.WriteToServer($dt)
+    } finally { $bulk.Close() }
+    return $dt.Rows.Count
+}
+# Dedup-insert ze #Staging do dbo.BCChangeLog (UX = CompanyName+EntryNo) + TRUNCATE. Vraci pocet vlozenych.
+function Invoke-FlushStaging {
+    param($Conn)
+    $cmd = $Conn.CreateCommand(); $cmd.CommandTimeout = 600
+    $cmd.CommandText = @"
+WITH d AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY CompanyName, EntryNo ORDER BY (SELECT 1)) AS rn FROM #Staging
+)
+INSERT INTO dbo.BCChangeLog (EntryNo,ChangedAt,UserId,CompanyName,TableNo,TableName,FieldNo,FieldName,ChangeType,PrimaryKey,OldValue,NewValue)
+SELECT EntryNo, ChangedAt, LEFT(UserId,132), LEFT(CompanyName,100), TableNo, LEFT(TableName,200), FieldNo, LEFT(FieldName,200), LEFT(ChangeType,20), LEFT(PrimaryKey,440), OldValue, NewValue
+FROM d
+WHERE rn = 1 AND NOT EXISTS (SELECT 1 FROM dbo.BCChangeLog b WHERE b.CompanyName = d.CompanyName AND b.EntryNo = d.EntryNo);
+SELECT @@ROWCOUNT;
+TRUNCATE TABLE #Staging;
+"@
+    return [int]$cmd.ExecuteScalar()
 }
 
 # changelog-companies.json patri tam, odkud ho cte/pise dashboard (web sluzba)
@@ -117,6 +145,11 @@ try {
     #   Phase A: dosync k SOUCASNOSTI -> Entry_No gt MAX vzestupne, re-query az do vycerpani (gap-free).
     #   Phase B: backfill HISTORIE -> Entry_No lt MIN sestupne, bounded -BackfillRowsPerRun (gap-free).
     # MAX/MIN drzi horni i dolni hranu souvisleho rozsahu -> zadne diry.
+    # #Staging pro bulk insert (radove rychlejsi nez row-by-row)
+    $cmdStage = $conn.CreateCommand()
+    $cmdStage.CommandText = "IF OBJECT_ID('tempdb..#Staging') IS NOT NULL DROP TABLE #Staging; CREATE TABLE #Staging (EntryNo BIGINT, ChangedAt DATETIME2(3), UserId NVARCHAR(MAX), CompanyName NVARCHAR(MAX), TableNo INT, FieldNo INT, TableName NVARCHAR(MAX), FieldName NVARCHAR(MAX), ChangeType NVARCHAR(MAX), PrimaryKey NVARCHAR(MAX), OldValue NVARCHAR(MAX), NewValue NVARCHAR(MAX));"
+    $cmdStage.ExecuteNonQuery() | Out-Null
+
     $inserted = 0
     function Get-MinMax($conn, $company) {
         $cmd = $conn.CreateCommand()
@@ -133,7 +166,8 @@ try {
         # Phase 0 — prazdna firma: seed nejnovejsim blokem
         if ($mm.Count -eq 0) {
             $resp = Invoke-RestMethod -Headers $headers -Uri "$svc`?`$orderby=Entry_No desc&`$top=5000"
-            $inserted += (Add-ChangeLogPage $conn @($resp.value) $company)
+            [void](Add-StagePage $conn @($resp.value) $company)
+            $inserted += (Invoke-FlushStaging $conn)   # flush hned, aby min/max sedely pro Phase A/B
             $mm = Get-MinMax $conn $company
         }
 
@@ -142,7 +176,7 @@ try {
         while ($fwd -lt $ForwardRowsPerRun) {
             $resp = Invoke-RestMethod -Headers $headers -Uri "$svc`?`$filter=Entry_No gt $cursor&`$orderby=Entry_No&`$top=5000"
             $page = @($resp.value); if (-not $page.Count) { break }
-            $inserted += (Add-ChangeLogPage $conn $page $company); $fwd += $page.Count
+            [void](Add-StagePage $conn $page $company); $fwd += $page.Count
             $cursor = [int64]($page | Measure-Object -Property Entry_No -Maximum).Maximum
         }
 
@@ -153,11 +187,13 @@ try {
             while ($bf -lt $BackfillRowsPerRun) {
                 $resp = Invoke-RestMethod -Headers $headers -Uri "$svc`?`$filter=Entry_No lt $cursor&`$orderby=Entry_No desc&`$top=5000"
                 $page = @($resp.value); if (-not $page.Count) { break }
-                $inserted += (Add-ChangeLogPage $conn $page $company); $bf += $page.Count
+                [void](Add-StagePage $conn $page $company); $bf += $page.Count
                 $cursor = [int64]($page | Measure-Object -Property Entry_No -Minimum).Minimum
             }
         }
-        Write-Host "  $company : forward +$fwd, backfill +$bf (max=$($mm.Max), min=$($mm.Min))"
+        $ins = Invoke-FlushStaging $conn
+        $inserted += $ins
+        Write-Host "  $company : forward +$fwd, backfill +$bf, vlozeno +$ins (max=$($mm.Max), min=$($mm.Min))"
     }
     Write-Host "Change Log: vloženo $inserted nových záznamů napříč $($companyList.Count) firmami."
 
