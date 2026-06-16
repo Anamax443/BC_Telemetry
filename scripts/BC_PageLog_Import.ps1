@@ -178,13 +178,26 @@ CREATE TABLE #Staging (
         $bulk.WriteToServer($dt)
         Write-Log "Staging naplněn: $($dt.Rows.Count) řádků."
 
-        # MERGE — dedup přes (Timestamp, UserId, PageId); idempotentní vůči re-importu
+        # Dedup přes (Timestamp, UserId, PageId); idempotentní vůči re-importu.
+        # POZOR: dedupovat MUSÍME i UVNITŘ dávky — AppPageViews vrací víc událostí se
+        # stejným (Timestamp ms, UserId, PageId); jinak by INSERT...WHERE NOT EXISTS
+        # vložil oba (v cíli ještě nejsou) a srazil se na UX_BCPageLog_Dedup → rollback
+        # celé dávky → watermark zamrzne. ROW_NUMBER nechá z každého klíče jen 1 řádek.
         $cmdMerge = $conn.CreateCommand(); $cmdMerge.Transaction = $tran
         $cmdMerge.CommandText = @"
+WITH dedup AS (
+    SELECT Timestamp, UserId, UserName, PageId, PageName, CompanyName,
+           ROW_NUMBER() OVER (
+               PARTITION BY Timestamp, UserId, ISNULL(PageId,'')
+               ORDER BY (SELECT 1)
+           ) AS rn
+    FROM #Staging
+)
 INSERT INTO dbo.BCPageLog (Timestamp, UserId, UserName, PageId, PageName, CompanyName)
 SELECT s.Timestamp, s.UserId, s.UserName, s.PageId, s.PageName, s.CompanyName
-FROM #Staging s
-WHERE NOT EXISTS (
+FROM dedup s
+WHERE s.rn = 1
+  AND NOT EXISTS (
     SELECT 1 FROM dbo.BCPageLog b
     WHERE b.Timestamp = s.Timestamp AND b.UserId = s.UserId
       AND ISNULL(b.PageId,'') = ISNULL(s.PageId,'')
