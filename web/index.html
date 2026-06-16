@@ -198,6 +198,32 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
 .doc a:hover{text-decoration:underline;}
 .doc .toc{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;}
 .doc .toc a{font-size:12px;background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:4px 12px;}
+.doc-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
+.doc-print-hint{font-size:11px;color:var(--text3);}
+.doc-print-title{display:none;}
+/* === Tisk / PDF: jen dokumentace, vždy světle === */
+@media print{
+  :root, html[data-theme="dark"]{
+    --bg:#fff;--bg2:#fff;--bg3:#f3f4f6;--border:#cbd2dd;--accent:#1d4ed8;--accent2:#1d4ed8;
+    --text:#111;--text2:#2a2a2a;--text3:#555;--green:#15803d;--yellow:#92600a;--red:#b91c1c;
+  }
+  body{background:#fff!important;color:#111!important;font-size:11pt;}
+  header,.kpis,.sync-strip,.tabs,footer.foot,.no-print{display:none!important;}
+  main{max-width:100%;margin:0;padding:0;}
+  .panel{display:none!important;}
+  #panel-docs{display:block!important;}
+  .doc{max-width:100%;}
+  .doc-print-title{display:block;font-size:18pt;font-weight:600;margin:0 0 4px;color:#111;}
+  .doc .toc{display:none;}
+  .doc-flow,.doc-card,.doc .note,.doc th,.mono,.doc code,.doc table td.mono-cell{
+    background:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  .doc-flow,.doc-card,.doc .note{border:1px solid #cbd2dd!important;}
+  .doc a{color:#111!important;text-decoration:none;}
+  .doc h2{break-after:avoid;border-bottom:1px solid #cbd2dd;}
+  .doc-card,.doc table,.doc .note,.doc-flow,.doc ol,.doc ul{break-inside:avoid;}
+  .doc h2,.doc h3{break-inside:avoid;}
+  @page{margin:14mm;}
+}
 </style>
 </head>
 <body>
@@ -407,6 +433,11 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
 
     <section class="panel" id="panel-docs">
      <div class="doc">
+      <div class="doc-actions no-print">
+        <button class="btn-ghost" type="button" id="docPrint" title="Vytiskne / uloží do PDF jen tuto dokumentaci, vždy ve světlém režimu">🖨 Tisk / PDF</button>
+        <span class="doc-print-hint">Tlačítko otevře dialog tisku — v něm zvol „Uložit jako PDF". Tiskne se vždy bíle, jen dokumentace.</span>
+      </div>
+      <h1 class="doc-print-title">BC&nbsp;Telemetrie — technická dokumentace</h1>
       <p class="lead">Kompletní technická dokumentace řešení BC&nbsp;Telemetrie — co to dělá, jak je propojené
       a <strong>jak je aplikace zaregistrovaná u Microsoftu (Entra / Azure) a v Business Centralu</strong>.
       Citlivé identifikátory jsou zde uvedené <strong>zkráceně (poslední znaky)</strong> kvůli bezpečnosti;
@@ -658,6 +689,8 @@ const unameHtml = g => { const n=userMap[g]; return n ? `${esc(n)} <span class="
   });
 })();
 
+// ── Tisk / PDF dokumentace (@media print vytiskne jen #panel-docs, vždy světle) ──
+(function(){ const b=document.getElementById('docPrint'); if(b) b.addEventListener('click',()=>window.print()); })();
 // ── Klik na název = domů (obnovit dashboard) ─────────────────────────────────
 (function(){ const h=document.getElementById('homeLink'); if(h) h.addEventListener('click',()=>location.assign('/')); })();
 (function(){ const y=document.getElementById('cpYear'); if(y) y.textContent=new Date().getFullYear(); })();
@@ -924,7 +957,7 @@ Promise.all([
   .catch(e=>{document.getElementById('loading').textContent='Chyba načtení data.json: '+e.message;});
 
 // verze nasazeneho dashboardu (bump pri kazdem deployi index.html); snapshot ji muze prebit (d.version)
-const APP_VER={push:60,commit:'fef2089',repo:'https://github.com/Anamax443/BC_Telemetry'};
+const APP_VER={push:61,commit:'pending',repo:'https://github.com/Anamax443/BC_Telemetry'};
 function render(d){
   document.getElementById('loading').hidden=true;
   document.getElementById('app').hidden=false;
