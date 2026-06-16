@@ -124,9 +124,13 @@ html[data-theme="dark"] .spark .col{background:rgba(96,165,250,.35);}
 .danger .wl-ta{min-height:auto;}
 .confirm-in{font-family:var(--mono);font-size:12px;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);width:160px;}
 /* ── Řádek filtrů pod hlavičkou tabulky ── */
-tr.filterrow th{padding:5px 8px 8px;background:var(--bg3);border-bottom:1px solid var(--border);cursor:default;}
-tr.filterrow input,tr.filterrow select{width:100%;font-family:var(--sans);font-size:12px;padding:4px 7px;border:1px solid var(--border);border-radius:5px;background:var(--bg);color:var(--text);}
-tr.filterrow input:focus,tr.filterrow select:focus{outline:none;border-color:var(--accent);}
+.filterbar{display:flex;flex-wrap:wrap;gap:8px 12px;margin:0 0 12px;padding:10px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;}
+.fb-item{display:flex;flex-direction:column;gap:3px;}
+.fb-item>span{font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--text3);}
+.fb-item input,.fb-item select{font-family:var(--sans);font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:5px;background:var(--bg);color:var(--text);min-width:130px;}
+.fb-item input:focus,.fb-item select:focus{outline:none;border-color:var(--accent);}
+.fb-clear{align-self:flex-end;font-size:12px;color:var(--accent2);background:none;border:none;cursor:pointer;padding:6px 2px;font-family:var(--sans);}
+.fb-clear:hover{text-decoration:underline;}
 /* ── Patička ── */
 footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;text-align:center;color:var(--text3);font-size:12px;font-family:var(--mono);}
 .trend-sel{font-family:var(--sans);font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg);color:var(--text);}
@@ -697,33 +701,38 @@ function setupTable(key,rows,rowFn,searchFields,max,defaultSort){
     const s=state[key]; const col=th.dataset.sort;
     s.sortDir=(s.sortKey===col)?-s.sortDir:1; s.sortKey=col; draw(key);
   }));
-  buildFilterRow(key,rows);
+  buildFilterBar(key,rows);
   draw(key);
 }
-// Vloží pod hlavičku řádek filtrů (jeden na sloupec). Firma/Akce = dropdown, text/datum = obsahuje.
-function buildFilterRow(key,rows){
-  const thead=document.querySelector('#tbl'+key+' thead'); if(!thead) return;
-  const headRow=thead.querySelector('tr'); if(!headRow) return;
-  thead.querySelectorAll('tr.filterrow').forEach(r=>r.remove());
-  const fr=document.createElement('tr'); fr.className='filterrow';
+// Filtrační lišta nad tabulkou (zalamuje se do víc řádků). Firma/Akce = dropdown, text/datum = obsahuje.
+function buildFilterBar(key,rows){
+  const tbl=document.getElementById('tbl'+key); if(!tbl) return;
+  const prev=tbl.previousElementSibling; if(prev && prev.classList.contains('filterbar')) prev.remove();
+  const headRow=tbl.querySelector('thead tr'); if(!headRow) return;
+  const bar=document.createElement('div'); bar.className='filterbar';
   [...headRow.children].forEach(th=>{
-    const cell=document.createElement('th'); const f=th.dataset.sort;
-    if(f && !NO_FILTER.has(f)){
-      if(SELECT_FILTER.has(f)){
-        const sel=document.createElement('select');
-        const vals=[...new Set(rows.map(r=>r[f]).filter(v=>v!=null&&v!==''))].map(String).sort((a,b)=>a.localeCompare(b,'cs'));
-        sel.innerHTML='<option value="">— vše —</option>'+vals.map(v=>'<option value="'+esc(v)+'">'+esc(v)+'</option>').join('');
-        sel.addEventListener('change',()=>{ state[key].colFilters[f]=sel.value; draw(key); });
-        cell.appendChild(sel);
-      } else {
-        const inp=document.createElement('input'); inp.type='text'; inp.placeholder='filtr…';
-        inp.addEventListener('input',()=>{ state[key].colFilters[f]=inp.value.toLowerCase(); draw(key); });
-        cell.appendChild(inp);
-      }
+    const f=th.dataset.sort; if(!f || NO_FILTER.has(f)) return;
+    const item=document.createElement('label'); item.className='fb-item';
+    const lbl=document.createElement('span'); lbl.textContent=th.textContent; item.appendChild(lbl);
+    if(SELECT_FILTER.has(f)){
+      const sel=document.createElement('select');
+      const vals=[...new Set(rows.map(r=>r[f]).filter(v=>v!=null&&v!==''))].map(String).sort((a,b)=>a.localeCompare(b,'cs'));
+      sel.innerHTML='<option value="">— vše —</option>'+vals.map(v=>'<option value="'+esc(v)+'">'+esc(v)+'</option>').join('');
+      sel.value=state[key].colFilters[f]||'';
+      sel.addEventListener('change',()=>{ state[key].colFilters[f]=sel.value; draw(key); });
+      item.appendChild(sel);
+    } else {
+      const inp=document.createElement('input'); inp.type='text'; inp.placeholder='filtr…';
+      inp.value=state[key].colFilters[f]||'';
+      inp.addEventListener('input',()=>{ state[key].colFilters[f]=inp.value.toLowerCase(); draw(key); });
+      item.appendChild(inp);
     }
-    fr.appendChild(cell);
+    bar.appendChild(item);
   });
-  thead.appendChild(fr);
+  const clr=document.createElement('button'); clr.className='fb-clear'; clr.type='button'; clr.textContent='Vyčistit filtry';
+  clr.addEventListener('click',()=>{ state[key].colFilters={}; buildFilterBar(key,rows); draw(key); });
+  bar.appendChild(clr);
+  tbl.insertAdjacentElement('beforebegin', bar);
 }
 
 function draw(key){
