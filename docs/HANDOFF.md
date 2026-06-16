@@ -10,6 +10,7 @@ Filtry tabulek = zalamovací lišta `.filterbar` (popisky + „Vyčistit"); datu
 - `PUT /schedule` jen zapíše `ops/schedule.json` `{startTime,endTime,intervalMinutes,days:[0=Ne..6=So]}` (instant). `Invoke-BCTelemetryDaily.ps1`: brána dle `days` (neplánovaný den → skip), pak `do{import}while` opakuje á `intervalMinutes` do `endTime`.
 - **Manuál /refresh** = `ops/oneshot.flag` → wrapper proběhne **1×** (neloopuje, ignoruje dny).
 - **Auto-start:** uložení plánu, když `startTime` už minul a jsme v okně + dnešní den je v plánu → spustí import hned (windowed). `runPs` má timeout 90 s.
+- **Perf v loopu (`e773d88`):** import+snapshot každý cyklus, ale `Update-SyncStatus` (drahý cloud `$count` ~3 min) jen 1×/60 min → cyklus ~4 min → ~1 min, lze jet á 2–5 min bez zátěže.
 - Chceš-li, aby repetici řídil **nativně Windows scheduler** (vidět v „příští běh"): jednorázově `schtasks /Change … /RI … /RU svc /RP <heslo>` na serveru (admin) — viz reakce v chatu.
 
 ### Správa služby + retence z dashboardu (2026-06-16, Push #51, „dávka A")
