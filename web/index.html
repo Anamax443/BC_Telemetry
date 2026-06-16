@@ -129,6 +129,7 @@ tr.filterrow input,tr.filterrow select{width:100%;font-family:var(--sans);font-s
 tr.filterrow input:focus,tr.filterrow select:focus{outline:none;border-color:var(--accent);}
 /* ── Patička ── */
 footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;text-align:center;color:var(--text3);font-size:12px;font-family:var(--mono);}
+.trend-sel{font-family:var(--sans);font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg);color:var(--text);}
 </style>
 </head>
 <body>
@@ -146,7 +147,6 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
     <div class="sync-strip" id="sync"></div>
     <div class="tabs">
       <button class="tab active" data-panel="activity">Aktivita uživatelů</button>
-      <button class="tab" data-panel="trim">Kandidáti na vyřazení</button>
       <button class="tab" data-panel="users">👤 Uživatelé</button>
       <button class="tab" data-panel="audit">Audit změn</button>
       <button class="tab" data-panel="migration">Permission errors (RT0031)</button>
@@ -163,20 +163,6 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
         <button class="btn-ghost" data-export="Activity" title="Stáhne aktuálně filtrované řádky jako CSV (Excel, oddělovač ;) — podklad pro permission sety">⬇ Export CSV</button>
       </div>
       <table id="tblActivity"><thead><tr>
-        <th data-sort="UserName">Uživatel</th><th data-sort="PageId">Page ID</th>
-        <th data-sort="PageName">Stránka</th><th data-sort="CompanyName">Firma</th>
-        <th data-sort="TotalHits">Otevření</th><th data-sort="LastUsed">Naposledy</th>
-      </tr></thead><tbody></tbody></table>
-    </section>
-
-    <section class="panel" id="panel-trim">
-      <div class="toolbar">
-        <input type="text" id="searchTrim" placeholder="Filtr: uživatel / stránka…">
-        <span class="count" id="countTrim"></span>
-        <button class="btn-ghost" data-export="Trim" title="Stáhne aktuálně filtrované řádky jako CSV (Excel, oddělovač ;)">⬇ Export CSV</button>
-      </div>
-      <p style="display:none"></p>
-      <table id="tblTrim"><thead><tr>
         <th data-sort="UserName">Uživatel</th><th data-sort="PageId">Page ID</th>
         <th data-sort="PageName">Stránka</th><th data-sort="CompanyName">Firma</th>
         <th data-sort="TotalHits">Otevření</th><th data-sort="LastUsed">Naposledy</th>
@@ -224,6 +210,10 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
     </section>
 
     <section class="panel" id="panel-trend">
+      <div class="toolbar">
+        <select id="trendCompany" class="trend-sel"></select>
+        <span class="count" id="countTrend"></span>
+      </div>
       <div class="spark" id="spark"></div>
       <table id="tblTrend"><thead><tr>
         <th data-sort="DateKey">Datum</th><th data-sort="Hits">Otevření</th><th data-sort="Users">Aktivní uživatelé</th>
@@ -427,7 +417,7 @@ function buildUsers(){
       const r=await fetch('/usermap',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(map)});
       const j=await r.json(); if(!r.ok) throw new Error(j.error||r.status);
       userMap=map; msg.className='wl-msg ok'; msg.textContent='✓ uloženo ('+j.count+' jmen)';
-      ['Activity','Trim','Mig'].forEach(k=>{ if(state[k]) draw(k); });
+      ['Activity','Mig'].forEach(k=>{ if(state[k]) draw(k); });
     }catch(e){ msg.className='wl-msg err'; msg.textContent='⚠ '+(e.message||e); save.disabled=false; }
   });
 })();
@@ -487,10 +477,9 @@ function render(d){
   }
 
   setupTable('Activity',d.userActivity||[],activityRow,['UserName','PageName'],maxHits(d.userActivity),{key:'LastUsed',dir:-1});
-  setupTable('Trim',d.trimCandidates||[],trimRow,['UserName','PageName'],null,{key:'LastUsed',dir:-1});
   setupTable('Mig',d.authFails||[],migRow,['UserName','ObjectName'],null,{key:'DateKey',dir:-1});
   setupTable('Audit',d.changeLog||[],auditRow,['UserId','TableName','FieldName','PrimaryKey'],null,{key:'ChangedAt',dir:-1});
-  renderTrend(d.trend||[]);
+  setupTrend(d.trend||[], d.trendByCompany||[]);
   buildUsers();
 
   document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
@@ -679,12 +668,6 @@ function activityRow(r,max){
   <td class="num"><div class="bar" data-pct="${Math.round(100*(r.TotalHits||0)/(max||1))}"><span>${fmt(r.TotalHits)}</span></div></td>
   <td class="num">${esc(r.LastUsed)}</td></tr>`;
 }
-function trimRow(r){
-  return `<tr><td>${unameHtml(r.UserName)}</td><td><span class="mono">${esc(r.PageId)}</span></td>
-  <td>${esc(r.PageName)}</td><td>${esc(r.CompanyName)}</td>
-  <td class="num"><span class="pill pill-gray">${fmt(r.TotalHits)}×</span></td>
-  <td class="num">${esc(r.LastUsed)}</td></tr>`;
-}
 function migRow(r){
   return `<tr><td class="num">${esc(r.DateKey)}</td><td>${unameHtml(r.UserName)}</td>
   <td><span class="mono">${esc(r.ObjectId)}</span></td><td>${esc(r.ObjectName)}</td>
@@ -771,8 +754,6 @@ const _expUser = r => userMap[r.UserName]||'';
 const EXPORT_COLS = {
   Activity:[{header:'Uživatel',get:_expUser},{header:'GUID',get:r=>r.UserName},{header:'Page ID',get:r=>r.PageId},
     {header:'Stránka',get:r=>r.PageName},{header:'Firma',get:r=>r.CompanyName},{header:'Otevření',get:r=>r.TotalHits},{header:'Naposledy',get:r=>r.LastUsed}],
-  Trim:[{header:'Uživatel',get:_expUser},{header:'GUID',get:r=>r.UserName},{header:'Page ID',get:r=>r.PageId},
-    {header:'Stránka',get:r=>r.PageName},{header:'Firma',get:r=>r.CompanyName},{header:'Otevření',get:r=>r.TotalHits},{header:'Naposledy',get:r=>r.LastUsed}],
   Mig:[{header:'Datum',get:r=>r.DateKey},{header:'Uživatel',get:_expUser},{header:'GUID',get:r=>r.UserName},
     {header:'Objekt',get:r=>r.ObjectId},{header:'Název',get:r=>r.ObjectName},{header:'RT0031',get:r=>r.Failures}],
   Audit:[{header:'Kdy',get:r=>r.ChangedAt},{header:'Kdo',get:r=>r.UserId},{header:'Akce',get:r=>r.ChangeType},
@@ -793,7 +774,24 @@ function exportCsv(key){
 }
 document.addEventListener('click',e=>{ const b=e.target.closest('[data-export]'); if(b) exportCsv(b.dataset.export); });
 
-function renderTrend(trend){
+// Trend: celkově (vw_DashTrend) nebo filtrovaně dle firmy (trendByCompany).
+function setupTrend(trendAll, byCompany){
+  state.trendAll=Array.isArray(trendAll)?trendAll:[];
+  state.trendByCompany=Array.isArray(byCompany)?byCompany:[];
+  const sel=document.getElementById('trendCompany');
+  if(sel){
+    const firmy=[...new Set(state.trendByCompany.map(t=>t.CompanyName).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'cs'));
+    sel.innerHTML='<option value="">Všechny firmy</option>'+firmy.map(c=>'<option value="'+esc(c)+'">'+esc(c)+'</option>').join('');
+    sel.onchange=()=>drawTrend(sel.value);
+  }
+  drawTrend('');
+}
+function drawTrend(company){
+  // řádky pro vybranou firmu (per datum) nebo celkový agregát
+  let trend = company
+    ? state.trendByCompany.filter(t=>t.CompanyName===company).map(t=>({DateKey:t.DateKey,Hits:t.Hits,Users:t.Users}))
+    : state.trendAll;
+  trend = trend.slice().sort((a,b)=>(a.DateKey<b.DateKey?-1:a.DateKey>b.DateKey?1:0));
   const spark=document.getElementById('spark');
   const max=trend.length?Math.max(...trend.map(t=>t.Hits||0)):1;
   spark.innerHTML=trend.map(t=>`<div class="col" data-pct="${Math.round(100*(t.Hits||0)/(max||1))}" title="${esc(t.DateKey)}: ${fmt(t.Hits)} otevření / ${fmt(t.Users)} uživatelů"></div>`).join('');
@@ -802,6 +800,8 @@ function renderTrend(trend){
   tbody.innerHTML=trend.slice().reverse().map(t=>
     `<tr><td class="num">${esc(t.DateKey)}</td><td class="num">${fmt(t.Hits)}</td><td class="num">${fmt(t.Users)}</td></tr>`).join('')
     ||`<tr><td colspan="3"><div class="empty">Žádná data</div></td></tr>`;
+  const c=document.getElementById('countTrend');
+  if(c) c.textContent=(company?company:'všechny firmy')+' · '+trend.length+' dní';
 }
 </script>
 </body>
