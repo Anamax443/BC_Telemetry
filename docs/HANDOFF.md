@@ -1,7 +1,7 @@
 # BC_Telemetry — HANDOFF (rolling)
 
 Aktuální stav projektu pro pokračování v další session. Updatuje se průběžně.
-Poslední update: **2026-06-16** (Push #60 / `44fb550`) · repo `Anamax443/BC_Telemetry`.
+Poslední update: **2026-06-16** (Push #60 / `fef2089`) · repo `Anamax443/BC_Telemetry`.
 Nová záložka **📖 Dokumentace** přímo v dashboardu (architektura + **registrace u Microsoftu/Entra a v Business Centralu**, 3 moduly, klíčové ID maskovaně „posl. znaky", bezpečnost/endpointy). Jen `index.html` (no-store, bez restartu).
 Tabulky: **stránkování** (50/100/200/500/vše, default v Nastavení = localStorage) + **responzivní** layout (mobil/tablet; široký Audit horizontálně scrolluje). Záložka **🗄 Databáze** (stav SQL).
 Modul B = **bulk insert** (SqlBulkCopy→#Staging→dedup, `fa08d7e`) místo row-by-row. Plán importu (okno+četnost+**dny**, auto-start v okně) řídí wrapper (viz níže). Uživatelé filtr+export, KPI „Aktivní uživatelé"→záložka Uživatelé.
