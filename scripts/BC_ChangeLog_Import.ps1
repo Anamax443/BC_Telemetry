@@ -103,13 +103,23 @@ if (-not $CompaniesFile) {
 # ── OAuth2 client-credentials → token pro BC API ─────────────────────────────
 $secret = (Get-StoredCredential -Target $SecretTarget).Password
 $plain  = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($secret))
-$tok = Invoke-RestMethod -Method Post -Uri "https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token" -Body @{
-    client_id     = $ClientId
-    client_secret = $plain
-    scope         = 'https://api.businesscentral.dynamics.com/.default'
-    grant_type    = 'client_credentials'
+# Token se sam obnovuje (dlouhy backfill velke firmy > 1h -> jinak vyprsi -> 401 Unauthorized).
+$script:bcTokenTime = $null
+$script:bcHeaders = $null
+function Get-BCHeaders {
+    if (-not $script:bcTokenTime -or ((Get-Date) - $script:bcTokenTime).TotalMinutes -ge 45) {
+        $t = Invoke-RestMethod -Method Post -Uri "https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token" -Body @{
+            client_id     = $ClientId
+            client_secret = $plain
+            scope         = 'https://api.businesscentral.dynamics.com/.default'
+            grant_type    = 'client_credentials'
+        }
+        $script:bcHeaders = @{ Authorization = "Bearer $($t.access_token)" }
+        $script:bcTokenTime = Get-Date
+    }
+    return $script:bcHeaders
 }
-$headers = @{ Authorization = "Bearer $($tok.access_token)" }
+$headers = Get-BCHeaders
 
 # ── SQL watermark ────────────────────────────────────────────────────────────
 $conn = New-Object System.Data.SqlClient.SqlConnection
@@ -165,7 +175,7 @@ try {
 
         # Phase 0 — prazdna firma: seed nejnovejsim blokem
         if ($mm.Count -eq 0) {
-            $resp = Invoke-RestMethod -Headers $headers -Uri "$svc`?`$orderby=Entry_No desc&`$top=5000"
+            $resp = Invoke-RestMethod -Headers (Get-BCHeaders) -Uri "$svc`?`$orderby=Entry_No desc&`$top=5000"
             [void](Add-StagePage $conn @($resp.value) $company)
             $inserted += (Invoke-FlushStaging $conn)   # flush hned, aby min/max sedely pro Phase A/B
             $mm = Get-MinMax $conn $company
@@ -174,7 +184,7 @@ try {
         # Phase A — dosync k soucasnosti (vzestupne nad MAX), bounded (pojistka proti zaseknuti)
         $cursor = $mm.Max; $fwd = 0
         while ($fwd -lt $ForwardRowsPerRun) {
-            $resp = Invoke-RestMethod -Headers $headers -Uri "$svc`?`$filter=Entry_No gt $cursor&`$orderby=Entry_No&`$top=5000"
+            $resp = Invoke-RestMethod -Headers (Get-BCHeaders) -Uri "$svc`?`$filter=Entry_No gt $cursor&`$orderby=Entry_No&`$top=5000"
             $page = @($resp.value); if (-not $page.Count) { break }
             [void](Add-StagePage $conn $page $company); $fwd += $page.Count
             $cursor = [int64]($page | Measure-Object -Property Entry_No -Maximum).Maximum
@@ -185,7 +195,7 @@ try {
         if ($BackfillRowsPerRun -gt 0 -and $mm.Min -gt 1) {
             $cursor = $mm.Min
             while ($bf -lt $BackfillRowsPerRun) {
-                $resp = Invoke-RestMethod -Headers $headers -Uri "$svc`?`$filter=Entry_No lt $cursor&`$orderby=Entry_No desc&`$top=5000"
+                $resp = Invoke-RestMethod -Headers (Get-BCHeaders) -Uri "$svc`?`$filter=Entry_No lt $cursor&`$orderby=Entry_No desc&`$top=5000"
                 $page = @($resp.value); if (-not $page.Count) { break }
                 [void](Add-StagePage $conn $page $company); $bf += $page.Count
                 $cursor = [int64]($page | Measure-Object -Property Entry_No -Minimum).Minimum
