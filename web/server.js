@@ -61,7 +61,7 @@ function ensureOpsDir() {
 function runPs(script) {
   return new Promise((resolve, reject) => {
     execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script],
-      { windowsHide: true, maxBuffer: 1 << 20 }, (err, stdout, stderr) => {
+      { windowsHide: true, maxBuffer: 1 << 20, timeout: 90000 }, (err, stdout, stderr) => {
         if (err) return reject(new Error((stderr || '').toString().trim() || err.message));
         resolve(stdout.toString().trim());
       });
@@ -438,18 +438,8 @@ $out | ConvertTo-Json -Compress -Depth 3
         if (sh > 23 || sm > 59 || eh > 23 || em > 59) throw new Error('neplatný čas');
         let iv = Math.round(+o.intervalMinutes || 0);
         if (iv < 0 || iv > 1440) throw new Error('interval 0–1440 min');
-        let dur = (eh * 60 + em) - (sh * 60 + sm); if (dur <= 0) dur = 240;
-        // schtasks /Change mění rozvrh BEZ re-validace hesla (Set-ScheduledTask -Trigger vyžaduje heslo svc → 0x8007052e).
-        const st = `${String(sh).padStart(2, '0')}:${String(sm).padStart(2, '0')}`;
-        let ps;
-        if (iv > 0) {
-          const du = `${String(Math.floor(dur / 60)).padStart(4, '0')}:${String(dur % 60).padStart(2, '0')}`;
-          ps = `schtasks /Change /TN "BC_Telemetry_Daily" /ST ${st} /RI ${iv} /DU ${du} 2>&1 | Out-String`;
-        } else {
-          ps = `schtasks /Change /TN "BC_Telemetry_Daily" /ST ${st} 2>&1 | Out-String`;
-        }
-        ps += `\nif ($LASTEXITCODE -ne 0) { throw "schtasks exit $LASTEXITCODE" }\n'OK'`;
-        await runPs(ps);
+        // Jen uložíme config — opakování v okně řídí wrapper (Invoke-BCTelemetryDaily.ps1),
+        // NE OS úloha: její trigger nejde z LocalSystem měnit bez hesla svc (0x8007052e / prompt).
         ensureOpsDir();
         const saved = { startTime: `${String(sh).padStart(2, '0')}:${String(sm).padStart(2, '0')}`, endTime: `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`, intervalMinutes: iv };
         fs.writeFileSync(SCHEDULE_FILE, JSON.stringify(saved, null, 2), 'utf8');
@@ -484,9 +474,11 @@ function L($p){ ,@(Get-ChildItem $p -File -ErrorAction SilentlyContinue | Sort-O
   // POST /refresh — vynutí denní běh (import 3 modulů + snapshot). Task běží jako svc;
   // službu (LocalSystem) jen spustí task. Když už běží, vrátí 'running' (nezdvojí).
   if (url === '/refresh' && req.method === 'POST') {
+    ensureOpsDir();
+    const flag = path.join(OPS_DIR, 'oneshot.flag');
     const ps = `
 $t = Get-ScheduledTask -TaskName 'BC_Telemetry_Daily' -ErrorAction Stop
-if ($t.State -eq 'Running') { 'running' } else { Start-ScheduledTask -TaskName 'BC_Telemetry_Daily'; 'started' }
+if ($t.State -eq 'Running') { 'running' } else { Set-Content -Path '${flag.replace(/\\/g, '\\\\')}' -Value '1' -Force; Start-ScheduledTask -TaskName 'BC_Telemetry_Daily'; 'started' }
 `;
     return runPs(ps)
       .then((o) => { logActivity('info', 'refresh', `manual refresh: ${o.trim()}`); sendJson(res, 200, { status: o.trim() }); })

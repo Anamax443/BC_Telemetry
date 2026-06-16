@@ -59,6 +59,13 @@ if (Test-Path $opsReq) {
     return
 }
 
+# Jednorazovy beh (manualni /refresh => oneshot.flag) vs. planovany (loop dle ops/schedule.json)
+$oneShot = $false
+$flag = Join-Path $WebDir 'ops\oneshot.flag'
+if (Test-Path $flag) { $oneShot = $true; Remove-Item $flag -Force -ErrorAction SilentlyContinue }
+$schedFile = Join-Path $WebDir 'ops\schedule.json'
+
+do {
 Log "--- modul A (page views): BC_PageLog_Import.ps1 ---"
 & $ps -NoProfile -ExecutionPolicy Bypass -File $A *>> $log
 Log "modul A exit=$LASTEXITCODE"
@@ -82,6 +89,24 @@ Log "sync-status exit=$LASTEXITCODE"
 Log "--- snapshot: Export-DashboardSnapshot.ps1 ---"
 & $ps -NoProfile -ExecutionPolicy Bypass -File $E -SqlServer $SqlServer -OutPath $Snapshot *>> $log
 Log "snapshot exit=$LASTEXITCODE"
+
+# Planovane opakovani v okne (jen planovany beh; ne jednorazovy /refresh)
+$repeat = $false
+if (-not $oneShot -and (Test-Path $schedFile)) {
+    try {
+        $sc = Get-Content -Raw $schedFile | ConvertFrom-Json
+        $iv = [int]$sc.intervalMinutes
+        if ($iv -gt 0 -and "$($sc.endTime)" -match '^(\d{1,2}):(\d{2})$') {
+            $end = [datetime]::Today.AddHours([int]$Matches[1]).AddMinutes([int]$Matches[2])
+            if ((Get-Date).AddMinutes($iv) -lt $end) {
+                Log "--- plan: dalsi beh za $iv min (okno do $($sc.endTime)) ---"
+                Start-Sleep -Seconds ($iv * 60)
+                $repeat = $true
+            } else { Log "--- plan: konec okna ($($sc.endTime)) ---" }
+        }
+    } catch { Log "plan: chyba cteni schedule.json: $($_.Exception.Message)" }
+}
+} while ($repeat)
 
 # Retence logů — denní soubory se jinak množí (1/den). Smazat starší než N dní.
 try {
