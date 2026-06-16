@@ -125,9 +125,9 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
   "repoUrl": "https://github.com/Anamax443/BC_Telemetry",
   "host": "10.8.2.225 (B-S-W-SQL-04)",
   "version": "1.1",
-  "generated": "2026-06-10",
+  "generated": "2026-06-16",
   "commit": "37c430b",
-  "pushNo": 41,
+  "pushNo": 58,
   "activeProjectNo": 5,
   "milestones": [
     {
@@ -258,6 +258,20 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
         {"s":"done","t":"SQL BCAuthFailRaw + rollup + dashboard záložka; ingest BC_AuthFail_Import.ps1"},
         {"s":"todo","t":"Ověřit RT0031 schéma v AppTraces (vznikne až po odebrání plného přístupu)"}
       ]
+    },
+    {
+      "id": "M10", "title": "Operativa dashboardu + výkon + záložka Databáze", "status": "done",
+      "desc": "Push #58 (2026-06-16): self-service správa služby a úloh z dashboardu, plán importu řízený wrapperem, retence/whitelist přes JSON, bulk-insert zrychlení importu, nová záložka Databáze. Princip: web služba (LocalSystem) NEsahá na SQL/BC; vše přes svc (denní úloha / ops fronta).",
+      "items": [
+        {"s":"done","t":"Ops fronta C:\\Apps\\BC_Telemetry_Web\\ops\\ — web zapisuje request, svc ho zpracuje (ACL nastaví služba na bootu): ops-request.json (purge), ops-status.json, retention.json, schedule.json, oneshot.flag"},
+        {"s":"done","t":"Restart služby z dashboardu: POST /restart → process.exit() → NSSM službu nahodí → self-service nasazení změn server.js bez admina na serveru"},
+        {"s":"done","t":"⚙ Nastavení → „Správa služby a úloh\": Restart služby, Zastavit import (Stop-ScheduledTask /import-stop), Stav úloh (/tasks), stav ops (/ops-status)"},
+        {"s":"done","t":"Plán importu (/schedule GET/PUT → ops/schedule.json {startTime,endTime,intervalMinutes,days}): okno + četnost + dny řídí wrapper Invoke-BCTelemetryDaily.ps1 (OS úloha 1× ve startTime, wrapper loopuje á interval do endTime)"},
+        {"s":"done","t":"Důvod wrapperu: trigger OS úlohy NEJDE měnit z LocalSystem bez hesla svc (HRESULT 0x8007052e); nativní repetici lze dát jednorázově schtasks /Change /RI .. /RU svc /RP <heslo> (admin)"},
+        {"s":"done","t":"Retence přes /retention (GET/PUT → ops/retention.json {pageLogMonths:6, changeLogMonths:24, dailyLogDays:30}), čtou importní skripty; changelog purge přes /changelog-purge (POST) do ops fronty"},
+        {"s":"done","t":"Výkon: modul B bulk insert (SqlBulkCopy → #Staging → dedup) + token-refresh á 45 min; modul A dedup fix"},
+        {"s":"done","t":"Nová záložka 🗄 Databáze: přehled tabulek/řádků, retence a stav úloh"}
+      ]
     }
   ],
   "decisions": [
@@ -265,7 +279,7 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
     {"h":"Umístění DB ✅","p":"Kde je BC_Telemetry SQL databáze.","o":"ROZHODNUTO: localhost na 10.8.2.225 (co-located) — skripty sjednoceny, GRANT na lokální Windows účet"},
     {"h":"GPO AllSigned","p":"Jak spustit PS import/export na doménovém serveru s AllSigned.","o":"A: podepsat skripty · B: běh z jiného boxu · C: GPO výjimka"}
   ],
-  "arch": "BC Cloud ──telemetrie──▶ Azure App Insights / Log Analytics\n                          │  DCR filtr: clientType == \"Web\"\n                          ▼\n   PowerShell (denně 02:00, Service Principal, inkrementálně)\n                          ▼\n   SQL 10.8.2.225:  dbo.BCPageLog (raw, miliony, retence 6 měs.)\n                          │  usp_BCPageLog_Rollup\n                          ▼\n   dbo.BCPageDaily + vw_Dash*  (agregáty — malé, kumulují navždy)\n                          │  Export-DashboardSnapshot.ps1\n                          ▼\n   data.json ──▶ služba BC_Telemetry_Web (Node+NSSM)\n                 ├─ dashboard (anonymně, bez loginu)\n                 └─ ⚙ Nastavení → whitelist (firewall rule, port ITDashboard)",
+  "arch": "BC Cloud ──telemetrie──▶ Azure App Insights / Log Analytics\n                          │  DCR filtr: clientType == \"Web\"\n                          ▼\n   wrapper Invoke-BCTelemetryDaily.ps1 (jako svc; OS úloha 1× ve startTime,\n     loop á intervalMinutes do endTime; okno+četnost+dny z ops/schedule.json)\n                          ▼  Service Principal, inkrementálně; modul B bulk insert\n   SQL 10.8.2.225:  dbo.BCPageLog (raw, miliony, retence dle ops/retention.json)\n                          │  usp_BCPageLog_Rollup\n                          ▼\n   dbo.BCPageDaily + vw_Dash*  (agregáty — malé, kumulují navždy)\n                          │  Export-DashboardSnapshot.ps1\n                          ▼\n   data.json ──▶ služba BC_Telemetry_Web (Node+NSSM, LocalSystem — NEsahá na SQL/BC)\n                 ├─ dashboard (anonymně, bez loginu) + záložka 🗄 Databáze\n                 ├─ ⚙ Nastavení → whitelist (firewall rule, port ITDashboard)\n                 └─ ⚙ Nastavení → Správa služby a úloh: /restart (exit→NSSM nahodí),\n                       /import-stop, /tasks, /schedule, /retention, /changelog-purge\n                          │  web zapíše do ops fronty   ▲ svc čte/zpracuje\n                          ▼                              │\n   C:\\Apps\\BC_Telemetry_Web\\ops\\  (ops-request.json / ops-status.json /\n     retention.json / schedule.json / oneshot.flag; ACL nastaví služba na bootu)",
   "timeline": [
     {"sha":"787544b","msg":"chore: initial scaffold"},
     {"sha":"815cb8a","msg":"feat: BC telemetry pipeline + admin dashboard (v1.1)"},
@@ -286,7 +300,8 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
     {"sha":"d1ee5f0","msg":"Users do SQL: dbo.BCUser + vw_UserMap (03_users.sql), BC_Users_Import.ps1 (OData→MERGE→usermap.json), zařazeno do denního wrapperu"},
     {"sha":"8d317ab","msg":"Import cloudu desc (A/C nejnovější první) + dashboard 'Celkem SQL/cloud' v sync pruhu"},
     {"sha":"26de258","msg":"Uživatelské mapování LIVE (63 jmen z dbo.BCUser); svc právo na usermap.json; verze Push#+commit v hlavičce dashboardu"},
-    {"sha":"1560caa","msg":"Modul B: výběr sledovaných firem v Nastavení (changelog-companies.json) — lze vypnout obří ESHOP; diagnóza backfillu (50000 strop / ESHOP ~814M)"}
+    {"sha":"1560caa","msg":"Modul B: výběr sledovaných firem v Nastavení (changelog-companies.json) — lze vypnout obří ESHOP; diagnóza backfillu (50000 strop / ESHOP ~814M)"},
+    {"sha":"37c430b","msg":"Push #58 (2026-06-16): operativa dashboardu + výkon + záložka Databáze. Ops fronta C:\\Apps\\...\\ops\\ (web zapíše, svc zpracuje); restart služby přes /restart→exit→NSSM (self-service deploy server.js); Správa služby a úloh v Nastavení (/restart, /import-stop, /tasks, /ops-status). Plán importu /schedule (okno+četnost+dny) řízen wrapperem Invoke-BCTelemetryDaily (trigger OS úlohy nejde z LocalSystem bez hesla svc — HRESULT 0x8007052e). Retence /retention (pageLog 6m / changeLog 24m / dailyLog 30d), /changelog-purge. Výkon: modul B bulk insert (SqlBulkCopy→#Staging→dedup) + token-refresh 45 min, modul A dedup fix"}
   ]
 }
 </script>

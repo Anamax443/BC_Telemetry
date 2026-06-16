@@ -22,6 +22,10 @@ BC Cloud ────────┤                 AppTraces(RT0031) ▶ [C] d
 ## Modul A — Využití stránek (LIVE)
 App Insights telemetrie, ověřená pipeline. Viz [dokumentace.md](dokumentace.md). Identita = pseudonymní GUID.
 
+> 🔧 **Oprava dedup (2026-06-16):** duplicity **uvnitř** jedné stažené dávky shazovaly celou transakci
+> (rollback) → zamrzlý watermark a žádný postup importu. Fix: ve staging se před MERGE deduplikuje přes
+> `ROW_NUMBER() OVER (PARTITION BY Timestamp, UserId, ISNULL(PageId,'')) = 1`.
+
 > **Mapování GUID → jméno (vyřešeno 2026-06-10):** telemetrický `UserId` = BC pole **„Telemetry User ID"**
 > (sloupec „ID telemetrie" na Page 9800 Users) — NE AAD object id, NE User Security ID. Jméno se získá
 > přímo z **BC Users OData** (publikovaný web service), ne korelací s Entra sign-in logy.
@@ -45,13 +49,28 @@ App Insights telemetrie, ověřená pipeline. Viz [dokumentace.md](dokumentace.m
    Client ID = náš SP `03c2f43a…`? (pozn.: BC API SP = App registration, ne AI ApplicationId) →
    přiřadit permission set (např. `D365 BASIC` + read na Change Log) → **State = Enabled**.
 
-### Ingest
+### Ingest (přepsáno 2026-06-16 — newest-first + backfill + bulk insert)
 [scripts/BC_ChangeLog_Import.ps1](../scripts/BC_ChangeLog_Import.ps1) — OAuth2 client-credentials
-(scope `https://api.businesscentral.dynamics.com/.default`) → **projde VŠECHNY firmy** (auto-list
-přes `/ODataV4/Company`) → GET `…/Company('X')/ChangelogEntry?$filter=entryNo gt <watermark>` → `dbo.BCChangeLog`.
+(scope `https://api.businesscentral.dynamics.com/.default`) → **projde sledované firmy** (auto-list
+přes `/ODataV4/Company`, filtr dle `enabled`) → `…/Company('X')/ChangelogEntry` → `dbo.BCChangeLog`.
 
-> **Per-firma:** Change Log je company-bound, `EntryNo` je samostatná sekvence v každé firmě →
-> watermark `MAX(EntryNo) WHERE CompanyName=…` a dedup unikát na **(CompanyName, EntryNo)**.
+Import jede ve **třech fázích** (per firma), protože BC OData vrací max ~50000 řádků/dotaz a sekvence
+`Entry_No` je u velkých firem v řádu stovek milionů → ascending backfill od nuly je nereálný:
+
+| Fáze | Spouští se když | Dotaz | Strop / běh |
+|---|---|---|---|
+| **0 — seed** | firma v DB ještě prázdná | nejnovější blok `orderby Entry_No desc` | 1 blok |
+| **A — dosync k současnosti** | máme data | `Entry_No gt MAX(EntryNo)` **asc** | `ForwardRowsPerRun` = **150 000** |
+| **B — backfill historie** | máme data | `Entry_No lt MIN(EntryNo)` **desc** | `BackfillRowsPerRun` = **50 000** |
+
+> **Bulk insert:** místo row-by-row se řádky nahrají přes `SqlBulkCopy` do `#Staging`, pak jedním
+> `INSERT … WHERE NOT EXISTS` s `ROW_NUMBER() OVER (PARTITION BY CompanyName, EntryNo)` (dedup uvnitř
+> dávky) + `LEFT()` ořezem délek řetězců. Dedup unikát na disku = index **`UX_BCChangeLog_Company_EntryNo`**.
+
+> **Per-firma:** Change Log je company-bound, `Entry_No` je samostatná sekvence v každé firmě →
+> watermark `MAX/MIN(EntryNo) WHERE CompanyName=…` a dedup unikát na **(CompanyName, EntryNo)**.
+
+> ⏱ **Dlouhý běh:** BC OAuth token se v běhu **obnovuje po 45 min**, jinak dlouhý backfill spadne na 401.
 
 > **Auth:** browser na OData endpoint ukáže Basic-auth dialog (BC online ho přes prohlížeč neudělá) →
 > ověření a běh **jen přes Service Principal** (client-credentials). Browser test = Zrušit.
@@ -60,12 +79,17 @@ přes `/ODataV4/Company`) → GET `…/Company('X')/ChangelogEntry?$filter=entry
 > `User_ID` (reálné jméno) / `Table_No` / `Field_No` / `Type_of_Change` / `Old_Value` / `New_Value` /
 > `Primary_Key`. Import opraven na tato pole; produkční běh LIVE 2026-06-10 (BCChangeLog=42665, 12 firem).
 
-> **Výběr firem (Nastavení):** dashboard `changelog-companies.json` (`{all,enabled}`) — odškrtnutím firmy se
-> její Change Log přestane stahovat. `BC_ChangeLog_Import` zapíše `all` a importuje jen `enabled` (jinak vše).
+> **Výběr firem (záložka „⚙ Nastavení auditu"):** přesunuto do vlastní záložky — `changelog-companies.json`
+> (`{all,enabled}`), u každé firmy se zobrazí **počet záznamů**, tlačítko **„↻ Aktualizovat seznam firem"**.
+> Odškrtnutím firmy se její Change Log přestane stahovat. `BC_ChangeLog_Import` zapíše `all` a importuje
+> jen `enabled` (jinak vše). Firmy **ESHOP / ESHOP02 / TEST1 / TEST2** vyřazeny + jejich audit smazán (~340 000 řádků).
 
-> ⚠ **Backfill:** BC OData vrací max ~50000 řádků/dotaz → import bere 50000/firma/běh, watermark `Entry_No gt MAX`
-> **vzestupně**. `AXIMA_CZ_ESHOP` má `EntryNo ~814M` → ascending backfill k současnosti nereálný. Řešení: odškrtnout
-> velké firmy, případně přepnout na `Entry_No desc` (nejnovější první) + `TRUNCATE` dosavadních dat. Bez duplicit (UX index).
+### Mazání audit záznamů (purge)
+Danger-zone v dashboardu → `POST /changelog-purge` → web zapíše požadavek do `ops/ops-request.json` →
+**denní úloha (svc)** se příští běh spustí v **purge-only režimu**:
+`DELETE FROM dbo.BCChangeLog WHERE CompanyName IN (…)` + snapshot, import se přeskočí. Vykonává
+[scripts/BC_ChangeLog_Purge.ps1](../scripts/BC_ChangeLog_Purge.ps1); stav purge je vidět přes `GET /ops-status`.
+(Web sám na SQL nesahá — jen vloží požadavek do ops fronty, viz architektonický princip.)
 
 ## Modul C — Permission errors (RT0031)
 

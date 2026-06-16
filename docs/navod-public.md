@@ -183,6 +183,56 @@ Dashboard hostuj jako **malou Node službu** (přes NSSM), aby šel whitelist ed
 > hranice — platí jen když je Domain firewall profil Enabled. Pro tvrdé vynucení profil zapni. Buď k tomuhle
 > ve své dokumentaci upřímný; je to známka, že chápeš rozdíl mezi „omezením zobrazení" a „bezpečnostní hranicí".
 
+# Fáze 11 — Provozní featury dashboardu (self-service z UI)
+
+Cílem této vrstvy je provozovat celý systém **z UI dashboardu bez zásahu na serveru** (bez RDP).
+
+**Bezpečnostní princip (proč to běží přes frontu, ne přímo):** web služba běží pod účtem s **nízkými právy**
+(servisní účet / LocalSystem) a **nesahá přímo na SQL ani BC API**. Privilegované operace — mazání, import,
+plán, čtení stavu DB — vykonává **servisní účet `<svc-account>` přes denní úlohu / „ops" frontu**:
+požadavky z UI se zapisují jako soubory do adresáře `ops/` a úloha běžící pod servisním účtem je zpracuje.
+Whitelist přístupu zůstává **Windows Firewall rule** (viz Fáze 10); ostatní konfigurace = **JSON soubory**.
+
+**Správa služby a úloh (z UI):**
+- Stav naplánovaných úloh (kdy poběží, kdy naposledy běžely).
+- Zastavení právě běžícího importu.
+- **Restart web služby** — proces skončí, správce služby (např. NSSM) ho automaticky znovu nahodí →
+  **self-service nasazení změn serveru** bez ruční práce v konzoli.
+
+**Plán importu (okno + četnost + dny v týdnu):**
+OS úloha startuje **1× v čase „Od"**; wrapper pak opakuje import **každých N minut v okně Od–Do** ve vybrané
+dny v týdnu. Pokud čas „Od" už toho dne minul, import se spustí **hned**.
+> Změnu OS triggeru z účtu služby nelze udělat bez hesla servisního účtu, proto repetici v okně řídí wrapper
+> (ne sám Task Scheduler).
+
+**Retenční politika (z UI):** kolik **měsíců/dní** se drží raw page log, change log a denní logy. Hodnoty
+čtou přímo importní skripty.
+
+**Mazání audit záznamů** vybraných firem (s potvrzením) — neproběhne z web procesu, ale **pod servisním
+účtem přes denní úlohu** (ops fronta).
+
+**Výběr sledovaných firem pro Audit změn** ve vlastní záložce, s počty záznamů per firma.
+
+**Záložka Databáze:**
+- Stav SQL serveru: verze, recovery model, stav, collation.
+- Velikost datového a log souboru databáze.
+- Seznam tabulek s počty řádků a velikostí.
+
+**Tabulky (vylepšené zobrazení):**
+- **Per-sloupcové filtry:** kategorie jako rozbalovací seznam, text jako „obsahuje", datum jako rozmezí od–do.
+- Datum ve formátu **rok.měsíc.den**.
+- **Export do CSV** — UTF-8 **BOM**, oddělovač `;` (otevře se rovnou v Excelu). Slouží jako **podklad pro tvorbu
+  permission setů**.
+- Trend dle společnosti; v auditu sloupce **Číslo tabulky / Číslo pole**.
+
+**Hlavička:** běžící čas (**heartbeat** — když stojí, stránka zamrzla) + **stáří dat**.
+
+**Výkon a spolehlivost importu:**
+- Vkládání přes **hromadnou kopii (bulk copy)** — řádově rychlejší u velkých objemů.
+- **Průběžná obnova autentizačního tokenu** u dlouhých běhů (token nevyprší uprostřed importu).
+- Change log se nově stahuje **„od nejnovějšího"** + postupné doplňování historie.
+- **Dedup oprava** u page-view importu.
+
 # Verifikace (end-to-end smoke test)
 
 Pod identitou `<svc-account>` ověř všechny pilíře najednou:

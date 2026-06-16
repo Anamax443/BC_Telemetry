@@ -1,7 +1,7 @@
 # BC_Telemetry — HANDOFF (rolling)
 
 Aktuální stav projektu pro pokračování v další session. Updatuje se průběžně.
-Poslední update: **2026-06-16** (Push #56 / `69cc180`) · repo `Anamax443/BC_Telemetry`.
+Poslední update: **2026-06-16** (Push #58 / `4a5850f`) · repo `Anamax443/BC_Telemetry`.
 Modul B = **bulk insert** (SqlBulkCopy→#Staging→dedup, `fa08d7e`) místo row-by-row. Plán importu (okno+četnost+**dny**, auto-start v okně) řídí wrapper (viz níže). Uživatelé filtr+export, KPI „Aktivní uživatelé"→záložka Uživatelé.
 Filtry tabulek = zalamovací lišta `.filterbar` (popisky + „Vyčistit"); datum `2026.06.07`; filtr data rozmezí `od..do`; běžící čas + stáří dat v hlavičce.
 
@@ -105,16 +105,25 @@ Filtry tabulek = zalamovací lišta `.filterbar` (popisky + „Vyčistit"); datu
       (cloud: AppPageViews / AppTraces RT0031 / OData `$count`) → `dbo.BCSyncStatus` → snapshot. Krok ve wrapperu před snapshotem.
     - **↻ Ruční obnova** (Nastavení): POST `/refresh` spustí denní task. UI: default řazení newest-first, proklikávací KPI dlaždice, název→domů, favicon.
 
-## 🟢 STATUS: LIVE / kompletní (2026-06-10)
+## 🟢 STATUS: LIVE / kompletní (2026-06-10, rozšířeno 2026-06-16 — Push #58)
 Celý řetězec **BC → Azure App Insights → SQL (3 moduly) → rollup → snapshot → dashboard** běží **plně automaticky**
-(denně 02:00 jako `AXINETWORK\svc-bc-telemetry`). Data ověřena, dashboard servíruje, dokumentace (interní + public) hotová.
+(wrapper `Invoke-BCTelemetryDaily.ps1` jako `AXINETWORK\svc-bc-telemetry` dle `ops/schedule.json` — OS úloha 1× v 02:00,
+wrapper pak loopuje á interval v okně). Data ověřena, dashboard servíruje, dokumentace (interní + public) hotová.
 **Hlavní cíl** (podklad pro permission sety per uživatel místo SUPER) je naplněn: po namapování jmen v záložce Uživatelé
-ukazuje Aktivita/Kandidáti **kdo** co reálně používá → z toho se sestaví role; RT0031 pak po zúžení práv hlídá chybějící oprávnění.
+ukazuje Aktivita **kdo** co reálně používá → z toho se sestaví role (export CSV); RT0031 pak po zúžení práv hlídá chybějící oprávnění.
+
+**Přidáno 2026-06-16 (Push #41→#58):** modul A dedup fix; modul B newest-first + backfill + **bulk insert** + token-refresh;
+**mazání audit záznamů** (purge přes ops frontu); **provozní ovládání z dashboardu** (stav úloh / stop import / restart služby /
+retence / plán importu okno+četnost+dny+auto-start); záložky **Databáze** (stav SQL) a **Nastavení auditu**; per-sloupcové filtry,
+datum `2026.06.07`, filtr data rozmezí, export CSV, velikost DB, běžící čas+stáří dat; access-check fail-open + tečková maska.
+Web služba (LocalSystem) **nesahá na SQL/BC** — vše přes svc/ops; whitelist = firewall rule, ostatní config = JSON.
+ESHOP/ESHOP02/TEST1/TEST2 vyřazeny + jejich audit (~340 000 řádků) smazán.
 
 ### Dashboard endpointy (Node služba)
 `/access-check` · `/firewall/whitelist` (GET/PUT) · `/firewall/domain-profile` · `/refresh` (POST) ·
 `/activity` · `/logs` · `/logfiles` · `/usermap` (GET/PUT) · `/changelog-companies` (GET/PUT) ·
-`/changelog-purge` (POST) · `/ops-status` (GET). Statické: `index.html`, `data.json`.
+`/changelog-purge` (POST) · `/ops-status` (GET) · `/tasks` (GET) · `/import-stop` (POST) · `/restart` (POST) ·
+`/retention` (GET/PUT) · `/schedule` (GET/PUT). Statické: `index.html`, `data.json`, `exports/*`.
 
 ### Modul B — výběr firem + backfill (2026-06-10, rozšířeno 2026-06-16)
 - **Záložka „⚙ Nastavení auditu"** (od 2026-06-16 samostatná, dřív sekce v ⚙ Nastavení): checkboxy per firma → `changelog-companies.json` (`{all,enabled}`).

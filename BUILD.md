@@ -3,6 +3,14 @@
 Konec-do-konce postup zprovoznění: BC Cloud → Azure Application Insights → SQL (BSWNAV01) → admin dashboard.
 Verze 1.1 (zapracována oponentura 2026-06-08).
 
+> ⚠ **Legacy build návod.** Aktuální provozní stav (a co se od v1.1 změnilo) vždy viz
+> **[docs/HANDOFF.md](docs/HANDOFF.md)**. Co se od tohoto návodu liší (stav Push #58, 2026-06-16):
+> - Dashboard běží jako **Node služba `BC_Telemetry_Web` (NSSM, LocalSystem)**, ne IIS (Fáze 7 níže je zastaralá).
+> - Web na SQL/BC **nesahá** — provozní akce jdou přes **ops frontu** (`ops/*.json`) vyřizovanou účtem `svc-bc-telemetry`.
+> - **Plán importu řídí wrapper** `Invoke-BCTelemetryDaily.ps1` dle `ops/schedule.json` (OS úloha jen startuje 1×), ne pevné 02:00.
+> - Přibyly **modul B (Change Log)** s newest-first + backfill + bulk insertem, **modul C (RT0031)**, mapování uživatelů a **mazání auditu** (`BC_ChangeLog_Purge.ps1`).
+> - Dashboard má navíc záložky **Uživatelé / Audit (Firma/Table No/Field No) / Trend dle firmy / Databáze**, per-sloupcové filtry, export CSV a provozní ovládání (stop/restart/plán/retence).
+
 ```
 BC Cloud ──telemetrie──▶ Azure App Insights / Log Analytics
                               │  DCR filtr (clientType == "Web")

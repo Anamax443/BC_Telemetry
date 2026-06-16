@@ -3,7 +3,7 @@
 Telemetrie aktivity uživatelů **Business Central Cloud** → **Azure Application Insights** → **SQL** →
 **interní admin dashboard**. Sbíraná data slouží k sestavení Permission Setů (kdo co reálně používá).
 
-> Interní nástroj AXIMA spol. s r.o. · BC Production/CZ · **🟢 LIVE od 2026-06-10** (10.8.2.225)
+> Interní nástroj AXIMA spol. s r.o. · BC Production/CZ · **🟢 LIVE od 2026-06-10** (10.8.2.225) · **Push #58**
 
 ## Architektura
 
@@ -12,21 +12,26 @@ BC Cloud ──telemetrie──▶ Azure App Insights / Log Analytics
                           │  (Service Principal, neinteraktivně)
         modul A (AppPageViews) · modul C (AppTraces RT0031) · modul B (Change Log → OData)
                           ▼
-   PowerShell denně 02:00 jako svc (inkrementálně) ──▶ SQL 10.8.2.225 (raw, retence)
+   wrapper Invoke-BCTelemetryDaily.ps1 jako svc-bc-telemetry (inkrementálně) ──▶ SQL 10.8.2.225 (raw, retence)
                           │  rollup procy
                           ▼
    agregáty (dbo.*Daily + vw_Dash*) + dbo.BCSyncStatus  (kumulují navždy)
                           │  Update-SyncStatus + Export-DashboardSnapshot.ps1
                           ▼
-   web/data.json ──▶ služba BC_Telemetry_Web (Node+NSSM na 10.8.2.225)
-                     ├─ dashboard (bez loginu): KPI + velikost DB, Aktivita, Uživatelé, Audit, RT0031, Trend (dle firmy), Terminál (per-sloupcové filtry + ⬇ export CSV pro permission mining)
+   web/data.json ──▶ služba BC_Telemetry_Web (Node+NSSM na 10.8.2.225, LocalSystem)
+                     ├─ dashboard (bez loginu): KPI + velikost DB + běžící čas/stáří dat, Aktivita, Uživatelé, Audit (Firma/Table No/Field No), RT0031, Trend (dle firmy), Databáze (stav SQL), Terminál (per-sloupcové filtry + ⬇ export CSV pro permission mining)
                      ├─ ⚙ Nastavení auditu → výběr firem modulu B + počty/firma + ↻ refresh + 🗑 mazání audit záznamů
-                     └─ ⚙ Nastavení → whitelist (firewall rule) + ruční obnova + údržba logů
+                     └─ ⚙ Nastavení → whitelist (firewall rule) + ruční obnova + Správa služby/úloh (stop/restart/plán importu/retence)
 ```
 
 Raw log se po retenci maže; **agregáty se kumulují** — dashboard čte jen z nich, takže je rychlý
-i při milionech raw záznamů. Web hostuje malá Node služba (kvůli editovatelnému whitelistu);
-whitelist je formální visibility gate přes Windows Firewall rule.
+i při milionech raw záznamů. Web hostuje malá Node služba (kvůli editovatelnému whitelistu).
+
+> **Architektonický princip (Push #41→#58):** web služba běží pod **LocalSystem** a **NEsahá na SQL ani BC**
+> — veškerý přístup k datům jde přes účet **`svc-bc-telemetry`** (denní úloha / ops fronta). Dashboard žádá
+> akce přes JSON ops soubory v `C:\Apps\BC_Telemetry_Web\ops`, které vyřídí svc (mazání auditu, import,
+> plán). Reálné vynucení viditelnosti = **Windows Firewall rule** (whitelist); ostatní konfigurace
+> (výběr firem, retence, plán) jsou jen **JSON soubory**.
 
 ## Struktura repa
 
@@ -42,7 +47,7 @@ whitelist je formální visibility gate přes Windows Firewall rule.
 | [scripts/BC_ChangeLog_Import.ps1](scripts/BC_ChangeLog_Import.ps1) | Modul B — BC Change Log přes OData → SQL (reálný uživatel) |
 | [scripts/BC_AuthFail_Import.ps1](scripts/BC_AuthFail_Import.ps1) | Modul C — RT0031 z AppTraces → SQL |
 | [BUILD.md](BUILD.md) | **Krok-za-krokem jak to postavit** (Azure → BC → SQL → scheduler → dashboard) |
-| [docs/dokumentace.md](docs/dokumentace.md) | Technická dokumentace (v1.1) |
+| [docs/dokumentace.md](docs/dokumentace.md) | Technická dokumentace (v1.2) |
 | [docs/oponentury/](docs/oponentury/) | Archiv oponentury + strukturovaná reakce |
 | [sql/01_schema.sql](sql/01_schema.sql) | Raw tabulka, indexy, dedup, retence, analytický view |
 | [sql/02_aggregates.sql](sql/02_aggregates.sql) | Rollup tabulky, inkrementální proc, dashboard pohledy |
@@ -52,12 +57,12 @@ whitelist je formální visibility gate přes Windows Firewall rule.
 | [scripts/Register-ScheduledTask.ps1](scripts/Register-ScheduledTask.ps1) | Denní úloha 02:00 (LogonType Password) |
 | [scripts/install-service.cmd](scripts/install-service.cmd) | Instalace web služby `BC_Telemetry_Web` (Node+NSSM) na 10.8.2.225 |
 | [scripts/Set-DashboardWhitelist.cmd](scripts/Set-DashboardWhitelist.cmd) | CLI změna whitelistu (firewall rule remoteip) |
-| [web/index.html](web/index.html) | Admin dashboard — KPI + velikost DB + Aktivita / Uživatelé / Audit / RT0031 / Trend (dle firmy) / Terminál / Nastavení auditu / Nastavení; per-sloupcové filtry + export CSV; dark mode |
-| [web/server.js](web/server.js) | Web služba — dashboard + API (whitelist, /refresh, /activity, /logs, /logfiles, /usermap, /changelog-companies, /changelog-purge, /ops-status) |
+| [web/index.html](web/index.html) | Admin dashboard — KPI + velikost DB + běžící čas/stáří dat + Aktivita / Uživatelé / Audit (Firma/Table No/Field No) / RT0031 / Trend (dle firmy) / Databáze / Terminál / Nastavení auditu / Nastavení; per-sloupcové filtry + export CSV; dark mode |
+| [web/server.js](web/server.js) | Web služba (LocalSystem, nesahá na SQL/BC) — dashboard + API: whitelist, /refresh, /activity, /logs, /logfiles, /usermap, /changelog-companies, /changelog-purge, /ops-status, /tasks, /import-stop, /restart, /retention, /schedule; ops dir + ACL pro svc, runPs timeout 90 s |
 | [scripts/BC_ChangeLog_Purge.ps1](scripts/BC_ChangeLog_Purge.ps1) | Modul B — smazání audit záznamů vybraných firem (ops-request od dashboardu, běží jako svc) |
 | [sql/deploy.cmd](sql/deploy.cmd) · [sql/deploy-full.sql](sql/deploy-full.sql) | SQL deploy (GPO-safe `sqlcmd` / konsolidovaný blok pro SSMS) |
 | [scripts/New-ServiceAccount.ps1](scripts/New-ServiceAccount.ps1) | Založení doménového svc účtu (klon z svc-itdashboard) |
-| [scripts/Invoke-BCTelemetryDaily.ps1](scripts/Invoke-BCTelemetryDaily.ps1) | Denní wrapper — 3 importy + sync-status + snapshot + retence logů |
+| [scripts/Invoke-BCTelemetryDaily.ps1](scripts/Invoke-BCTelemetryDaily.ps1) | Denní wrapper — řídí repetici/okno/dny dle `ops/schedule.json` (NE OS scheduler): OS úloha 1× v startTime → loop á interval do endTime; 3 importy + sync-status + snapshot + retence logů; purge-only režim přes ops frontu |
 | [scripts/Update-SyncStatus.ps1](scripts/Update-SyncStatus.ps1) | Sync-status — cloud vs zesynchronizováno per modul → dbo.BCSyncStatus |
 | [docs/deploy-10.8.2.225.md](docs/deploy-10.8.2.225.md) | Deploy na SQL box (Node služba, whitelist, GPO AllSigned) |
 
@@ -70,9 +75,13 @@ importy + `Register-ScheduledTask.ps1` → dashboard `install-service.cmd`.
 
 ## Stav
 
-**🟢 LIVE od 2026-06-10** na 10.8.2.225 — celý řetězec běží plně automaticky (denně 02:00 jako svc):
-import 3 modulů + rollup + sync-status + snapshot → dashboard. Hlavní cíl (podklad pro permission sety
-per uživatel místo SUPER) naplněn — po namapování jmen (záložka Uživatelé) je vidět, kdo co reálně používá.
+**🟢 LIVE od 2026-06-10** na 10.8.2.225, aktuálně **Push #58** — celý řetězec běží plně automaticky
+(wrapper jako `svc-bc-telemetry` dle `ops/schedule.json`): import 3 modulů + rollup + sync-status +
+snapshot → dashboard. Hlavní cíl (podklad pro permission sety per uživatel místo SUPER) naplněn — po
+namapování jmen (záložka Uživatelé) je vidět, kdo co reálně používá. Dashboard nově umí provozní
+ovládání (stop/restart importu, plán, retence, mazání auditu) přes ops frontu vyřizovanou svc účtem.
+Modul B přepsán na newest-first + backfill s bulk insertem. Firmy ESHOP/ESHOP02/TEST1/TEST2 vyřazeny
+ze sledování (jejich ~340 000 audit řádků smazáno).
 
 ## Licence
 

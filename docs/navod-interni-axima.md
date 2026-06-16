@@ -203,6 +203,56 @@ spusť `Unblock-File` (RemoteSigned blokuje skripty se zónou „downloaded"). �
 > **Honest poznámka:** whitelist je *formální / visibility gate*, ne tvrdá hranice — firewall *allow* rule
 > platí jen když je Domain profil Enabled. Tvrdé vynucení = zapnout Domain profil.
 
+# Fáze 11 — Provozní featury dashboardu (self-service z UI, přidáno 2026-06-16)
+
+> **Stav: LIVE.** Cílem této vrstvy je provozovat celý systém z UI dashboardu **bez RDP/zásahu na serveru**.
+
+**Bezpečnostní princip (proč to běží přes frontu, ne přímo):** web služba `BC_Telemetry_Web`
+(LocalSystem / servisní účet s nízkými právy) **nesahá přímo na SQL ani BC API**. Mazání, import, plán
+a stav DB obstarává **servisní účet `AXINETWORK\svc-bc-telemetry`** přes **denní úlohu / „ops" frontu** —
+požadavky z UI se zapisují jako soubory do `ops/` a wrapper/denní task je pod servisním účtem vykoná.
+Whitelist přístupu zůstává **Windows Firewall rule** (viz Fáze 10); ostatní konfigurace = **JSON soubory** v repu.
+
+**Správa služby a úloh (z UI):**
+- Stav naplánovaných úloh (kdy poběží, kdy naposledy běžely).
+- Zastavení právě běžícího importu.
+- **Restart web služby** — proces skončí, NSSM ho automaticky znovu nahodí → **self-service nasazení změn
+  `server.js`** bez `sc stop`/`sc start` z konzole.
+
+**Plán importu (okno + četnost + dny v týdnu):**
+OS úloha startuje **1× v čase „Od"**; wrapper pak opakuje import **každých N minut v okně Od–Do** ve vybrané
+dny v týdnu. Pokud čas „Od" už toho dne minul, import se spustí **hned**.
+> Změnu OS triggeru z účtu služby nelze udělat bez hesla servisního účtu `svc-bc-telemetry`, proto repetici
+> v okně řídí wrapper (ne sám Task Scheduler).
+
+**Retenční politika (z UI):** kolik **měsíců/dní** se drží raw page log, change log a denní logy. Hodnoty
+čtou přímo importní skripty (`BC_PageLog_Import.ps1`, `BC_ChangeLog_Import.ps1`, `BC_AuthFail_Import.ps1`).
+
+**Mazání audit záznamů** vybraných firem (s potvrzením) — neproběhne z web procesu, ale **pod servisním
+účtem přes denní úlohu** (ops fronta).
+
+**Výběr sledovaných firem pro Audit změn** ve vlastní záložce, s počty záznamů per firma.
+
+**Záložka Databáze:**
+- Stav SQL serveru `10.8.2.225` (B-S-W-SQL-04): verze (SQL Server 2022), recovery model, stav, collation.
+- Velikost datového a log souboru DB `BC_Telemetry`.
+- Seznam tabulek s počty řádků a velikostí.
+
+**Tabulky (vylepšené zobrazení):**
+- **Per-sloupcové filtry:** kategorie jako rozbalovací seznam, text jako „obsahuje", datum jako rozmezí od–do.
+- Datum ve formátu **rok.měsíc.den**.
+- **Export do CSV** — UTF-8 **BOM**, oddělovač `;` (otevře se rovnou v Excelu). Slouží jako **podklad pro tvorbu
+  permission setů**.
+- Trend dle společnosti; v auditu sloupce **Číslo tabulky / Číslo pole**.
+
+**Hlavička:** běžící čas (**heartbeat** — když stojí, stránka zamrzla) + **stáří dat**.
+
+**Výkon a spolehlivost importu (2026-06-16):**
+- Vkládání přes **hromadnou kopii (bulk copy)** — řádově rychlejší u velkých objemů.
+- **Průběžná obnova autentizačního tokenu** u dlouhých běhů (token nevyprší uprostřed importu).
+- Change log se nově stahuje **„od nejnovějšího"** + postupné doplňování historie.
+- **Dedup oprava** u page-view importu.
+
 # Verifikace (end-to-end smoke test)
 
 Pod identitou `<svc-account>` (jednorázový task) ověř všechny pilíře — výsledky u nás 2026-06-10:

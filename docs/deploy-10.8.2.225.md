@@ -8,13 +8,29 @@ běží proti `localhost` SQL — žádný síťový hop, žádný file share.
 ├── SQL Server                    ← dbo.BCPageDaily, vw_Dash*  (pokud je BC_Telemetry DB zde)
 ├── Task Scheduler
 │     └── Export-DashboardSnapshot.ps1  → C:\Apps\BC_Telemetry_Web\public\data.json
-└── Windows služba BC_Telemetry_Web (Node + NSSM, LocalSystem)
-        ├── servíruje index.html + data.json (anonymně, bez loginu)
+└── Windows služba BC_Telemetry_Web (Node + NSSM, LocalSystem — NEsahá na SQL/BC)
+        ├── servíruje index.html + data.json + exports/* (anonymně, bez loginu)
         ├── /firewall/whitelist (GET/PUT) ← čte/zapisuje firewall rule (jako ITDashboard)
         ├── /firewall/domain-profile      ← stav Domain firewall profilu
-        └── /access-check                 ← formální visibility gate
+        ├── /access-check                 ← formální visibility gate
+        ├── /refresh (POST)               ← spustí denní úlohu (oneshot)
+        ├── /activity /logs /logfiles     ← terminál: aktivita služby + logy importu
+        ├── /usermap (GET/PUT)            ← mapování GUID → reálné jméno
+        ├── /changelog-companies (GET/PUT) ← výběr sledovaných firem (modul B)
+        ├── /changelog-purge (POST)       ← purge change logu (přes ops frontu)
+        ├── /ops-status (GET) /tasks (GET) ← stav ops fronty + stav OS úloh
+        ├── /import-stop (POST)           ← Stop-ScheduledTask běžícího importu
+        ├── /restart (POST)               ← process.exit() → NSSM nahodí (self-service deploy)
+        ├── /retention (GET/PUT)          ← ops/retention.json (čtou importní skripty)
+        ├── /schedule (GET/PUT)           ← ops/schedule.json (okno+četnost+dny pro wrapper)
+        └── ops fronta C:\Apps\BC_Telemetry_Web\ops\ (web zapíše, svc zpracuje)
         http://10.8.2.225:8080/
 ```
+
+> **Princip oddělení práv:** web služba běží jako **LocalSystem** a **nesahá** na SQL ani BC API —
+> jen servíruje soubory a spravuje firewall + ops frontu. Veškerý přístup k datům (import, purge,
+> snapshot) dělá **svc-bc-telemetry** přes denní úlohu / ops frontu. Whitelist = firewall rule;
+> veškerá konfigurace = JSON soubory (`ops/*.json`).
 
 ## 1 · Web služba (Node + NSSM) — jako ITDashboard
 
@@ -49,6 +65,57 @@ LocalSystem — má práva měnit firewall a nepotřebuje heslo (SQL nesahá, je
 > Na live ITDashboard serveru je Domain profil `Enabled=False` → rule je OS-level inertní a omezení
 > je čistě formální. To odpovídá zadání „whitelist jen formálně omezuje zobrazení". Tvrdé vynucení:
 > zapnout Domain profil (`Set-NetFirewallProfile -Profile Domain -Enabled True`).
+
+## 1b · Endpointy služby `BC_Telemetry_Web`
+
+Služba na `10.8.2.225:8080` poskytuje (Push #58):
+
+| Endpoint | Metoda | Co dělá |
+|---|---|---|
+| `/access-check` | GET | formální visibility gate (IP vs whitelist) |
+| `/firewall/whitelist` | GET/PUT | čte/zapisuje `remoteip` firewall rule |
+| `/firewall/domain-profile` | GET | stav Domain firewall profilu |
+| `/refresh` | POST | spustí denní úlohu (oneshot, poll na nový snapshot) |
+| `/activity` | GET | aktivita služby (terminál) |
+| `/logs` | GET | log posledního importu |
+| `/logfiles` | GET | seznam log souborů |
+| `/usermap` | GET/PUT | mapování pseudonymní GUID → reálné jméno |
+| `/changelog-companies` | GET/PUT | výběr sledovaných firem (modul B) |
+| `/changelog-purge` | POST | purge change logu (zapíše request do ops fronty) |
+| `/ops-status` | GET | stav ops fronty (poslední zpracování svc) |
+| `/tasks` | GET | stav OS úloh (Task Scheduler) |
+| `/import-stop` | POST | `Stop-ScheduledTask` běžícího importu |
+| `/restart` | POST | `process.exit()` → NSSM službu nahodí |
+| `/retention` | GET/PUT | čte/zapisuje `ops/retention.json` |
+| `/schedule` | GET/PUT | čte/zapisuje `ops/schedule.json` |
+
+Statické: `index.html`, `data.json`, `exports/*`.
+
+## 1c · Ops fronta (web zapíše, svc zpracuje)
+
+Web služba (LocalSystem) **nesahá na SQL/BC**. Operace, které vyžadují přístup k datům, předává
+přes soubory v adresáři `C:\Apps\BC_Telemetry_Web\ops\` — web tam **zapíše request**, daemon/svc
+ho při dalším běhu **zpracuje**. ACL na adresáři nastaví **služba na bootu** (aby svc směl číst/psát).
+
+| Soubor | Význam |
+|---|---|
+| `ops-request.json` | fronta požadavků (např. purge change logu z `/changelog-purge`) |
+| `ops-status.json`  | výsledek/stav posledního zpracování (čte `/ops-status`) |
+| `retention.json`   | retenční politika (viz §6), čtou importní skripty |
+| `schedule.json`    | plán importu (viz §5), čte wrapper |
+| `oneshot.flag`     | jednorázové spuštění importu (z `/refresh`) |
+
+## 1d · Restart služby z dashboardu (self-service deploy)
+
+`POST /restart` zavolá `process.exit()`; protože služba běží pod **NSSM**, ten ji automaticky
+**nahodí znovu**. Tím lze z dashboardu **nasadit změny `server.js`** (nakopírované na server)
+bez nutnosti admina/RDP na 10.8.2.225.
+
+Ovládání je v záložce **⚙ Nastavení → „Správa služby a úloh"**:
+- **Restart služby** → `POST /restart`
+- **Zastavit import** → `POST /import-stop` (`Stop-ScheduledTask`)
+- **Stav úloh** → `GET /tasks`
+- **Stav ops** → `GET /ops-status`
 
 ## 2 · Snapshot export — POZOR na GPO AllSigned ⚠
 
@@ -91,6 +158,44 @@ schtasks /create /tn "BC_Dashboard_Snapshot" /sc DAILY /st 02:30 ^
   /ru "AXINETWORK\svc-bc-telemetry" /rp * /rl HIGHEST
 ```
 (Spustit po importu — import 02:00, snapshot 02:30.)
+
+## 5 · Plán importu — řízený wrapperem (ne nativním triggerem)
+
+Plán je v `ops/schedule.json`:
+
+```json
+{ "startTime": "02:00", "endTime": "18:00", "intervalMinutes": 60, "days": ["Mon","Tue","Wed","Thu","Fri"] }
+```
+
+> **Proč wrapper a ne nativní repetice OS úlohy:** trigger Task Scheduler úlohy **nejde změnit
+> z LocalSystem bez hesla svc** (`Set-ScheduledTask` skončí `HRESULT 0x8007052e` — logon failure).
+> Web služba heslo nemá, proto **okno + četnost + dny řídí wrapper**, ne nativní trigger.
+
+**Model:** OS úloha spustí wrapper `Invoke-BCTelemetryDaily.ps1` **jen 1× ve `startTime`** (jako svc).
+Wrapper si přečte `schedule.json` a sám **loopuje á `intervalMinutes`** až do `endTime`; mimo `days`
+hned skončí. Změna plánu z dashboardu (`PUT /schedule`) tedy nemění OS úlohu — jen JSON, který
+wrapper čte při příštím běhu.
+
+Volitelně lze repetici dát **nativně** Windows scheduleru jednorázově (vyžaduje admina + heslo svc):
+```bat
+schtasks /Change /tn "BC_Telemetry_Daily" /RI 60 /DU 16:00 /RU "AXINETWORK\svc-bc-telemetry" /RP <heslo>
+```
+
+## 6 · Retence + whitelist (konfigurace = JSON / firewall rule)
+
+**Retence** je v `ops/retention.json`; čtou ji importní skripty při údržbě:
+```json
+{ "pageLogMonths": 6, "changeLogMonths": 24, "dailyLogDays": 30 }
+```
+- `pageLogMonths` — raw `dbo.BCPageLog` (modul A)
+- `changeLogMonths` — `dbo.BCChangeLog` (modul B)
+- `dailyLogDays` — denní log soubory (čistí wrapper; navíc NSSM rotace 5 MB)
+
+Editace z dashboardu přes `PUT /retention`; ad-hoc purge change logu přes `POST /changelog-purge`
+(zapíše request do `ops/ops-request.json`, svc provede při dalším běhu).
+
+**Whitelist** zůstává **jedna Windows Firewall rule** (`remoteip`) editovatelná přes
+`/firewall/whitelist` — viz §1. Konfigurace = firewall rule + JSON soubory; žádná DB konfigurace.
 
 ## Verifikace
 - [ ] služba `BC_Telemetry_Web` běží (`sc query BC_Telemetry_Web` → RUNNING)

@@ -2,7 +2,8 @@
 
 > Interní dokumentace · AXIMA spol. s r.o.
 > Verze BC: 27.5 · Prostředí: Production / CZ · Vytvořeno: 2026-04 · Autor: Milan Trnka
-> **Dokument v1.1** — zapracována oponentura 2026-06-08 (viz [oponentury/](oponentury/)).
+> **Dokument v1.2** — zapracována oponentura 2026-06-08 (viz [oponentury/](oponentury/)) + provozní změny
+> Push #41→#58 (2026-06-16). Aktuální provozní stav vždy viz [HANDOFF.md](HANDOFF.md).
 
 Sledování aktivity uživatelů v BC Cloud přes Azure Application Insights — sběr, import do SQL
 a analýza pro sestavení Permission Setů. Praktické kroky zprovoznění viz [BUILD.md](../BUILD.md).
@@ -101,6 +102,7 @@ Append log každého page view. Veškerá analytika dotazy nad daty. Plný DDL v
 | `IX_BCPageLog_UserName_Timestamp` | dotazy per uživatel (covering) | Non-clustered |
 | `IX_BCPageLog_Timestamp` | watermark MAX(Timestamp) | Non-clustered |
 | `UX_BCPageLog_Dedup` | anti-duplicita (Timestamp, UserId, PageId) | Unique filtered (v1.1) |
+| `UX_BCChangeLog_Company_EntryNo` | anti-duplicita auditu (CompanyName, EntryNo) | Unique (modul B, v1.2) |
 
 ## 08 · Agregační vrstva (v1.1 — škála)
 
@@ -134,8 +136,14 @@ AppPageViews
 ## 10 · Import + scheduler
 
 - [scripts/BC_PageLog_Import.ps1](../scripts/BC_PageLog_Import.ps1) — SP auth → watermark → SqlBulkCopy do staging → MERGE (dedup) → rollup → retence. Atomicky (try/catch + transakce).
-- [scripts/Register-ScheduledTask.ps1](../scripts/Register-ScheduledTask.ps1) — denní úloha 02:00, LogonType **Password** (doménový účet).
-- [scripts/Export-DashboardSnapshot.ps1](../scripts/Export-DashboardSnapshot.ps1) — agregáty → `web/data.json`.
+  > 🔧 **Oprava v1.2 (2026-06-16):** duplicity **uvnitř** jedné stažené dávky shazovaly transakci (rollback) → zamrzlý watermark. Fix: ve staging dedup `ROW_NUMBER() OVER (PARTITION BY Timestamp, UserId, ISNULL(PageId,'')) = 1` před MERGE.
+- [scripts/BC_ChangeLog_Import.ps1](../scripts/BC_ChangeLog_Import.ps1) — modul B, newest-first + backfill + bulk insert (viz [modules.md](modules.md)).
+- [scripts/Register-ScheduledTask.ps1](../scripts/Register-ScheduledTask.ps1) — OS úloha (LogonType **Password**, doménový účet) běží **1× v `startTime`** a předá řízení wrapperu.
+- [scripts/Invoke-BCTelemetryDaily.ps1](../scripts/Invoke-BCTelemetryDaily.ps1) — **wrapper řídí repetici/okno/dny** (NE OS scheduler — trigger nejde z LocalSystem měnit bez hesla svc, HRESULT `0x8007052e`) dle `ops/schedule.json` `{startTime,endTime,intervalMinutes,days[0=Ne..6=So]}`; loop á interval do `endTime`, brána dle dnů; manuál `/refresh` → `ops/oneshot.flag` = 1 běh; v loopu drahý cloud sync-status jen 1×/60 min.
+- [scripts/Export-DashboardSnapshot.ps1](../scripts/Export-DashboardSnapshot.ps1) — agregáty → `web/data.json`. Rozšířeno (v1.2) o `dbSize`, `dbInfo`, `dbTables`, `changeLogByCompany`, `trendByCompany`; `changeLog` nově `ORDER BY ChangedAt DESC` (nejnovějších 5000) + `CompanyName/TableNo/FieldNo`.
+  > 🔧 `vw_DashAudit` měl `TOP 100 PERCENT ORDER BY`, který SQL ignoruje → snapshot ukazoval nejstarší. Opraveno řazením přímo v exportu.
+
+> **Provoz z dashboardu (Push #58):** retenční politika a plán importu se konfigurují přes JSON v `ops/` (`retention.json`, `schedule.json`), importní skripty + wrapper je čtou. Web (LocalSystem) je jen zapisuje — **nesahá na SQL ani BC**, viz §11.
 
 ## 11 · RBAC — servisní účet `AXINETWORK\svc-bc-telemetry`
 
@@ -143,10 +151,17 @@ AppPageViews
 |---|---|
 | Azure role `Log Analytics Reader` | na Service Principal, scope = workspace |
 | SQL `db_datareader` + `db_datawriter` | databáze BC_Telemetry |
-| EXECUTE na `usp_BCPageLog_Rollup`, `usp_BCPageLog_Purge` | databáze BC_Telemetry |
+| EXECUTE na `usp_BCPageLog_Rollup`, `usp_BCPageLog_Purge`, `usp_BCChangeLog_Purge`, `usp_BCAuthFail_Rollup` | databáze BC_Telemetry |
 | `Log on as batch job` | lokální policy serveru |
 
 Azure auth přes **Service Principal** (Client Secret v Credential Manageru / Key Vault) — ne interaktivní `Connect-AzAccount`.
+
+> **Princip izolace (Push #41→#58):** veškerý přístup k SQL i BC má **jen `svc-bc-telemetry`** (denní úloha / ops fronta).
+> Web služba `BC_Telemetry_Web` běží pod **LocalSystem** a na SQL ani BC **nesahá** — provozní akce (mazání auditu,
+> stop/restart importu, plán, retence) vkládá jako požadavky do JSON souborů v `C:\Apps\BC_Telemetry_Web\ops`
+> (web zakládá adresář + ACL pro svc na bootu, `runPs` má timeout 90 s); vyřídí je svc. **Reálné vynucení** viditelnosti
+> dashboardu = **Windows Firewall rule** (whitelist); ostatní konfigurace jsou jen JSON.
+> Access-check (whitelist) je **fail-open při prázdné cache** (po restartu nezamkne přístup) a umí i tečkovou masku CIDR (`10.8.2.0/255.255.255.0`).
 
 ## 12 · Workflow sestavení Permission Setů
 
