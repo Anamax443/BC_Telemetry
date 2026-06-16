@@ -151,16 +151,21 @@ function normalizeRequestIp(raw) {
 
 function matchesEntry(remoteIp, entry) {
   if (entry === remoteIp) return true;
-  // CIDR maska: x.x.x.x/n
+  // CIDR — prefix (x.x.x.x/24) i tečková maska (x.x.x.x/255.255.255.0)
   if (entry.includes('/')) {
-    const [base, bitsStr] = entry.split('/');
-    const bits = Number(bitsStr);
-    if (!Number.isInteger(bits) || bits < 0 || bits > 32) return false;
+    const [base, maskStr] = entry.split('/');
     const baseInt = ipv4ToInt(base ?? '');
     const ipInt = ipv4ToInt(remoteIp);
     if (baseInt === null || ipInt === null) return false;
-    if (bits === 0) return true;
-    const mask = bits === 32 ? 0xFFFFFFFF : (0xFFFFFFFF << (32 - bits)) >>> 0;
+    let mask;
+    if ((maskStr ?? '').includes('.')) {          // tečková maska 255.255.255.0
+      mask = ipv4ToInt(maskStr);
+      if (mask === null) return false;
+    } else {                                       // prefix /n
+      const bits = Number(maskStr);
+      if (!Number.isInteger(bits) || bits < 0 || bits > 32) return false;
+      mask = bits === 0 ? 0 : (0xFFFFFFFF << (32 - bits)) >>> 0;
+    }
     return (baseInt & mask) === (ipInt & mask);
   }
   // Rozsah: x.x.x.x-y.y.y.y (inkluzivně)
@@ -178,6 +183,7 @@ function matchesEntry(remoteIp, entry) {
 function isIpAllowed(remoteIpRaw) {
   const ip = normalizeRequestIp(remoteIpRaw);
   if (ALWAYS_ALLOW.has(ip)) return true;
+  if (!allowedList.length) return true;   // cache nenačtena (po bootu) → fail-open (gate je jen formální, nezamykat)
   for (const entry of allowedList) {
     if (matchesEntry(ip, entry)) return true;
   }
