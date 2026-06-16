@@ -1,7 +1,7 @@
 # BC_Telemetry — HANDOFF (rolling)
 
 Aktuální stav projektu pro pokračování v další session. Updatuje se průběžně.
-Poslední update: **2026-06-10** · repo `Anamax443/BC_Telemetry`.
+Poslední update: **2026-06-16** (Push #43 / `c44a0f9`) · repo `Anamax443/BC_Telemetry`.
 
 > **Kompletní build návod:** [navod-interni-axima.md](navod-interni-axima.md) (INTERNÍ, plné hodnoty) ·
 > [navod-public.md](navod-public.md) (sanitizovaný, k publikaci) — sdílené tělo, liší se jen tabulka hodnot.
@@ -38,6 +38,7 @@ Poslední update: **2026-06-10** · repo `Anamax443/BC_Telemetry`.
   Mapování na jméno → BC Users OData (publikovaný web service), NE korelace s Entra sign-in logy.
   `scripts/BC_Users_Import.ps1` (stejný SP jako modul B) → **`dbo.BCUser`** (`sql/03_users.sql`) → `dbo.vw_UserMap` → `web/usermap.json`. Běží v denním wrapperu po modulu B.
 - Interaktivní klienti = **`Desktop`/`WebClient`** (hodnota „Web" NEexistuje → starý filtr by nematchnul nic).
+- **Modul A dedup past (opraveno 2026-06-16, `32b76e6`):** AppPageViews vrací víc událostí se **stejným** (Timestamp ms, UserId, PageId). Původní import dedupoval jen proti cílové tabulce (`WHERE NOT EXISTS`), takže duplicity **uvnitř jedné dávky** prošly a srazily se na `UX_BCPageLog_Dedup` → **rollback celé transakce** → watermark zamrzl (modul A bez nových dat 2026-06-11→16, snapshot/ostatní moduly přitom OK = vypadalo to živě). Fix: `ROW_NUMBER() OVER (PARTITION BY Timestamp,UserId,ISNULL(PageId,''))=1` ve staging před insertem. ⚠ Při podobném „zamrzlém modulu" koukni do `bct-daily-*.log` na `Import ROLLBACK`.
 - Change Log naopak má **reálné jméno** (User_ID = LSOKOL…) → modul B jména řeší nativně.
 - DCR filtr **odložen** (free tier $0; filtruje import).
 - BC SaaS NEMÁ Windows eventlog → „kdo co smazal" jen přes Change Log.
@@ -97,14 +98,23 @@ ukazuje Aktivita/Kandidáti **kdo** co reálně používá → z toho se sestav�
 
 ### Dashboard endpointy (Node služba)
 `/access-check` · `/firewall/whitelist` (GET/PUT) · `/firewall/domain-profile` · `/refresh` (POST) ·
-`/activity` · `/logs` · `/logfiles` · `/usermap` (GET/PUT) · `/changelog-companies` (GET/PUT). Statické: `index.html`, `data.json`.
+`/activity` · `/logs` · `/logfiles` · `/usermap` (GET/PUT) · `/changelog-companies` (GET/PUT) ·
+`/changelog-purge` (POST) · `/ops-status` (GET). Statické: `index.html`, `data.json`.
 
-### Modul B — výběr firem + backfill (2026-06-10)
-- **Nastavení → „Protokol změn — sledované firmy"**: checkboxy per firma → `changelog-companies.json` (`{all,enabled}`).
+### Modul B — výběr firem + backfill (2026-06-10, rozšířeno 2026-06-16)
+- **Záložka „⚙ Nastavení auditu"** (od 2026-06-16 samostatná, dřív sekce v ⚙ Nastavení): checkboxy per firma → `changelog-companies.json` (`{all,enabled}`).
   `BC_ChangeLog_Import` zapíše `all` (všech 12) a importuje jen `enabled` (když nastaveno; jinak vše). Umožní vypnout obří firmy.
+  U každé firmy se zobrazuje **počet záznamů** (z `data.json.changeLogByCompany`); tlačítko **↻ Aktualizovat seznam firem** (spustí import → přepíše `all`).
 - **Backfill past:** BC OData vrací max **~50000 řádků/dotaz** → import bere 50000/firma/běh, watermark `Entry_No gt MAX` **vzestupně** (od nejstarších).
-  `AXIMA_CZ_ESHOP` má `EntryNo ~814M` → ascending backfill k současnosti nereálný. `dbo.BCChangeLog` má 402665 řádků (bez duplicit — UX index).
-- **Otevřené rozhodnutí:** (a) odškrtnout ESHOP (řeší hlavní bolest); (b) přepnout import na **`Entry_No desc`** (nejnovější první) u zbylých firem; (c) **TRUNCATE** `dbo.BCChangeLog` (čistý start). Čeká na operatora.
+  `AXIMA_CZ_ESHOP` má `EntryNo ~814M` → ascending backfill k současnosti nereálný.
+- **Mazání záznamů (od 2026-06-16):** danger-zone „🗑 Smazat audit záznamy" (checkbox firem + potvrzení „SMAZAT") → `POST /changelog-purge` zapíše `ops/ops-request.json` → denní úloha (svc) v **purge-only režimu** provede `DELETE FROM dbo.BCChangeLog WHERE CompanyName IN(...)` + snapshot a **přeskočí import** (jinak by se smazané hned natáhly zpět); web na SQL nesahá. Skript `BC_ChangeLog_Purge.ps1`, hook v `Invoke-BCTelemetryDaily.ps1`, status přes `GET /ops-status`. ⚠ „Jen smazat" — pokud firma zůstává v `enabled`, příští normální import ji natáhne znovu od nejstarších; pro trvalé odstranění ji nejdřív odškrtni.
+- **ESHOP vyřešeno 2026-06-16:** ESHOP je v `enabled` odškrtnutý (netáhne se) a jeho záznamy v `dbo.BCChangeLog` smazány přes purge (**85000 řádků**).
+
+### Dashboard rozšíření (2026-06-16, Push #43)
+- **Velikost lokální DB** v sync pruhu (data využito/alok. + log MB). Exportér počítá ze `sys.database_files` → `data.json.dbSize`.
+- **Per-sloupcové filtry** v tabulkách Aktivita / Kandidáti / Audit / RT0031: řádek pod hlavičkou; Firma a Akce = dropdown (kategorie), text/datum = „obsahuje", číselné sloupce bez filtru (`SELECT_FILTER` / `NO_FILTER` v index.html).
+- **Patička** `© Milan Trnka, IT`.
+- **Ops fronta:** web (LocalSystem) zapisuje požadavky do `C:\Apps\BC_Telemetry_Web\ops\` (ACL pro svc nastaví `ensureOpsDir()` na bootu služby); denní úloha (svc) je zpracuje. ⚠ Změna `server.js` = **restart služby** (`Stop-Service`/wait STOPPED/`Start-Service` jako admin; `trnkam` nemá práva na vzdálený `sc` → restart dělá operátor na serveru).
 
 ### Zbývá jen volitelné
 - Zúžit BC permission set z D365 BUS PREMIUM na custom read (least-privilege); vlastní AL API page místo deprecated UI-page web service.
