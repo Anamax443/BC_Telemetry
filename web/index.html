@@ -247,6 +247,7 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
 <header>
   <div><span class="tag">AXIMA · interní</span><h1 id="homeLink" title="Domů — obnovit dashboard">BC Telemetrie — Admin dashboard</h1></div>
   <div class="hright">
+    <button class="btn-report" type="button" id="mgmtReport" title="Manažerská zpráva (HTML/PDF) — grafy, kumulace, top uživatelé/stránky/firmy">📊 Manažerská zpráva</button>
     <span class="meta" id="liveClock" title="Živý čas (heartbeat) — když stojí, stránka zamrzla">🕐 —</span>
     <button class="theme-btn" type="button" id="themeToggle" title="Světlý / tmavý režim" aria-label="Přepnout motiv">🌙</button>
     <div class="meta" id="meta">načítám…</div>
@@ -274,7 +275,7 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
       <div class="toolbar">
         <input type="text" id="searchActivity" placeholder="Filtr: uživatel / stránka…">
         <span class="count" id="countActivity"></span>
-        <button class="btn-ghost" data-export="Activity" title="Stáhne aktuálně filtrované řádky jako CSV (Excel, oddělovač ;) — podklad pro permission sety">⬇ Export CSV</button>
+        <span class="exp" data-export="Activity"><button class="btn-ghost exp-trig" type="button" title="Export filtrovaných řádků: CSV / TXT / HTML / PDF">⬇ Export ▾</button></span>
       </div>
       <table id="tblActivity"><thead><tr>
         <th data-sort="UserName">Uživatel</th><th data-sort="PageId">Page ID</th>
@@ -290,7 +291,7 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
       <div class="toolbar">
         <input type="text" id="searchUsers" placeholder="Filtr: jméno / GUID / firma…">
         <button class="btn" type="button" id="umSave" disabled>Uložit jména</button>
-        <button class="btn-ghost" type="button" id="usersExport" title="Stáhne seznam uživatelů (mapování + aktivita) jako CSV">⬇ Export CSV</button>
+        <span class="exp" data-export="Users"><button class="btn-ghost exp-trig" type="button" title="Export uživatelů (mapování + aktivita): CSV / TXT / HTML / PDF">⬇ Export ▾</button></span>
         <span class="count" id="countUsers"></span>
         <span class="wl-msg" id="umMsg"></span>
       </div>
@@ -303,7 +304,7 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
       <div class="toolbar">
         <input type="text" id="searchMig" placeholder="Filtr: uživatel / objekt…">
         <span class="count" id="countMig"></span>
-        <button class="btn-ghost" data-export="Mig" title="Stáhne aktuálně filtrované řádky jako CSV (Excel, oddělovač ;)">⬇ Export CSV</button>
+        <span class="exp" data-export="Mig"><button class="btn-ghost exp-trig" type="button" title="Export filtrovaných řádků: CSV / TXT / HTML / PDF">⬇ Export ▾</button></span>
       </div>
       <table id="tblMig"><thead><tr>
         <th data-sort="DateKey">Datum</th><th data-sort="UserName">Uživatel</th>
@@ -316,7 +317,7 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
       <div class="toolbar">
         <input type="text" id="searchAudit" placeholder="Filtr: uživatel / tabulka / pole…">
         <span class="count" id="countAudit"></span>
-        <button class="btn-ghost" data-export="Audit" title="Stáhne aktuálně filtrované řádky jako CSV (Excel, oddělovač ;)">⬇ Export CSV</button>
+        <span class="exp" data-export="Audit"><button class="btn-ghost exp-trig" type="button" title="Export filtrovaných řádků: CSV / TXT / HTML / PDF">⬇ Export ▾</button></span>
       </div>
       <table id="tblAudit"><thead><tr>
         <th data-sort="ChangedAt">Kdy</th><th data-sort="UserId">Kdo</th>
@@ -344,7 +345,7 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
       <div class="toolbar">
         <input type="text" id="searchDbTables" placeholder="Filtr: tabulka…">
         <span class="count" id="countDbTables"></span>
-        <button class="btn-ghost" data-export="DbTables" title="Stáhne seznam tabulek (řádky + velikost) jako CSV">⬇ Export CSV</button>
+        <span class="exp" data-export="DbTables"><button class="btn-ghost exp-trig" type="button" title="Export tabulek: CSV / TXT / HTML / PDF">⬇ Export ▾</button></span>
       </div>
       <table id="tblDbTables"><thead><tr>
         <th data-sort="TableName">Tabulka</th><th data-sort="Rows">Řádků</th><th data-sort="TotalMB">Velikost</th>
@@ -482,6 +483,8 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
           RT0031 chyby). Jsou <strong>klikací</strong> — kliknutím skočíš na odpovídající záložku.</li>
         <li><strong>Pruh pod KPI (synchronizace)</strong> — kolik záznamů je v cloudu vs. staženo do databáze
           (per modul) + velikost lokální DB.</li>
+        <li><strong>📊 Manažerská zpráva</strong> (vpravo nahoře) — otevře přehledovou zprávu s grafy, kumulacemi
+          a žebříčky (top uživatelé/stránky/firmy, trend, audit), kterou lze vytisknout / uložit jako PDF nebo HTML.</li>
       </ul>
 
       <h2 id="u-tabs">2 · Záložky — co kde najdeš</h2>
@@ -516,8 +519,9 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
         <li><strong>Namapuj jména</strong> — záložka <strong>👤 Uživatelé</strong> → ke GUID doplň reálná jména a ulož.</li>
         <li><strong>Zúžení výběru</strong> — záložka <strong>Aktivita uživatelů</strong> → vyfiltruj uživatele /
           firmu, seřaď podle „Otevření".</li>
-        <li><strong>Export</strong> — <strong>⬇ Export CSV</strong> (otevře se v Excelu, oddělovač <code>;</code>,
-          s reálnými jmény). Exportuje se <strong>celá filtrovaná sada</strong>, ne jen zobrazená stránka.</li>
+        <li><strong>Export</strong> — <strong>⬇ Export ▾</strong> → vyber formát <strong>CSV / TXT / HTML / PDF</strong>
+          (CSV se otevře v Excelu, oddělovač <code>;</code>, s reálnými jmény). Exportuje se <strong>celá filtrovaná
+          sada</strong>, ne jen zobrazená stránka.</li>
         <li><strong>Analýza</strong> — v Excelu kontingenční tabulka (řádky = Page&nbsp;ID/Stránka, filtr =
           uživatel) → seznam objektů, kam uživatel reálně chodí.</li>
         <li><strong>Nasazení</strong> — z toho sestav <strong>permission set v BC</strong>, odeber plný přístup.</li>
@@ -534,8 +538,9 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
         <li><strong>Řazení</strong> — klik na hlavičku sloupce (druhý klik obrátí směr).</li>
         <li><strong>Stránkování</strong> — dole « ‹ strana X/Y › » + přepínač <strong>50 / 100 / 200 / 500 / vše</strong>.
           Výchozí počet řádků nastavíš v ⚙ Nastavení (uloží se v prohlížeči).</li>
-        <li><strong>⬇ Export CSV</strong> — stáhne <strong>aktuálně filtrované a seřazené</strong> řádky (UTF-8,
-          oddělovač <code>;</code> → rovnou Excel).</li>
+        <li><strong>⬇ Export ▾</strong> — stáhne <strong>aktuálně filtrované a seřazené</strong> řádky ve formátu
+          <strong>CSV</strong> (Excel, oddělovač <code>;</code>), <strong>TXT</strong> (tab), <strong>HTML</strong>
+          (samostatná tabulka) nebo <strong>PDF</strong> (přes tisk).</li>
       </ul>
 
       <h2 id="u-ops">5 · Provozní úkony (⚙ Nastavení)</h2>
@@ -798,6 +803,7 @@ function matchDateFilter(rowVal, fv){
 }
 const DATE_FILTER = new Set(['ChangedAt','LastUsed','DateKey']);
 const state = {};
+let DATA = null;    // celý data.json (zdroj pro manažerskou zprávu)
 let userMap = {};   // pseudonymní GUID → reálné jméno (z /usermap)
 // zobrazení uživatele: namapované jméno + zkrácený GUID, nebo holý GUID když není mapováno
 const unameHtml = g => { const n=userMap[g]; return n ? `${esc(n)} <span class="uid-sub">${esc(String(g).slice(0,8))}…</span>` : `<span class="uid-sub">${esc(g)}</span>`; };
@@ -1092,8 +1098,9 @@ Promise.all([
   .catch(e=>{document.getElementById('loading').textContent='Chyba načtení data.json: '+e.message;});
 
 // verze nasazeneho dashboardu (bump pri kazdem deployi index.html); snapshot ji muze prebit (d.version)
-const APP_VER={push:63,commit:'c784098',repo:'https://github.com/Anamax443/BC_Telemetry'};
+const APP_VER={push:64,commit:'pending',repo:'https://github.com/Anamax443/BC_Telemetry'};
 function render(d){
+  DATA=d;
   document.getElementById('loading').hidden=true;
   document.getElementById('app').hidden=false;
   state.generatedUtc=d.generatedUtc||'';
@@ -1473,20 +1480,153 @@ const EXPORT_COLS = {
     {header:'Tab. č.',get:r=>r.TableNo},{header:'Tabulka',get:r=>r.TableName},{header:'Pole č.',get:r=>r.FieldNo},{header:'Pole',get:r=>r.FieldName},{header:'Klíč',get:r=>r.PrimaryKey},
     {header:'Stará',get:r=>r.OldValue},{header:'Nová',get:r=>r.NewValue}],
   DbTables:[{header:'Tabulka',get:r=>r.TableName},{header:'Řádků',get:r=>r.Rows},{header:'Velikost MB',get:r=>r.TotalMB}],
+  Users:[{header:'Jméno',get:u=>userMap[u.g]||''},{header:'GUID',get:u=>u.g},{header:'Firmy',get:u=>[...u.companies].join(', ')},
+    {header:'Top stránka',get:u=>u.top||''},{header:'Otevření',get:u=>u.hits},{header:'Naposledy',get:u=>fdate(u.last)}],
 };
+const EXPORT_TITLE={Activity:'Aktivita uživatelů',Mig:'Permission errors (RT0031)',Audit:'Audit změn',DbTables:'Databáze — tabulky',Users:'Uživatelé'};
+const NUM_HDR=new Set(['Otevření','RT0031','Řádků','Velikost MB','Tab. č.','Pole č.','Aktivní uživatelé','Uživatelé','Kumulativně']);
 function csvCell(v){ v=(v==null?'':String(v)); return /[";\n\r]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; }
-function exportCsv(key){
-  const cfg=EXPORT_COLS[key]; if(!cfg) return;
-  const rows=(state[key]&&state[key].view)||[];
-  const sep=';';
-  const lines=[cfg.map(c=>csvCell(c.header)).join(sep)];
-  rows.forEach(r=>lines.push(cfg.map(c=>csvCell(c.get(r))).join(sep)));
-  const blob=new Blob(['﻿'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
-  const url=URL.createObjectURL(blob), a=document.createElement('a');
-  a.href=url; a.download='bc-telemetrie-'+key.toLowerCase()+'-'+new Date().toISOString().slice(0,10)+'.csv';
+const _nowStamp=()=>{ const d=new Date(),p=n=>String(n).padStart(2,'0'); return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes()); };
+function exportSource(key){
+  const cfg=EXPORT_COLS[key]; if(!cfg) return null;
+  const rows = key==='Users' ? (state.usersList||[]) : ((state[key]&&state[key].view)||[]);
+  return {key, cols:cfg, rows, title:EXPORT_TITLE[key]||key};
+}
+function exportMatrix(src){ return [src.cols.map(c=>c.header)].concat(src.rows.map(r=>src.cols.map(c=>{const v=c.get(r);return v==null?'':String(v);}))); }
+function downloadFile(content, mime, ext, key){
+  const blob=new Blob([content],{type:mime}), url=URL.createObjectURL(blob), a=document.createElement('a');
+  a.href=url; a.download='bc-telemetrie-'+String(key).toLowerCase()+'-'+new Date().toISOString().slice(0,10)+'.'+ext;
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),2000);
 }
-document.addEventListener('click',e=>{ const b=e.target.closest('[data-export]'); if(b) exportCsv(b.dataset.export); });
+function exportTableDocHtml(src){
+  const m=exportMatrix(src), head=m[0], body=m.slice(1);
+  const al=head.map(h=>NUM_HDR.has(h)?' class="num"':'');
+  const thead='<tr>'+head.map((h,i)=>`<th${al[i]}>${esc(h)}</th>`).join('')+'</tr>';
+  const trs=body.length?body.map(r=>'<tr>'+r.map((c,i)=>`<td${al[i]}>${esc(c)}</td>`).join('')+'</tr>').join('')
+    :`<tr><td colspan="${head.length}" class="empty">Žádná data</td></tr>`;
+  return `<!DOCTYPE html><html lang="cs"><head><meta charset="UTF-8"><title>${esc(src.title)} — BC Telemetrie</title>`
+    +`<style>*{box-sizing:border-box}body{font-family:Segoe UI,Arial,sans-serif;color:#111;margin:24px;font-size:12px}`
+    +`h1{font-size:18px;margin:0 0 4px}.meta{color:#555;font-size:11px;margin:0 0 16px}`
+    +`table{border-collapse:collapse;width:100%}th,td{border:1px solid #cbd2dd;padding:5px 8px;text-align:left;vertical-align:top}`
+    +`th{background:#f1f3f7;font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:#444}`
+    +`.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}.empty{text-align:center;color:#888;padding:24px}`
+    +`@media print{body{margin:0}@page{margin:12mm}}</style></head><body>`
+    +`<h1>${esc(src.title)}</h1><p class="meta">BC Telemetrie · snapshot ${esc(state.generatedUtc||'?')} UTC · ${body.length} řádků · export ${esc(_nowStamp())}</p>`
+    +`<table><thead>${thead}</thead><tbody>${trs}</tbody></table></body></html>`;
+}
+function openPrint(html){
+  const w=window.open('','_blank'); if(!w){ alert('Povol prosím vyskakovací okna pro tisk/PDF.'); return; }
+  w.document.open();
+  w.document.write(html.replace('</body>','<scr'+'ipt>window.onload=function(){setTimeout(function(){window.print();},150);}</scr'+'ipt></body>'));
+  w.document.close();
+}
+function doExport(key, fmt){
+  const src=exportSource(key); if(!src) return;
+  if(fmt==='csv'){ const m=exportMatrix(src); downloadFile('﻿'+m.map(r=>r.map(csvCell).join(';')).join('\r\n'),'text/csv;charset=utf-8','csv',key); }
+  else if(fmt==='txt'){ const m=exportMatrix(src); const cl=v=>String(v).replace(/[\t\r\n]+/g,' '); downloadFile('﻿'+m.map(r=>r.map(cl).join('\t')).join('\r\n'),'text/plain;charset=utf-8','txt',key); }
+  else if(fmt==='html'){ downloadFile('﻿'+exportTableDocHtml(src),'text/html;charset=utf-8','html',key); }
+  else if(fmt==='pdf'){ openPrint(exportTableDocHtml(src)); }
+}
+// Export dropdown (CSV/TXT/HTML/PDF) — delegace klików
+document.addEventListener('click',e=>{
+  const fb=e.target.closest('.exp-menu [data-fmt]');
+  if(fb){ const w=fb.closest('.exp'); if(w){ doExport(w.dataset.export, fb.dataset.fmt); w.classList.remove('open'); } return; }
+  const tg=e.target.closest('.exp-trig');
+  if(tg){ const w=tg.closest('.exp'); document.querySelectorAll('.exp.open').forEach(x=>{if(x!==w)x.classList.remove('open');}); if(w) w.classList.toggle('open'); return; }
+  document.querySelectorAll('.exp.open').forEach(x=>x.classList.remove('open'));
+});
+// Vloží formátové menu do každého export dropdownu (jednotné pro všechny tabulky)
+(function(){
+  const MENU='<div class="exp-menu">'
+    +'<button type="button" data-fmt="csv"><span class="ex-i">CSV</span>Excel (oddělovač ;)</button>'
+    +'<button type="button" data-fmt="txt"><span class="ex-i">TXT</span>Text (tab)</button>'
+    +'<button type="button" data-fmt="html"><span class="ex-i">HTML</span>Tabulka (soubor)</button>'
+    +'<button type="button" data-fmt="pdf"><span class="ex-i">PDF</span>Tisk / uložit PDF</button>'
+    +'</div>';
+  document.querySelectorAll('.exp').forEach(e=>{ if(!e.querySelector('.exp-menu')) e.insertAdjacentHTML('beforeend',MENU); });
+})();
+
+// ───────── Manažerská zpráva (HTML/PDF s grafy a kumulacemi) ─────────
+function _sumBy(arr, keyFn, valFn){ const m=new Map(); (arr||[]).forEach(r=>{const k=keyFn(r); m.set(k,(m.get(k)||0)+(valFn(r)||0));}); return m; }
+function _barRows(items, fmtv){
+  fmtv=fmtv||fmt; if(!items.length) return '<div class="mr-empty">Žádná data</div>';
+  const max=Math.max(1,...items.map(i=>i.value||0));
+  return items.map(i=>{ const w=Math.max(1,Math.round(100*(i.value||0)/max));
+    return `<div class="mr-br"><div class="mr-bl" title="${esc(i.label)}">${esc(i.label)}</div>`
+      +`<div class="mr-bt"><div class="mr-bf" style="width:${w}%"></div></div>`
+      +`<div class="mr-bv">${esc(fmtv(i.value))}${i.sub?` <span class="mr-sub">${esc(i.sub)}</span>`:''}</div></div>`; }).join('');
+}
+function _mrTbl(headers, rows){
+  return `<table class="mr-t"><thead><tr>`+headers.map(h=>`<th${h.num?' class="num"':''}>${esc(h.t)}</th>`).join('')+`</tr></thead><tbody>`
+    +(rows.length?rows.map(r=>'<tr>'+r.map((c,i)=>`<td${headers[i].num?' class="num"':''}>${esc(c)}</td>`).join('')+'</tr>').join('')
+      :`<tr><td colspan="${headers.length}" class="mr-empty">Žádná data</td></tr>`)+`</tbody></table>`;
+}
+function buildMgmtReportHtml(){
+  const d=DATA||{}, k=d.kpi||{};
+  const ua=d.userActivity||[], trend=d.trend||[], clc=d.changeLogByCompany||[], cl=d.changeLog||[], af=d.authFails||[];
+  const ul=(state.usersList||[]).slice().sort((a,b)=>b.hits-a.hits);
+  const topUsers=ul.slice(0,10).map(u=>({label:(userMap[u.g]||(String(u.g).slice(0,8)+'…')), value:u.hits}));
+  const topPages=[..._sumBy(ua,r=>r.PageName||('Page '+r.PageId),r=>r.TotalHits).entries()].map(([label,value])=>({label,value})).sort((a,b)=>b.value-a.value).slice(0,10);
+  const compHits=_sumBy(ua,r=>r.CompanyName||'(bez firmy)',r=>r.TotalHits);
+  const compUsers=new Map(); ua.forEach(r=>{const c=r.CompanyName||'(bez firmy)'; if(!compUsers.has(c))compUsers.set(c,new Set()); if(r.UserName)compUsers.get(c).add(r.UserName);});
+  const byCompany=[...compHits.entries()].map(([label,value])=>({label,value,sub:(compUsers.get(label)?compUsers.get(label).size:0)+' uživ.'})).sort((a,b)=>b.value-a.value);
+  const tr=trend.slice().sort((a,b)=>String(a.DateKey).localeCompare(String(b.DateKey)));
+  let cum=0; const trendRows=tr.map(t=>{cum+=(t.Hits||0); return [fdate(t.DateKey),fmt(t.Hits),fmt(t.Users),fmt(cum)];});
+  const trendBars=tr.map(t=>({label:fdate(t.DateKey),value:t.Hits||0,sub:(t.Users||0)+' uživ.'}));
+  const auditByType=[..._sumBy(cl,r=>r.ChangeType||'?',()=>1).entries()].map(([label,value])=>({label,value})).sort((a,b)=>b.value-a.value);
+  const auditByCompany=clc.map(c=>({label:c.CompanyName,value:c.Rows||0})).sort((a,b)=>b.value-a.value).slice(0,12);
+  const topRt=[..._sumBy(af,r=>r.ObjectName||('Obj '+r.ObjectId),r=>r.Failures).entries()].map(([label,value])=>({label,value})).sort((a,b)=>b.value-a.value).slice(0,10);
+  const kpiCards=[['Aktivní uživatelé · 30d',fmt(k.ActiveUsers30d)],['Použité stránky · 30d',fmt(k.DistinctPages30d)],['Otevření · 30d',fmt(k.Hits30d)],['RT0031 chyby · 14d',fmt(k.AuthFails14d)]]
+    .map(c=>`<div class="mr-kpi"><div class="mr-kl">${esc(c[0])}</div><div class="mr-kv">${esc(c[1])}</div></div>`).join('');
+  const syn=Array.isArray(d.sync)?d.sync:[], modName={A:'Využití stránek',B:'Audit změn',C:'Permission errors'};
+  const synHtml=syn.map(s=>`<span class="mr-pill"><b>${esc(modName[s.Module]||s.Module)}</b> ${fmt(s.LocalCount)} / ${fmt(s.CloudCount)}</span>`).join(' ');
+  const ds=d.dbSize?`<span class="mr-pill"><b>DB</b> ${fmt(d.dbSize.DataUsedMB)} MB</span>`:'';
+  const css=`*{box-sizing:border-box}body{font-family:Segoe UI,Arial,sans-serif;color:#111;margin:0;font-size:12px;background:#fff}
+  .mr-wrap{max-width:900px;margin:0 auto;padding:26px}
+  .mr-top{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1d4ed8;padding-bottom:12px}
+  h1{font-size:20px;margin:0}.mr-meta{color:#555;font-size:11px;margin:4px 0 0}
+  .mr-actions button{font:inherit;font-size:12px;padding:6px 12px;margin-left:6px;border:1px solid #1d4ed8;background:#1d4ed8;color:#fff;border-radius:6px;cursor:pointer}
+  .mr-actions button.sec{background:#fff;color:#1d4ed8}
+  h2{font-size:14px;margin:24px 0 8px;padding-bottom:5px;border-bottom:1px solid #cbd2dd}h3{font-size:12px;margin:0 0 6px}
+  .mr-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:14px 0}
+  .mr-kpi{border:1px solid #cbd2dd;border-radius:8px;padding:12px}
+  .mr-kl{font-size:9px;letter-spacing:.5px;text-transform:uppercase;color:#666}.mr-kv{font-size:26px;font-weight:300}
+  .mr-strip{margin:8px 0 0;color:#444}.mr-pill{display:inline-block;background:#f1f3f7;border:1px solid #cbd2dd;border-radius:20px;padding:3px 10px;margin:2px 4px 2px 0;font-size:11px}
+  .mr-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+  .mr-br{display:flex;align-items:center;gap:8px;margin:3px 0}
+  .mr-bl{width:150px;flex:none;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mr-bt{flex:1;background:#eef1f6;border-radius:4px;height:15px;overflow:hidden}.mr-bf{height:100%;background:#1d4ed8}
+  .mr-bv{width:96px;flex:none;text-align:right;font-size:11px;font-variant-numeric:tabular-nums}.mr-sub{color:#888}
+  table.mr-t{border-collapse:collapse;width:100%;font-size:11px}
+  .mr-t th,.mr-t td{border:1px solid #cbd2dd;padding:4px 8px;text-align:left}.mr-t th{background:#f1f3f7;font-size:9px;text-transform:uppercase;color:#555}
+  .mr-t .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}.mr-empty{text-align:center;color:#999;padding:14px}
+  .mr-note{color:#777;font-size:10px;margin-top:4px}
+  @media print{.mr-actions{display:none}.mr-wrap{max-width:100%;padding:0}@page{margin:12mm}h2{break-after:avoid}.mr-grid,.mr-kpis{break-inside:avoid}}`;
+  return `<!DOCTYPE html><html lang="cs"><head><meta charset="UTF-8"><title>Manažerská zpráva — BC Telemetrie</title><style>${css}</style></head><body><div class="mr-wrap">
+    <div class="mr-top"><div><h1>BC Telemetrie — manažerská zpráva</h1>
+      <p class="mr-meta">Snapshot ${esc(state.generatedUtc||'?')} UTC · vygenerováno ${esc(_nowStamp())} · podklad pro řízení oprávnění (least-privilege)</p></div>
+      <div class="mr-actions"><button id="mrPrint">🖨 Tisk / PDF</button><button class="sec" id="mrSave">⬇ Uložit HTML</button></div></div>
+    <h2>Souhrn</h2><div class="mr-kpis">${kpiCards}</div><div class="mr-strip">${synHtml} ${ds}</div>
+    <h2>Trend využití (otevření / den) + kumulace</h2>
+    <div class="mr-grid"><div>${_barRows(trendBars)}</div><div>${_mrTbl([{t:'Datum'},{t:'Otevření',num:1},{t:'Uživatelé',num:1},{t:'Kumulativně',num:1}],trendRows)}</div></div>
+    <h2>Top 10 uživatelů dle otevření</h2>${_barRows(topUsers)}
+    <h2>Top 10 stránek dle otevření</h2>${_barRows(topPages)}
+    <h2>Aktivita dle firmy</h2>${_barRows(byCompany)}
+    <h2>Audit změn — dle typu a firmy</h2>
+    <div class="mr-grid"><div><h3>Dle typu změny <span class="mr-note">(z ${cl.length} posledních záznamů)</span></h3>${_barRows(auditByType)}</div>
+      <div><h3>Dle firmy <span class="mr-note">(celkové počty v BC)</span></h3>${_barRows(auditByCompany)}</div></div>
+    ${af.length?`<h2>Permission errors (RT0031) — top objekty</h2>${_barRows(topRt)}`:'<h2>Permission errors (RT0031)</h2><p class="mr-note">Žádné chyby v období — uživatelé mají potřebná oprávnění.</p>'}
+    <p class="mr-note">© Milan Trnka, IT — BC Telemetrie. Modul A (využití stránek), modul B (audit změn), modul C (RT0031).</p>
+  </div><scr`+`ipt>
+    document.getElementById('mrPrint').onclick=function(){window.print();};
+    document.getElementById('mrSave').onclick=function(){var h='<!DOCTYPE html>\\n'+document.documentElement.outerHTML;var b=new Blob([h],{type:'text/html;charset=utf-8'});var u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='bc-telemetrie-manazerska-zprava-'+new Date().toISOString().slice(0,10)+'.html';a.click();setTimeout(function(){URL.revokeObjectURL(u);},2000);};
+  </scr`+`ipt></body></html>`;
+}
+function openMgmtReport(){
+  const w=window.open('','_blank'); if(!w){ alert('Povol prosím vyskakovací okna pro manažerskou zprávu.'); return; }
+  w.document.open(); w.document.write(buildMgmtReportHtml()); w.document.close();
+}
+(function(){ const b=document.getElementById('mgmtReport'); if(b) b.addEventListener('click',openMgmtReport); })();
 
 // Trend: celkově (vw_DashTrend) nebo filtrovaně dle firmy (trendByCompany).
 function setupTrend(trendAll, byCompany){
