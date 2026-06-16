@@ -1,7 +1,8 @@
 # BC_Telemetry — HANDOFF (rolling)
 
 Aktuální stav projektu pro pokračování v další session. Updatuje se průběžně.
-Poslední update: **2026-06-16** (Push #51 / `e32d087`) · repo `Anamax443/BC_Telemetry`.
+Poslední update: **2026-06-16** (Push #52 / `cdb5a06`) · repo `Anamax443/BC_Telemetry`.
+Modul B = **bulk insert** (SqlBulkCopy→#Staging→dedup, `fa08d7e`) místo row-by-row. Plán importu (okno+četnost) z dashboardu (`PUT /schedule`). Uživatelé filtr+export, KPI „Aktivní uživatelé"→záložka Uživatelé.
 Filtry tabulek = zalamovací lišta `.filterbar` (popisky + „Vyčistit"); datum `2026.06.07`; filtr data rozmezí `od..do`; běžící čas + stáří dat v hlavičce.
 
 ### Správa služby + retence z dashboardu (2026-06-16, Push #51, „dávka A")
