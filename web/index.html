@@ -19,7 +19,7 @@ header h1{font-size:19px;font-weight:600;}
 header .meta{font-family:var(--mono);font-size:11px;color:var(--text3);text-align:right;}
 #liveClock.stale{color:var(--red);font-weight:600;}
 main{padding:28px 32px;max-width:1200px;margin:0 auto;}
-.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:28px;}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:28px;}
 .kpi{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 20px;}
 .kpi .label{font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--text3);margin-bottom:8px;}
 .kpi .val{font-size:30px;font-weight:300;letter-spacing:-1px;}
@@ -134,6 +134,29 @@ html[data-theme="dark"] .spark .col{background:rgba(96,165,250,.35);}
 .fb-clear:hover{text-decoration:underline;}
 /* ── Patička ── */
 footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;text-align:center;color:var(--text3);font-size:12px;font-family:var(--mono);}
+/* ── Stránkovač ── */
+.panel{overflow-x:auto;}                 /* široké tabulky (Audit) → horizontální scroll místo rozbití */
+.pager{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0 4px;font-size:13px;color:var(--text2);}
+.pager button{font-family:var(--sans);font-size:13px;min-width:34px;padding:5px 9px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text2);cursor:pointer;}
+.pager button:hover:not(:disabled){border-color:var(--accent);color:var(--text);}
+.pager button:disabled{opacity:.4;cursor:not-allowed;}
+.pager .pinfo{font-family:var(--mono);font-size:12px;color:var(--text3);}
+.pager select{font-family:var(--sans);font-size:12px;padding:4px 7px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);}
+.pager .psize{margin-left:auto;display:flex;align-items:center;gap:6px;color:var(--text3);font-size:12px;}
+/* ── Responzivní (mobil / tablet) ── */
+@media (max-width:820px){
+  header{padding:14px 16px;flex-wrap:wrap;gap:8px 14px;}
+  header h1{font-size:16px;}
+  main{padding:16px 12px;}
+  .kpi .val{font-size:24px;}
+  .tabs{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;}
+  .tab{white-space:nowrap;}
+  .toolbar{flex-wrap:wrap;}
+  .toolbar input{width:100%;}
+  .sync-strip{font-size:11px;gap:10px;}
+  .set-section,.wl-ta{max-width:100%;}
+}
+@media (max-width:480px){ .kpis{grid-template-columns:1fr;} }
 .trend-sel{font-family:var(--sans);font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg);color:var(--text);}
 .tasks-box{margin-top:10px;max-height:200px;}
 .ret-grid{display:grid;grid-template-columns:1fr auto;gap:8px 14px;align-items:center;max-width:420px;margin-bottom:12px;}
@@ -297,6 +320,16 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
         </div>
       </div>
       <div class="set-section">
+        <h3>Zobrazení tabulek</h3>
+        <p class="set-desc">Výchozí počet řádků na stránku v tabulkách (Aktivita, Audit, Databáze…).
+        Uloženo v prohlížeči; v každé tabulce lze přepnout i přes stránkovač dole.</p>
+        <div class="wl-row">
+          <input type="number" min="10" max="5000" id="uiPageSize" class="confirm-in">
+          <button class="btn" type="button" id="uiPageSizeSave">Uložit</button>
+          <span class="wl-msg" id="uiPageSizeMsg"></span>
+        </div>
+      </div>
+      <div class="set-section">
         <h3>Správa služby a úloh</h3>
         <p class="set-desc">Stav naplánovaných úloh, zastavení běžícího (i zaseknutého) importu a restart web služby
         (nasadí změny <span class="mono">server.js</span> — služba se sama nahodí přes NSSM).</p>
@@ -392,6 +425,18 @@ const unameHtml = g => { const n=userMap[g]; return n ? `${esc(n)} <span class="
 // ── Klik na název = domů (obnovit dashboard) ─────────────────────────────────
 (function(){ const h=document.getElementById('homeLink'); if(h) h.addEventListener('click',()=>location.assign('/')); })();
 (function(){ const y=document.getElementById('cpYear'); if(y) y.textContent=new Date().getFullYear(); })();
+// Výchozí počet řádků na stránku (Nastavení) — localStorage; aplikuje se na tabulky setupTable.
+(function pageSizeCtl(){
+  const inp=document.getElementById('uiPageSize'), btn=document.getElementById('uiPageSizeSave'), msg=document.getElementById('uiPageSizeMsg');
+  if(!inp||!btn) return;
+  inp.value=pageSizeDefault();
+  btn.addEventListener('click',()=>{
+    let v=parseInt(inp.value,10); if(!(v>=10&&v<=5000)){ if(msg){msg.className='wl-msg err';msg.textContent='⚠ 10–5000';} return; }
+    localStorage.setItem('bct-pagesize',String(v));
+    ['Activity','Mig','Audit','DbTables'].forEach(k=>{ if(state[k]){ state[k].pageSize=v; state[k].page=0; draw(k); } });
+    if(msg){ msg.className='wl-msg ok'; msg.textContent='✓ '+v+' řádků/stránku'; }
+  });
+})();
 // Běžící čas (heartbeat) + stáří dat — když čas stojí, stránka zamrzla; stará data zčervenají.
 (function liveClock(){
   const el=document.getElementById('liveClock'); if(!el) return;
@@ -919,9 +964,10 @@ function renderDbInfo(){
     +row('Log soubor', fmt(s.LogAllocMB)+' MB')
     +'</div>';
 }
+function pageSizeDefault(){ const v=parseInt(localStorage.getItem('bct-pagesize')||'100',10); return (v>0&&v<=5000)?v:(v===0?0:100); }
 function setupTable(key,rows,rowFn,searchFields,max,defaultSort){
   const ds=defaultSort||{};
-  state[key]={rows,rowFn,searchFields,max,sortKey:ds.key||null,sortDir:ds.dir||1,filter:'',colFilters:{}};
+  state[key]={rows,rowFn,searchFields,max,sortKey:ds.key||null,sortDir:ds.dir||1,filter:'',colFilters:{},page:0,pageSize:pageSizeDefault()};
   const search=document.getElementById('search'+key);
   if(search)search.addEventListener('input',e=>{state[key].filter=e.target.value.toLowerCase();draw(key);});
   document.querySelectorAll('#tbl'+key+' thead tr:first-child th[data-sort]').forEach(th=>th.addEventListener('click',()=>{
@@ -929,7 +975,21 @@ function setupTable(key,rows,rowFn,searchFields,max,defaultSort){
     s.sortDir=(s.sortKey===col)?-s.sortDir:1; s.sortKey=col; draw(key);
   }));
   buildFilterBar(key,rows);
+  const tbl=document.getElementById('tbl'+key);
+  if(tbl && !document.getElementById('pager'+key)){ const pg=document.createElement('div'); pg.className='pager'; pg.id='pager'+key; tbl.insertAdjacentElement('afterend',pg); }
   draw(key);
+}
+function updatePager(key,total,pages,ps){
+  const pg=document.getElementById('pager'+key); if(!pg) return;
+  const s=state[key]; const sizes=[50,100,200,500,0];
+  const btn=(lbl,dis,to)=>`<button ${dis?'disabled':''} data-pg="${to}">${lbl}</button>`;
+  const from=ps>0?(total?s.page*ps+1:0):(total?1:0), to=ps>0?Math.min(total,(s.page+1)*ps):total;
+  pg.innerHTML=btn('«',s.page<=0,0)+btn('‹',s.page<=0,s.page-1)
+    +`<span class="pinfo">${from}–${to} z ${total} · str. ${s.page+1}/${pages}</span>`
+    +btn('›',s.page>=pages-1,s.page+1)+btn('»',s.page>=pages-1,pages-1)
+    +`<span class="psize">řádků/str.: <select>${sizes.map(x=>`<option value="${x}"${x===ps?' selected':''}>${x===0?'vše':x}</option>`).join('')}</select></span>`;
+  pg.querySelectorAll('button[data-pg]').forEach(b=>b.addEventListener('click',()=>{ s.page=+b.dataset.pg; draw(key); }));
+  const sel=pg.querySelector('select'); if(sel) sel.addEventListener('change',()=>{ s.pageSize=+sel.value; localStorage.setItem('bct-pagesize',String(s.pageSize)); s.page=0; draw(key); });
 }
 // Filtrační lišta nad tabulkou (zalamuje se do víc řádků). Firma/Akce = dropdown, text/datum = obsahuje.
 function buildFilterBar(key,rows){
@@ -979,10 +1039,16 @@ function draw(key){
   });
   if(s.sortKey){rows.sort((a,b)=>{const x=a[s.sortKey],y=b[s.sortKey];
     return (x<y?-1:x>y?1:0)*s.sortDir;});}
-  s.view=rows;   // aktuálně zobrazené (filtrované+seřazené) řádky — zdroj pro Export CSV
+  s.view=rows;   // celá filtrovaná+seřazená sada — zdroj pro Export CSV (export = vše, ne jen stránka)
+  const ps=s.pageSize||0;
+  const total=rows.length;
+  const pages=ps>0?Math.max(1,Math.ceil(total/ps)):1;
+  if(s.page>=pages) s.page=pages-1; if(s.page<0) s.page=0;
+  const pageRows=ps>0?rows.slice(s.page*ps,s.page*ps+ps):rows;
   const tbody=document.querySelector('#tbl'+key+' tbody');
-  if(!rows.length){tbody.innerHTML=`<tr><td colspan="6"><div class="empty">Žádná data</div></td></tr>`;}
-  else{tbody.innerHTML=rows.map(r=>s.rowFn(r,s.max)).join('');}
+  if(!pageRows.length){tbody.innerHTML=`<tr><td colspan="12"><div class="empty">Žádná data</div></td></tr>`;}
+  else{tbody.innerHTML=pageRows.map(r=>s.rowFn(r,s.max)).join('');}
+  updatePager(key,total,pages,ps);
   // CSP-safe: šířky barů nastavit přes IDL setter, ne inline style atribut
   tbody.querySelectorAll('.bar[data-pct]').forEach(b=>{
     const f=document.createElement('div');f.className='fill';f.style.width=b.dataset.pct+'%';
