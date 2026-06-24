@@ -88,6 +88,9 @@ Služba na `10.8.2.225:8080` poskytuje (Push #58):
 | `/restart` | POST | `process.exit()` → NSSM službu nahodí |
 | `/retention` | GET/PUT | čte/zapisuje `ops/retention.json` |
 | `/schedule` | GET/PUT | čte/zapisuje `ops/schedule.json` |
+| `/snapshot-config` | GET/PUT | strop řádků na sekci ve snapshotu (`ops/snapshot.json`, čte `Export-DashboardSnapshot.ps1`) |
+| `/notify-config` | GET/PUT | e-mailové notifikace (`ops/notify.json`, čte `Send-BCTelemetryNotification.ps1`) |
+| `/notify-test` | POST | pošle testovací e-mail hned (`Send-BCTelemetryNotification.ps1 -Manual`) |
 
 Statické: `index.html`, `data.json`, `exports/*`.
 
@@ -104,6 +107,9 @@ ho při dalším běhu **zpracuje**. ACL na adresáři nastaví **služba na boo
 | `retention.json`   | retenční politika (viz §6), čtou importní skripty |
 | `schedule.json`    | plán importu (viz §5), čte wrapper |
 | `oneshot.flag`     | jednorázové spuštění importu (z `/refresh`) |
+| `snapshot.json`    | strop řádků na sekci ve snapshotu (`{topRows}`, čte `Export-DashboardSnapshot.ps1`) |
+| `notify.json`      | konfigurace e-mailových notifikací (čte `Send-BCTelemetryNotification.ps1`) |
+| `notify-state.json`| last-sent/last-status notifikací (zapisuje notifikační skript) |
 
 ## 1d · Restart služby z dashboardu (self-service deploy)
 
