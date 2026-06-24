@@ -175,6 +175,9 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
 .nf-grid input[type=text],.nf-grid select{width:100%;font-size:13px;padding:6px 9px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);}
 .nf-grid input[type=number]{width:90px;font-size:13px;padding:6px 9px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);text-align:right;}
 .nf-grid input:focus,.nf-grid select:focus{outline:none;border-color:var(--accent);}
+.subtabs{display:flex;gap:6px;margin-bottom:12px;}
+.subtab{font:inherit;font-size:13px;padding:6px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text2);cursor:pointer;}
+.subtab.active{background:var(--accent);color:#fff;border-color:var(--accent);}
 .sched-days{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:2px 0 12px;font-size:13px;color:var(--text2);}
 .sched-days .cl-item{gap:5px;}
 .dbinfo{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:6px 18px;margin-bottom:18px;}
@@ -341,20 +344,48 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
     </section>
 
     <section class="panel" id="panel-tables">
-      <div class="toolbar">
-        <input type="text" id="searchTables" placeholder="Filtr: uživatel / tabulka…">
-        <span class="count" id="countTables"></span>
-        <span class="exp" data-export="Tables"><button class="btn-ghost exp-trig" type="button" title="Export filtrovaných řádků: CSV / TXT / HTML / PDF">⬇ Export ▾</button></span>
+      <div class="subtabs">
+        <button class="subtab active" data-tview="write">✏ Zápisy (audit)</button>
+        <button class="subtab" data-tview="read">👁 Čtení (ze stránek)</button>
       </div>
-      <p class="set-desc" style="margin:0 0 8px">Které <strong>tabulky</strong> uživatel reálně <strong>mění</strong> (zápisy z auditu — modul B) → podklad pro RIMD oprávnění v permission setu. Pozn.: pokrytí = tabulky zapnuté v BC Change Log Setup; <em>čtení</em> sem nepatří (přidá se ve fázi 2 – odvození ze stránek).</p>
-      <table id="tblTables"><thead><tr>
-        <th data-sort="UserName">Kdo</th>
-        <th data-sort="CompanyName">Firma</th>
-        <th data-sort="TableNo">Tab. č.</th><th data-sort="TableName">Tabulka</th>
-        <th data-sort="Changes">Změny</th>
-        <th data-sort="Ins">Vložení</th><th data-sort="Mod">Úpravy</th><th data-sort="Del">Smazání</th>
-        <th data-sort="LastAt">Naposledy</th>
-      </tr></thead><tbody></tbody></table>
+
+      <div class="tview" id="tview-write">
+        <div class="toolbar">
+          <input type="text" id="searchTables" placeholder="Filtr: uživatel / tabulka…">
+          <span class="count" id="countTables"></span>
+          <span class="exp" data-export="Tables"><button class="btn-ghost exp-trig" type="button" title="Export filtrovaných řádků: CSV / TXT / HTML / PDF">⬇ Export ▾</button></span>
+        </div>
+        <p class="set-desc" style="margin:0 0 8px">Které <strong>tabulky</strong> uživatel reálně <strong>mění</strong> (zápisy z auditu — modul B) → podklad pro RIMD oprávnění. Pokrytí = tabulky zapnuté v BC Change Log Setup.</p>
+        <table id="tblTables"><thead><tr>
+          <th data-sort="UserName">Kdo</th>
+          <th data-sort="CompanyName">Firma</th>
+          <th data-sort="TableNo">Tab. č.</th><th data-sort="TableName">Tabulka</th>
+          <th data-sort="Changes">Změny</th>
+          <th data-sort="Ins">Vložení</th><th data-sort="Mod">Úpravy</th><th data-sort="Del">Smazání</th>
+          <th data-sort="LastAt">Naposledy</th>
+        </tr></thead><tbody></tbody></table>
+      </div>
+
+      <div class="tview" id="tview-read" hidden>
+        <div id="pagemapBanner"></div>
+        <div class="toolbar">
+          <input type="text" id="searchTableReads" placeholder="Filtr: uživatel / tabulka…">
+          <span class="count" id="countTableReads"></span>
+          <span class="exp" data-export="TableReads"><button class="btn-ghost exp-trig" type="button" title="Export filtrovaných řádků: CSV / TXT / HTML / PDF">⬇ Export ▾</button></span>
+        </div>
+        <p class="set-desc" style="margin:0 0 8px">Které tabulky uživatel pravděpodobně <strong>čte</strong> — odvozeno z otevřených stránek × mapování PageID→zdrojová tabulka. Doplňkový signál (ne přesná read-telemetrie).</p>
+        <table id="tblTableReads"><thead><tr>
+          <th data-sort="UserName">Kdo</th><th data-sort="CompanyName">Firma</th>
+          <th data-sort="TableNo">Tab. č.</th><th data-sort="TableName">Tabulka</th>
+          <th data-sort="Reads">Otevření</th><th data-sort="Pages">Stránek</th><th data-sort="LastUsed">Naposledy</th>
+        </tr></thead><tbody></tbody></table>
+        <details style="margin-top:14px">
+          <summary style="cursor:pointer;color:var(--accent2)">⚙ Nahrát mapování stránka → tabulka</summary>
+          <p class="set-desc">V BC otevři <span class="mono">Page Metadata</span> (tabulka 2000000138) → Sdílet → Otevřít v Excelu, a vlož sem řádky <strong>ID ⟶ SourceTable [⟶ název]</strong> (odděleno tabem / čárkou / středníkem; hlavička se ignoruje). Pokryje i custom stránky. Projeví se po ↻ obnově.</p>
+          <textarea id="pagemapText" rows="6" style="width:100%;font-family:var(--mono);font-size:12px" placeholder="ID&#9;SourceTable&#9;SourceTableName&#10;30&#9;27&#9;Item&#10;31&#9;27&#9;Item"></textarea>
+          <div class="wl-row" style="margin-top:6px"><button class="btn" id="pagemapSave">Uložit mapování</button> <span class="wl-msg" id="pagemapMsg"></span></div>
+        </details>
+      </div>
     </section>
 
     <section class="panel" id="panel-trend">
@@ -874,6 +905,32 @@ const unameHtml = g => { const n=userMap[g]; return n ? `${esc(n)} <span class="
     const d=document.querySelector('.doc'); if(d) d.scrollIntoView({block:'start'});
   }));
 })();
+// ── Přepínač Tabulky: Zápisy / Čtení ─────────────────────────────────────────
+(function tableViews(){
+  const sws=document.querySelectorAll('.subtab[data-tview]'); if(!sws.length) return;
+  sws.forEach(b=>b.addEventListener('click',()=>{
+    sws.forEach(x=>x.classList.toggle('active',x===b));
+    document.querySelectorAll('#panel-tables .tview').forEach(v=>{ v.hidden = (v.id!=='tview-'+b.dataset.tview); });
+  }));
+})();
+// ── Mapování stránka→tabulka (banner + uložení) ──────────────────────────────
+function setupPagemap(d){
+  const ban=document.getElementById('pagemapBanner');
+  const cnt=(d&&d.pageMapCount)||0;
+  if(ban){ ban.innerHTML = cnt>0
+    ? '<div class="wl-banner ok"><span>✓</span><div>Mapování stránek: <b>'+fmt(cnt)+'</b> stránek. Čtení se dopočítává z page-views.</div></div>'
+    : '<div class="wl-banner warn"><span>⚠</span><div>Zatím <b>bez mapování</b> — čtení se nedopočítá. Nahraj mapování níže (PageID→tabulka z BC „Page Metadata").</div></div>'; }
+  const save=document.getElementById('pagemapSave'); if(!save||save._bound) return; save._bound=true;
+  save.addEventListener('click',()=>{
+    const txt=document.getElementById('pagemapText').value||''; const m=document.getElementById('pagemapMsg');
+    if(!txt.trim()){ m.className='wl-msg err'; m.textContent='⚠ vlož řádky'; return; }
+    m.className='wl-msg'; m.textContent='ukládám…';
+    fetch('/pagemap',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:txt})})
+      .then(r=>r.json().then(j=>({ok:r.ok,j})))
+      .then(({ok,j})=>{ if(!ok)throw new Error(j.error||'chyba'); m.className='wl-msg ok'; m.textContent='✓ uloženo '+j.count+' stránek — projeví se po ↻ obnově'; })
+      .catch(e=>{ m.className='wl-msg err'; m.textContent='⚠ '+e.message; });
+  });
+}
 // ── Tisk / PDF dokumentace (@media print vytiskne jen viditelný #panel-docs view, vždy světle) ──
 (function(){ const b=document.getElementById('docPrint'); if(b) b.addEventListener('click',()=>window.print()); })();
 // ── Klik na název = domů (obnovit dashboard) ─────────────────────────────────
@@ -1225,7 +1282,7 @@ Promise.all([
   .catch(e=>{document.getElementById('loading').textContent='Chyba načtení data.json: '+e.message;});
 
 // verze nasazeneho dashboardu (bump pri kazdem deployi index.html); snapshot ji muze prebit (d.version)
-const APP_VER={push:69,commit:'1955cc9',repo:'https://github.com/Anamax443/BC_Telemetry'};
+const APP_VER={push:70,commit:'pending',repo:'https://github.com/Anamax443/BC_Telemetry'};
 function render(d){
   DATA=d;
   document.getElementById('loading').hidden=true;
@@ -1277,6 +1334,8 @@ function render(d){
   setupTable('Mig',d.authFails||[],migRow,['UserName','ObjectName'],null,{key:'DateKey',dir:-1});
   setupTable('Audit',d.changeLog||[],auditRow,['UserId','CompanyName','TableNo','TableName','FieldNo','FieldName','PrimaryKey','OldValue','NewValue'],null,{key:'ChangedAt',dir:-1});
   setupTable('Tables',d.tableActivity||[],tablesRow,['UserName','TableName','TableNo','CompanyName'],maxChanges(d.tableActivity),{key:'Changes',dir:-1});
+  setupTable('TableReads',d.tableReads||[],tableReadsRow,['UserName','TableName','TableNo','CompanyName'],maxReads(d.tableReads),{key:'Reads',dir:-1});
+  setupPagemap(d);
   setupTrend(d.trend||[], d.trendByCompany||[]);
   setupTable('DbTables',d.dbTables||[],dbTableRow,['TableName'],null,{key:'TotalMB',dir:-1});
   renderDbInfo();
@@ -1485,6 +1544,13 @@ function showGate(ip){
 
 function maxHits(rows){return rows&&rows.length?Math.max(...rows.map(r=>r.TotalHits||0)):1;}
 function maxChanges(rows){return rows&&rows.length?Math.max(...rows.map(r=>r.Changes||0)):1;}
+function maxReads(rows){return rows&&rows.length?Math.max(...rows.map(r=>r.Reads||0)):1;}
+function tableReadsRow(r,max){
+  return `<tr><td>${esc(r.UserName)}</td><td>${esc(r.CompanyName)}</td>
+  <td class="num"><span class="mono">${esc(r.TableNo)}</span></td><td>${esc(r.TableName)}</td>
+  <td class="num"><div class="bar" data-pct="${Math.round(100*(r.Reads||0)/(max||1))}"><span>${fmt(r.Reads)}</span></div></td>
+  <td class="num">${fmt(r.Pages)}</td><td class="num">${esc(fdate(r.LastUsed))}</td></tr>`;
+}
 function tablesRow(r,max){
   return `<tr><td>${esc(r.UserName)}</td><td>${esc(r.CompanyName)}</td>
   <td class="num"><span class="mono">${esc(r.TableNo)}</span></td><td>${esc(r.TableName)}</td>
@@ -1516,7 +1582,7 @@ function auditRow(r){
 
 // Sloupce s rozbalovacím filtrem (kategorie) vs. bez filtru (čísla).
 const SELECT_FILTER=new Set(['CompanyName','ChangeType']);
-const NO_FILTER=new Set(['TotalHits','Failures','Hits','Users','Changes','Ins','Mod','Del']);
+const NO_FILTER=new Set(['TotalHits','Failures','Hits','Users','Changes','Ins','Mod','Del','Reads','Pages']);
 function dbTableRow(r){
   return `<tr><td>${esc(r.TableName)}</td><td class="num">${fmt(r.Rows)}</td><td class="num">${fmt(r.TotalMB)} MB</td></tr>`;
 }
@@ -1640,12 +1706,14 @@ const EXPORT_COLS = {
     {header:'Stará',get:r=>r.OldValue},{header:'Nová',get:r=>r.NewValue}],
   Tables:[{header:'Kdo',get:r=>r.UserName},{header:'Firma',get:r=>r.CompanyName},{header:'Tab. č.',get:r=>r.TableNo},{header:'Tabulka',get:r=>r.TableName},
     {header:'Změny',get:r=>r.Changes},{header:'Vložení',get:r=>r.Ins},{header:'Úpravy',get:r=>r.Mod},{header:'Smazání',get:r=>r.Del},{header:'Naposledy',get:r=>r.LastAt}],
+  TableReads:[{header:'Kdo',get:r=>r.UserName},{header:'Firma',get:r=>r.CompanyName},{header:'Tab. č.',get:r=>r.TableNo},{header:'Tabulka',get:r=>r.TableName},
+    {header:'Otevření',get:r=>r.Reads},{header:'Stránek',get:r=>r.Pages},{header:'Naposledy',get:r=>r.LastUsed}],
   DbTables:[{header:'Tabulka',get:r=>r.TableName},{header:'Řádků',get:r=>r.Rows},{header:'Velikost MB',get:r=>r.TotalMB}],
   Users:[{header:'Jméno',get:u=>userMap[u.g]||''},{header:'GUID',get:u=>u.g},{header:'Firmy',get:u=>[...u.companies].join(', ')},
     {header:'Top stránka',get:u=>u.top||''},{header:'Otevření',get:u=>u.hits},{header:'Naposledy',get:u=>fdate(u.last)}],
 };
-const EXPORT_TITLE={Activity:'Aktivita uživatelů',Mig:'Permission errors (RT0031)',Audit:'Audit změn',Tables:'Tabulky (zápisy z auditu)',DbTables:'Databáze — tabulky',Users:'Uživatelé'};
-const NUM_HDR=new Set(['Otevření','RT0031','Řádků','Velikost MB','Tab. č.','Pole č.','Aktivní uživatelé','Uživatelé','Kumulativně','Změny','Vložení','Úpravy','Smazání']);
+const EXPORT_TITLE={Activity:'Aktivita uživatelů',Mig:'Permission errors (RT0031)',Audit:'Audit změn',Tables:'Tabulky — zápisy (audit)',TableReads:'Tabulky — čtení (ze stránek)',DbTables:'Databáze — tabulky',Users:'Uživatelé'};
+const NUM_HDR=new Set(['Otevření','RT0031','Řádků','Velikost MB','Tab. č.','Pole č.','Aktivní uživatelé','Uživatelé','Kumulativně','Změny','Vložení','Úpravy','Smazání','Stránek']);
 function csvCell(v){ v=(v==null?'':String(v)); return /[";\n\r]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; }
 const _nowStamp=()=>{ const d=new Date(),p=n=>String(n).padStart(2,'0'); return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes()); };
 function exportSource(key){

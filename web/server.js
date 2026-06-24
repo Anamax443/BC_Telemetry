@@ -48,6 +48,7 @@ const RETENTION_DEFAULTS = { pageLogMonths: 6, changeLogMonths: 24, dailyLogDays
 const SCHEDULE_FILE = path.join(OPS_DIR, 'schedule.json');         // okno + četnost běhu úlohy
 const SNAPSHOT_FILE = path.join(OPS_DIR, 'snapshot.json');         // strop řádků na sekci ve snapshotu (čte Export-DashboardSnapshot.ps1)
 const SNAPSHOT_DEFAULTS = { topRows: 5000 };
+const PAGEMAP_FILE = path.join(OPS_DIR, 'pagemap.json');           // PageID → {t:TableNo, n:TableName} (čte Export-DashboardSnapshot.ps1 pro „čtení tabulek")
 const NOTIFY_FILE = path.join(OPS_DIR, 'notify.json');             // e-mail notifikace (čte Send-BCTelemetryNotification.ps1)
 const NOTIFY_DEFAULTS = {
   enabled: false, smtpHost: 'axima-cz.mail.protection.outlook.com', smtpPort: 25,
@@ -466,6 +467,39 @@ $out | ConvertTo-Json -Compress -Depth 3
     return;
   }
 
+  // GET/PUT /pagemap — mapování PageID → zdrojová tabulka (pro „čtení tabulek" odvozené ze stránek).
+  // PUT přijme nalepený text z BC „Page Metadata" (ID / SourceTable / [SourceTableName]); odděleno TAB/;/,.
+  if (url === '/pagemap' && req.method === 'GET') {
+    let count = 0;
+    try { const m = JSON.parse(fs.readFileSync(PAGEMAP_FILE, 'utf8')); count = Object.keys(m || {}).length; } catch { }
+    return sendJson(res, 200, { count });
+  }
+  if (url === '/pagemap' && req.method === 'PUT') {
+    let body = '';
+    req.on('data', (c) => { body += c; if (body.length > 8e6) req.destroy(); });
+    req.on('end', () => {
+      try {
+        let txt = body;
+        try { const j = JSON.parse(body); if (j && typeof j.text === 'string') txt = j.text; } catch { }
+        const map = {};
+        for (const raw of String(txt).split(/\r?\n/)) {
+          const line = raw.trim(); if (!line) continue;
+          const cols = line.split(/[\t;,]/).map((s) => s.trim());
+          const pid = (cols[0] || '').replace(/\D/g, '');
+          const tno = (cols[1] || '').replace(/\D/g, '');
+          if (!pid || !tno) continue;            // přeskoč hlavičku / prázdné
+          map[pid] = { t: +tno, n: (cols[2] || '').slice(0, 200) };
+        }
+        if (Object.keys(map).length === 0) throw new Error('nenačten žádný řádek „PageID<tab>SourceTable[<tab>Název]"');
+        ensureOpsDir();
+        fs.writeFileSync(PAGEMAP_FILE, JSON.stringify(map), 'utf8');
+        logActivity('success', 'pagemap', `mapování stránek uloženo z ${reqIp(req)}: ${Object.keys(map).length} stránek`);
+        sendJson(res, 200, { ok: true, count: Object.keys(map).length });
+      } catch (e) { sendJson(res, 500, { error: String(e.message || e) }); }
+    });
+    return;
+  }
+
   // GET/PUT /notify-config — e-mailové notifikace (ops/notify.json, čte Send-BCTelemetryNotification.ps1).
   if (url === '/notify-config' && req.method === 'GET') {
     let r = { ...NOTIFY_DEFAULTS };
@@ -600,7 +634,7 @@ if ($t.State -eq 'Running') { 'running' } else { Set-Content -Path '${flag.repla
       .then((o) => { logActivity('info', 'refresh', `manual refresh: ${o.trim()}`); sendJson(res, 200, { status: o.trim() }); })
       .catch((e) => sendJson(res, 500, { error: String(e.message || e) }));
   }
-  if (url.startsWith('/firewall/') || url.startsWith('/api/') || url === '/refresh' || url === '/activity' || url === '/logs' || url === '/logfiles' || url === '/usermap' || url === '/changelog-companies' || url === '/changelog-purge' || url === '/ops-status' || url === '/import-stop' || url === '/restart' || url === '/retention' || url === '/tasks' || url === '/schedule' || url === '/snapshot-config' || url === '/notify-config' || url === '/notify-test') return sendJson(res, 404, { error: 'unknown endpoint' });
+  if (url.startsWith('/firewall/') || url.startsWith('/api/') || url === '/refresh' || url === '/activity' || url === '/logs' || url === '/logfiles' || url === '/usermap' || url === '/changelog-companies' || url === '/changelog-purge' || url === '/ops-status' || url === '/import-stop' || url === '/restart' || url === '/retention' || url === '/tasks' || url === '/schedule' || url === '/snapshot-config' || url === '/notify-config' || url === '/notify-test' || url === '/pagemap') return sendJson(res, 404, { error: 'unknown endpoint' });
   return serveStatic(req, res);
 });
 
