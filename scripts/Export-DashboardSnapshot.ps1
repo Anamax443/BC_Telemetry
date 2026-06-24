@@ -133,6 +133,9 @@ ORDER BY a.TotalHits DESC
         trendByCompany = Invoke-Sql $conn 'SELECT DateKey, CompanyName, SUM(Hits) AS Hits, COUNT(DISTINCT UserName) AS Users FROM dbo.BCPageDaily GROUP BY DateKey, CompanyName ORDER BY DateKey'
         authFails      = Invoke-Sql $conn "SELECT TOP ($TopRows) DateKey, UserName, ObjectId, ObjectName, Failures FROM dbo.BCAuthFailDaily ORDER BY DateKey DESC, Failures DESC"
         changeLog      = Invoke-Sql $conn "SELECT TOP ($TopRows) CONVERT(varchar(19),ChangedAt,120) AS ChangedAt, UserId, CompanyName, ChangeType, TableNo, TableName, FieldNo, FieldName, PrimaryKey, OldValue, NewValue FROM dbo.BCChangeLog ORDER BY ChangedAt DESC"
+        # Tabulky pro permission mining: které tabulky uživatel MĚNÍ (zápisy) — agregace auditu po (UserId × TableNo × firma).
+        # UserId = reálné BC jméno. Pozn.: scan BCChangeLog (může být velký); ORDER BY Changes DESC + strop TopRows.
+        tableActivity  = Invoke-Sql $conn "SELECT TOP ($TopRows) UserId AS UserName, TableNo, MAX(TableName) AS TableName, CompanyName, COUNT_BIG(*) AS Changes, SUM(CASE WHEN ChangeType='Insertion' THEN 1 ELSE 0 END) AS Ins, SUM(CASE WHEN ChangeType='Modification' THEN 1 ELSE 0 END) AS Mod, SUM(CASE WHEN ChangeType='Deletion' THEN 1 ELSE 0 END) AS Del, CONVERT(varchar(19),MAX(ChangedAt),120) AS LastAt FROM dbo.BCChangeLog GROUP BY UserId, TableNo, CompanyName ORDER BY COUNT_BIG(*) DESC"
     }
 
     $json = $snapshot | ConvertTo-Json -Depth 6 -Compress
