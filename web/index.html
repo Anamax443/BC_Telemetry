@@ -178,6 +178,26 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
 .subtabs{display:flex;gap:6px;margin-bottom:12px;}
 .subtab{font:inherit;font-size:13px;padding:6px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text2);cursor:pointer;}
 .subtab.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+.role-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;}
+.role-bar input{font-size:14px;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);min-width:240px;}
+.role-grid{display:grid;grid-template-columns:280px 1fr;gap:16px;align-items:start;}
+.role-sub{font-size:12px;color:var(--text2);}
+.role-row{display:flex;gap:6px;margin-bottom:6px;}
+.role-userlist{max-height:460px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:6px;}
+.role-u{display:block;font-size:13px;padding:3px 4px;border-radius:4px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.role-u:hover{background:var(--bg2,rgba(125,125,125,.12));}
+.role-u input{margin-right:6px;}
+.role-result{min-width:0;}
+.role-cards{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;}
+.role-card{border:1px solid var(--border);border-radius:8px;padding:8px 12px;}
+.role-card .l{font-size:9px;letter-spacing:.5px;text-transform:uppercase;color:var(--text2);}
+.role-card .v{font-size:22px;font-weight:300;}
+.role-perm{font-family:var(--mono);font-weight:600;}
+.role-tbl{border-collapse:collapse;width:100%;font-size:12px;margin-bottom:4px;}
+.role-tbl th,.role-tbl td{border:1px solid var(--border);padding:4px 8px;text-align:left;}
+.role-tbl th{font-size:9px;text-transform:uppercase;color:var(--text2);}
+.role-tbl td.num,.role-tbl th:nth-child(n+3){text-align:right;}
+@media (max-width:760px){.role-grid{grid-template-columns:1fr;}}
 .sched-days{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:2px 0 12px;font-size:13px;color:var(--text2);}
 .sched-days .cl-item{gap:5px;}
 .dbinfo{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:6px 18px;margin-bottom:18px;}
@@ -276,6 +296,7 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
       <button class="tab" data-panel="users">👤 Uživatelé</button>
       <button class="tab" data-panel="audit">Audit změn</button>
       <button class="tab" data-panel="tables">Tabulky</button>
+      <button class="tab" data-panel="role">🧩 Návrh role</button>
       <button class="tab" data-panel="migration">Permission errors (RT0031)</button>
       <button class="tab" data-panel="trend">Trend</button>
       <button class="tab" data-panel="dbstat">🗄 Databáze</button>
@@ -366,6 +387,24 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
         <textarea id="pagemapText" rows="6" style="width:100%;font-family:var(--mono);font-size:12px" placeholder="ID&#9;SourceTable&#9;SourceTableName&#10;30&#9;27&#9;Item&#10;31&#9;27&#9;Item"></textarea>
         <div class="wl-row" style="margin-top:6px"><button class="btn" id="pagemapSave">Uložit mapování</button> <span class="wl-msg" id="pagemapMsg"></span></div>
       </details>
+    </section>
+
+    <section class="panel" id="panel-role">
+      <p class="set-desc" style="margin:0 0 10px">Navrhni <strong>permission set</strong> z reálného používání: zaškrtni uživatele → z toho, které <strong>tabulky</strong> používali (R/I/M/D) a které <strong>stránky</strong> otevírali (Execute), se sestaví least-privilege role. Export <strong>CSV</strong> nebo <strong>AL permissionset</strong>. Tabulky bez auditu vyjdou jako R (jen čtení) — I/M/D jen kde to Change Log zachytil.</p>
+      <div class="role-bar">
+        <input type="text" id="roleName" placeholder="Název role (např. PIMX_CTENI)" value="ROLE_NOVA">
+        <button class="btn" id="roleBuild">Sestavit z vybraných uživatelů</button>
+        <span class="wl-msg" id="roleMsg"></span>
+      </div>
+      <div class="role-grid">
+        <div class="role-users">
+          <div class="role-sub"><b>Uživatelé</b> <span id="roleUserCount" class="uid-sub"></span></div>
+          <input type="text" id="roleUserFilter" placeholder="hledat uživatele…" style="width:100%;margin:6px 0;padding:6px 9px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)">
+          <div class="role-row"><button class="btn-ghost" type="button" id="roleAll">vše</button> <button class="btn-ghost" type="button" id="roleNone">nic</button></div>
+          <div id="roleUserList" class="role-userlist"></div>
+        </div>
+        <div class="role-result" id="roleResult"><div class="empty">Vyber uživatele vlevo a klikni „Sestavit".</div></div>
+      </div>
     </section>
 
     <section class="panel" id="panel-trend">
@@ -1262,7 +1301,7 @@ Promise.all([
   .catch(e=>{document.getElementById('loading').textContent='Chyba načtení data.json: '+e.message;});
 
 // verze nasazeneho dashboardu (bump pri kazdem deployi index.html); snapshot ji muze prebit (d.version)
-const APP_VER={push:71,commit:'749749f',repo:'https://github.com/Anamax443/BC_Telemetry'};
+const APP_VER={push:72,commit:'pending',repo:'https://github.com/Anamax443/BC_Telemetry'};
 function render(d){
   DATA=d;
   document.getElementById('loading').hidden=true;
@@ -1315,6 +1354,7 @@ function render(d){
   setupTable('Audit',d.changeLog||[],auditRow,['UserId','CompanyName','TableNo','TableName','FieldNo','FieldName','PrimaryKey','OldValue','NewValue'],null,{key:'ChangedAt',dir:-1});
   setupTable('Tables',d.tableAccess||[],tablesRow,['UserName','TableName','TableNo','CompanyName','Access'],null,{key:'Changes',dir:-1});
   setupPagemap(d);
+  setupRole(d);
   setupTrend(d.trend||[], d.trendByCompany||[]);
   setupTable('DbTables',d.dbTables||[],dbTableRow,['TableName'],null,{key:'TotalMB',dir:-1});
   renderDbInfo();
@@ -1530,6 +1570,84 @@ function tablesRow(r){
   <td class="num">${fmt(r.Changes)}</td><td class="num">${fmt(r.Ins)}</td><td class="num">${fmt(r.Mod)}</td><td class="num">${fmt(r.Del)}</td>
   <td class="num">${fmt(r.Reads)}</td><td class="num">${fmt(r.Pages)}</td>
   <td class="num">${esc(fdate(r.LastUsed))}</td></tr>`;
+}
+
+// ── Návrh role (permission mining → permission set) ──────────────────────────
+function setupRole(d){
+  const list=document.getElementById('roleUserList'); if(!list) return;
+  const set=new Set();
+  (d.tableAccess||[]).forEach(r=>{ if(r.UserName) set.add(r.UserName); });
+  (d.userActivity||[]).forEach(r=>{ const n=userMap[r.UserName]||r.UserName; if(n) set.add(n); });
+  const names=[...set].sort((a,b)=>String(a).localeCompare(String(b),'cs'));
+  list.innerHTML=names.length?names.map(n=>`<label class="role-u"><input type="checkbox" value="${esc(n)}">${esc(n)}</label>`).join(''):'<div class="empty">Žádní uživatelé</div>';
+  const cnt=document.getElementById('roleUserCount'); if(cnt)cnt.textContent='('+names.length+')';
+  const f=document.getElementById('roleUserFilter');
+  if(f&&!f._b){ f._b=1; f.addEventListener('input',()=>{ const q=f.value.toLowerCase(); list.querySelectorAll('.role-u').forEach(l=>{ l.style.display=l.textContent.toLowerCase().includes(q)?'':'none'; }); }); }
+  const all=document.getElementById('roleAll'); if(all&&!all._b){ all._b=1; all.addEventListener('click',()=>list.querySelectorAll('.role-u').forEach(l=>{ if(l.style.display!=='none')l.querySelector('input').checked=true; })); }
+  const none=document.getElementById('roleNone'); if(none&&!none._b){ none._b=1; none.addEventListener('click',()=>list.querySelectorAll('input').forEach(c=>c.checked=false)); }
+  const b=document.getElementById('roleBuild'); if(b&&!b._b){ b._b=1; b.addEventListener('click',roleBuild); }
+}
+function permStr(t){ return ((t.R?'R':'')+(t.I?'I':'')+(t.M?'M':'')+(t.D?'D':''))||'R'; }
+function roleBuild(){
+  const list=document.getElementById('roleUserList'); const msg=document.getElementById('roleMsg');
+  const sel=[...list.querySelectorAll('input:checked')].map(c=>c.value);
+  if(!sel.length){ msg.className='wl-msg err'; msg.textContent='⚠ vyber aspoň jednoho uživatele'; return; }
+  msg.className='wl-msg'; msg.textContent='';
+  const selSet=new Set(sel);
+  const tmap=new Map();
+  (DATA.tableAccess||[]).forEach(row=>{ if(!selSet.has(row.UserName))return;
+    let t=tmap.get(row.TableNo); if(!t){t={TableNo:row.TableNo,TableName:row.TableName||'',R:false,I:false,M:false,D:false,users:new Set(),changes:0,reads:0};tmap.set(row.TableNo,t);}
+    if(!t.TableName&&row.TableName)t.TableName=row.TableName;
+    if((+row.Reads||0)>0||(+row.Changes||0)>0)t.R=true;
+    if((+row.Ins||0)>0)t.I=true; if((+row.Mod||0)>0)t.M=true; if((+row.Del||0)>0)t.D=true;
+    t.users.add(row.UserName); t.changes+=(+row.Changes||0); t.reads+=(+row.Reads||0);
+  });
+  const tables=[...tmap.values()].sort((a,b)=>(b.changes+b.reads)-(a.changes+a.reads));
+  const pmap=new Map();
+  (DATA.userActivity||[]).forEach(row=>{ const n=userMap[row.UserName]||row.UserName; if(!selSet.has(n))return; if(String(row.PageId)==='-1')return;
+    let p=pmap.get(row.PageId); if(!p){p={PageId:row.PageId,PageName:row.PageName||'',hits:0,users:new Set()};pmap.set(row.PageId,p);}
+    if(!p.PageName&&row.PageName)p.PageName=row.PageName; p.hits+=(+row.TotalHits||0); p.users.add(n);
+  });
+  const pages=[...pmap.values()].sort((a,b)=>b.hits-a.hits);
+  renderRole(tables,pages,sel);
+}
+function renderRole(tables,pages,sel){
+  const host=document.getElementById('roleResult');
+  const card=(l,v)=>`<div class="role-card"><div class="l">${l}</div><div class="v">${v}</div></div>`;
+  const tRows=tables.map(t=>`<tr><td class="num"><span class="mono">${esc(t.TableNo)}</span></td><td>${esc(t.TableName)}</td>
+    <td class="num"><span class="role-perm">${permStr(t)}</span></td>
+    <td class="num">${t.R?'✓':''}</td><td class="num">${t.I?'✓':''}</td><td class="num">${t.M?'✓':''}</td><td class="num">${t.D?'✓':''}</td>
+    <td class="num">${t.users.size}</td></tr>`).join('')||`<tr><td colspan="8"><div class="empty">žádné tabulky</div></td></tr>`;
+  const pRows=pages.map(p=>`<tr><td class="num"><span class="mono">${esc(p.PageId)}</span></td><td>${esc(p.PageName)}</td><td class="num">${fmt(p.hits)}</td><td class="num">${p.users.size}</td></tr>`).join('')||`<tr><td colspan="4"><div class="empty">žádné stránky</div></td></tr>`;
+  host.innerHTML=
+    `<div class="role-cards">${card('Vybraní uživatelé',sel.length)}${card('Tabulky',tables.length)}${card('Stránky',pages.length)}</div>`
+    +`<div class="wl-row" style="margin-bottom:10px"><button class="btn" id="roleCsv">⬇ Export CSV (Excel)</button> <button class="btn-ghost" id="roleAl">⧉ Kopírovat AL permissionset</button> <span class="wl-msg" id="roleCopyMsg"></span></div>`
+    +`<h3 style="margin:8px 0 4px">Tabulky (TableData — R/I/M/D)</h3>`
+    +`<table class="role-tbl"><thead><tr><th>Tab. č.</th><th>Tabulka</th><th>Práva</th><th>R</th><th>I</th><th>M</th><th>D</th><th>Už.</th></tr></thead><tbody>${tRows}</tbody></table>`
+    +`<h3 style="margin:14px 0 4px">Stránky (Execute)</h3>`
+    +`<table class="role-tbl"><thead><tr><th>Page ID</th><th>Stránka</th><th>Otevření</th><th>Už.</th></tr></thead><tbody>${pRows}</tbody></table>`;
+  document.getElementById('roleCsv').addEventListener('click',()=>roleExportCsv(tables,pages));
+  document.getElementById('roleAl').addEventListener('click',()=>roleCopyAl(tables,pages));
+}
+function roleExportCsv(tables,pages){
+  const name=((document.getElementById('roleName').value||'role').trim())||'role';
+  const q=s=>'"'+String(s==null?'':s).replace(/"/g,'""')+'"';
+  let out='Typ;ID;Nazev;Prava;Read;Insert;Modify;Delete\r\n';
+  tables.forEach(t=>{ out+=['TableData',t.TableNo,q(t.TableName),permStr(t),t.R?'Yes':'',t.I?'Yes':'',t.M?'Yes':'',t.D?'Yes':''].join(';')+'\r\n'; });
+  pages.forEach(p=>{ out+=['Page',p.PageId,q(p.PageName),'X','','','',''].join(';')+'\r\n'; });
+  const blob=new Blob(['﻿'+out],{type:'text/csv;charset=utf-8'});
+  const u=URL.createObjectURL(blob),a=document.createElement('a'); a.href=u; a.download=name.replace(/[^\w.-]+/g,'_')+'.csv'; a.click(); setTimeout(()=>URL.revokeObjectURL(u),2000);
+}
+function roleCopyAl(tables,pages){
+  const name=((document.getElementById('roleName').value||'ROLE').trim().replace(/[^\w]+/g,'_').toUpperCase())||'ROLE';
+  const perms=[];
+  tables.forEach(t=>{ if(t.TableName) perms.push(`        tabledata "${String(t.TableName).replace(/"/g,'')}" = ${permStr(t)}`); });
+  pages.forEach(p=>{ if(p.PageName) perms.push(`        page "${String(p.PageName).replace(/"/g,'')}" = X`); });
+  const al=`permissionset 50000 "${name}"\n{\n    Assignable = true;\n    Caption = '${name}', Locked = true;\n    Permissions =\n${perms.join(',\n')};\n}`;
+  const m=document.getElementById('roleCopyMsg');
+  const fallback=()=>{ let ta=document.getElementById('roleAlText'); if(!ta){ ta=document.createElement('textarea'); ta.id='roleAlText'; ta.rows=10; ta.style.cssText='width:100%;margin-top:8px;font-family:var(--mono);font-size:12px'; m.parentElement.parentElement.appendChild(ta); } ta.value=al; ta.focus(); ta.select(); m.className='wl-msg ok'; m.textContent='✓ AL níže ('+perms.length+' objektů) — Ctrl+C / Ctrl+A'; };
+  if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(al).then(()=>{ m.className='wl-msg ok'; m.textContent='✓ AL zkopírováno ('+perms.length+' objektů) — vlož do VS Code'; }).catch(fallback); }
+  else fallback();
 }
 
 function activityRow(r,max){
