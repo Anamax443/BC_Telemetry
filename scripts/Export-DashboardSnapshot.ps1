@@ -112,17 +112,19 @@ ORDER BY TotalMB DESC
     try {
         $pmPath = Join-Path $opsDir 'pagemap.json'
         if (Test-Path $pmPath) {
-            $pm = Get-Content -Raw -Encoding UTF8 $pmPath | ConvertFrom-Json
-            $pageMapCount = @($pm.PSObject.Properties).Count
+            $pmObj = Get-Content -Raw -Encoding UTF8 $pmPath | ConvertFrom-Json
+            $pm = @{}   # PageID(string) → {t,n}; hashtable (dynamický $obj.$var na číselných názvech v PS5.1 selhává)
+            $pmObj.PSObject.Properties | ForEach-Object { $pm[[string]$_.Name] = $_.Value }
+            $pageMapCount = $pm.Count
             $um = @{}
             $umPath = Join-Path (Split-Path $opsDir -Parent) 'usermap.json'
             if (Test-Path $umPath) { try { $umo = Get-Content -Raw -Encoding UTF8 $umPath | ConvertFrom-Json; $umo.PSObject.Properties | ForEach-Object { $um[$_.Name] = $_.Value } } catch {} }
             $pv = Invoke-Sql $conn "SELECT UserName, PageId, CompanyName, SUM(Hits) AS Hits, CONVERT(varchar(10),MAX(DateKey),120) AS LastDay FROM dbo.BCPageDaily GROUP BY UserName, PageId, CompanyName"
             $acc = @{}
             foreach ($r in $pv) {
-                $pid = ([string]$r.PageId) -replace '\D', ''
-                if (-not $pid) { continue }
-                $mp = $pm.$pid
+                $pgid = ([string]$r.PageId).Trim()      # přesný match (NE strip \D — '-1' by kolidovalo s '1')
+                if (-not $pgid) { continue }
+                $mp = $pm[$pgid]
                 if (-not $mp) { continue }
                 $nm = if ($um[$r.UserName]) { $um[$r.UserName] } else { [string]$r.UserName }
                 $key = '{0}|{1}|{2}' -f $nm, $mp.t, $r.CompanyName
@@ -131,7 +133,7 @@ ORDER BY TotalMB DESC
             }
             $tableReads = @($acc.Values | Sort-Object { $_.Reads } -Descending | Select-Object -First $TopRows | ForEach-Object { [pscustomobject]$_ })
         }
-    } catch { }
+    } catch { Write-Host "tableReads warn: $($_.Exception.Message)" }
 
     $snapshot = [ordered]@{
         generatedUtc   = [DateTime]::UtcNow.ToString('yyyy-MM-dd HH:mm:ss')

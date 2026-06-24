@@ -485,10 +485,10 @@ $out | ConvertTo-Json -Compress -Depth 3
         for (const raw of String(txt).split(/\r?\n/)) {
           const line = raw.trim(); if (!line) continue;
           const cols = line.split(/[\t;,]/).map((s) => s.trim());
-          const pid = (cols[0] || '').replace(/\D/g, '');
-          const tno = (cols[1] || '').replace(/\D/g, '');
-          if (!pid || !tno) continue;            // přeskoč hlavičku / prázdné
-          map[pid] = { t: +tno, n: (cols[2] || '').slice(0, 200) };
+          const pid = parseInt(cols[0], 10);     // page object id (celé číslo; hlavička → NaN → skip)
+          const tno = parseInt(cols[1], 10);
+          if (!Number.isFinite(pid) || !Number.isFinite(tno)) continue;
+          map[String(pid)] = { t: tno, n: (cols[2] || '').slice(0, 200) };
         }
         if (Object.keys(map).length === 0) throw new Error('nenačten žádný řádek „PageID<tab>SourceTable[<tab>Název]"');
         ensureOpsDir();
