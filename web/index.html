@@ -427,6 +427,14 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
         <div id="retHost">načítám…</div>
       </div>
       <div class="set-section">
+        <h3>Počet řádků ve snapshotu</h3>
+        <p class="set-desc">Kolik řádků na sekci (Audit změn / Aktivita / RT0031) snapshot stáhne ze SQL do
+        <span class="mono">data.json</span>. Filtruje se vždy jen v tomto stropu. Default <strong>5000</strong>;
+        vyšší = hlubší historie pro filtrování, ale větší <span class="mono">data.json</span>.
+        Projeví se po nejbližší <strong>↻ obnově</strong> (⚙ Nastavení → Ruční obnova nebo tlačítko ↻ v hlavičce).</p>
+        <div id="snapHost">načítám…</div>
+      </div>
+      <div class="set-section">
         <h3>Plán importu (okno + četnost)</h3>
         <p class="set-desc">Kdy a jak často běží úloha <span class="mono">BC_Telemetry_Daily</span>.
         Interval <strong>0</strong> = jednou denně v čase Od. Jinak se opakuje každých N minut v okně Od–Do
@@ -966,6 +974,29 @@ function buildRetention(host){
     .catch(e=>{host.innerHTML='<div class="wl-banner warn"><span>⚠</span><div>Retence nedostupná ('+esc(e.message)+').</div></div>';});
 }
 
+// ── Počet řádků ve snapshotu (Nastavení) ─────────────────────────────────────
+function buildSnapshotCfg(host){
+  if(!host) return;
+  host.innerHTML='<div class="wl-cur">načítám…</div>';
+  fetch('/snapshot-config').then(r=>{if(!r.ok)throw new Error(r.status);return r.json();})
+    .then(d=>{
+      const opts=[1000,2000,5000,10000,20000,50000,100000];
+      const cur=+d.topRows||5000; if(!opts.includes(cur)) opts.push(cur);
+      const sel='<select id="snapRows">'+opts.sort((a,b)=>a-b).map(v=>'<option value="'+v+'"'+(v===cur?' selected':'')+'>'+fmt(v)+(v===5000?' (výchozí)':'')+'</option>').join('')+'</select>';
+      host.innerHTML='<div class="ret-grid"><label>Max řádků na sekci</label>'+sel
+        +'</div><div class="wl-row"><button class="btn" id="snapSave">Uložit</button> <span class="wl-msg" id="snapMsg"></span></div>';
+      document.getElementById('snapSave').addEventListener('click',()=>{
+        const body={ topRows:+document.getElementById('snapRows').value };
+        const m=document.getElementById('snapMsg'); m.className='wl-msg'; m.textContent='ukládám…';
+        fetch('/snapshot-config',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+          .then(r=>r.json().then(j=>({ok:r.ok,j})))
+          .then(({ok,j})=>{ if(!ok)throw new Error(j.error||'chyba'); m.className='wl-msg ok'; m.textContent='✓ uloženo — projeví se po ↻ obnově'; })
+          .catch(e=>{ m.className='wl-msg err'; m.textContent='⚠ '+e.message; });
+      });
+    })
+    .catch(e=>{host.innerHTML='<div class="wl-banner warn"><span>⚠</span><div>Konfigurace snapshotu nedostupná ('+esc(e.message)+').</div></div>';});
+}
+
 // ── Plán importu (Nastavení) ─────────────────────────────────────────────────
 function buildSchedule(host){
   if(!host) return;
@@ -1103,7 +1134,7 @@ Promise.all([
   .catch(e=>{document.getElementById('loading').textContent='Chyba načtení data.json: '+e.message;});
 
 // verze nasazeneho dashboardu (bump pri kazdem deployi index.html); snapshot ji muze prebit (d.version)
-const APP_VER={push:65,commit:'a4c3c46',repo:'https://github.com/Anamax443/BC_Telemetry'};
+const APP_VER={push:66,commit:'pending',repo:'https://github.com/Anamax443/BC_Telemetry'};
 function render(d){
   DATA=d;
   document.getElementById('loading').hidden=true;
@@ -1165,7 +1196,7 @@ function render(d){
     t.classList.add('active');
     document.getElementById('panel-'+t.dataset.panel).classList.add('active');
     if(t.dataset.panel==='terminal') loadTerminal();
-    if(t.dataset.panel==='settings'){ loadLogFiles(); loadTasks(); buildRetention(document.getElementById('retHost')); buildSchedule(document.getElementById('schedHost')); }
+    if(t.dataset.panel==='settings'){ loadLogFiles(); loadTasks(); buildRetention(document.getElementById('retHost')); buildSnapshotCfg(document.getElementById('snapHost')); buildSchedule(document.getElementById('schedHost')); }
     if(t.dataset.panel==='auditcfg'){ buildCompaniesEditor(document.getElementById('clHost')); buildPurgeEditor(document.getElementById('purgeHost')); }
     if(t.dataset.panel==='users') buildUsers();
   }));

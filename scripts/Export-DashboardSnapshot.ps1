@@ -20,6 +20,17 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# Strop řádků na sekci lze přebít z dashboardu (PUT /snapshot-config → ops/snapshot.json {topRows}).
+# OutPath = ...\BC_Telemetry_Web\public\data.json → ops je o dvě úrovně výš (...\BC_Telemetry_Web\ops).
+try {
+    $opsDir  = Join-Path (Split-Path (Split-Path $OutPath -Parent) -Parent) 'ops'
+    $snapCfg = Join-Path $opsDir 'snapshot.json'
+    if (Test-Path $snapCfg) {
+        $sc = Get-Content -Raw $snapCfg | ConvertFrom-Json
+        if ($sc.topRows) { $v = [int]$sc.topRows; if ($v -ge 100 -and $v -le 1000000) { $TopRows = $v } }
+    }
+} catch {}
+
 function Invoke-Sql {
     param([System.Data.SqlClient.SqlConnection]$Conn, [string]$Sql)
     $cmd = $Conn.CreateCommand(); $cmd.CommandText = $Sql; $cmd.CommandTimeout = 300

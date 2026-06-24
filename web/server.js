@@ -45,6 +45,8 @@ const OPS_STATUS_FILE = path.join(OPS_DIR, 'ops-status.json');     // výsledek 
 const RETENTION_FILE = path.join(OPS_DIR, 'retention.json');       // retenční politika (čtou importní skripty)
 const RETENTION_DEFAULTS = { pageLogMonths: 6, changeLogMonths: 24, dailyLogDays: 30 };
 const SCHEDULE_FILE = path.join(OPS_DIR, 'schedule.json');         // okno + četnost běhu úlohy
+const SNAPSHOT_FILE = path.join(OPS_DIR, 'snapshot.json');         // strop řádků na sekci ve snapshotu (čte Export-DashboardSnapshot.ps1)
+const SNAPSHOT_DEFAULTS = { topRows: 5000 };
 const SVC_ACCT = 'AXINETWORK\\svc-bc-telemetry';
 
 // Zajisti ops dir + práva pro svc (denní úloha čte/maže request a píše status). LocalSystem to zvládne.
@@ -432,6 +434,30 @@ $out | ConvertTo-Json -Compress -Depth 3
     return;
   }
 
+  // GET/PUT /snapshot-config — strop řádků na sekci (audit/aktivita/RT0031) ve snapshotu.
+  // Web jen zapíše JSON; projeví se po nejbližší obnově (Export-DashboardSnapshot.ps1 ho čte).
+  if (url === '/snapshot-config' && req.method === 'GET') {
+    let r = { ...SNAPSHOT_DEFAULTS };
+    try { const o = JSON.parse(fs.readFileSync(SNAPSHOT_FILE, 'utf8')); if (Number.isFinite(+o.topRows)) r.topRows = +o.topRows; } catch { }
+    return sendJson(res, 200, r);
+  }
+  if (url === '/snapshot-config' && req.method === 'PUT') {
+    let body = '';
+    req.on('data', (c) => { body += c; if (body.length > 1e5) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const o = JSON.parse(body || '{}');
+        const v = Math.round(+o.topRows);
+        if (!Number.isFinite(v) || v < 100 || v > 1000000) throw new Error('topRows musí být 100–1000000');
+        ensureOpsDir();
+        fs.writeFileSync(SNAPSHOT_FILE, JSON.stringify({ topRows: v }, null, 2), 'utf8');
+        logActivity('success', 'snapshot-config', `strop řádků = ${v} (z ${reqIp(req)})`);
+        sendJson(res, 200, { ok: true, topRows: v });
+      } catch (e) { sendJson(res, 500, { error: String(e.message || e) }); }
+    });
+    return;
+  }
+
   // GET/PUT /schedule — okno a četnost běhu úlohy BC_Telemetry_Daily (opakování v okně).
   if (url === '/schedule' && req.method === 'GET') {
     let s = { startTime: '02:00', endTime: '06:00', intervalMinutes: 0, days: [0, 1, 2, 3, 4, 5, 6] };
@@ -511,7 +537,7 @@ if ($t.State -eq 'Running') { 'running' } else { Set-Content -Path '${flag.repla
       .then((o) => { logActivity('info', 'refresh', `manual refresh: ${o.trim()}`); sendJson(res, 200, { status: o.trim() }); })
       .catch((e) => sendJson(res, 500, { error: String(e.message || e) }));
   }
-  if (url.startsWith('/firewall/') || url.startsWith('/api/') || url === '/refresh' || url === '/activity' || url === '/logs' || url === '/logfiles' || url === '/usermap' || url === '/changelog-companies' || url === '/changelog-purge' || url === '/ops-status' || url === '/import-stop' || url === '/restart' || url === '/retention' || url === '/tasks' || url === '/schedule') return sendJson(res, 404, { error: 'unknown endpoint' });
+  if (url.startsWith('/firewall/') || url.startsWith('/api/') || url === '/refresh' || url === '/activity' || url === '/logs' || url === '/logfiles' || url === '/usermap' || url === '/changelog-companies' || url === '/changelog-purge' || url === '/ops-status' || url === '/import-stop' || url === '/restart' || url === '/retention' || url === '/tasks' || url === '/schedule' || url === '/snapshot-config') return sendJson(res, 404, { error: 'unknown endpoint' });
   return serveStatic(req, res);
 });
 
