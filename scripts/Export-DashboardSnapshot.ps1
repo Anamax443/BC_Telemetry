@@ -33,7 +33,7 @@ try {
 
 function Invoke-Sql {
     param([System.Data.SqlClient.SqlConnection]$Conn, [string]$Sql)
-    $cmd = $Conn.CreateCommand(); $cmd.CommandText = $Sql; $cmd.CommandTimeout = 300
+    $cmd = $Conn.CreateCommand(); $cmd.CommandText = $Sql; $cmd.CommandTimeout = 900   # vyšší strop řádků (až 1M) → delší dotazy
     $rdr = $cmd.ExecuteReader()
     $rows = @()
     while ($rdr.Read()) {
