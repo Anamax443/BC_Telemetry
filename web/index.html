@@ -393,6 +393,8 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
       <p class="set-desc" style="margin:0 0 10px">Navrhni <strong>permission set</strong> z reálného používání: zaškrtni uživatele → z toho, které <strong>tabulky</strong> používali (R/I/M/D) a které <strong>stránky</strong> otevírali (Execute), se sestaví least-privilege role. Export <strong>CSV</strong> nebo <strong>AL permissionset</strong>. Tabulky bez auditu vyjdou jako R (jen čtení) — I/M/D jen kde to Change Log zachytil.</p>
       <div class="role-bar">
         <input type="text" id="roleName" placeholder="Název role (např. PIMX_CTENI)" value="ROLE_NOVA">
+        <label class="role-sub">Firma <select id="roleCompany" style="padding:6px 9px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)"></select></label>
+        <label class="role-sub" title="Vyřadí tabulky/stránky s méně než N operacemi (nahodilé dotyky)">min. operací <input type="number" id="roleMin" value="0" min="0" style="width:80px;padding:6px 9px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);text-align:right"></label>
         <button class="btn" id="roleBuild">Sestavit z vybraných uživatelů</button>
         <span class="wl-msg" id="roleMsg"></span>
       </div>
@@ -1301,7 +1303,7 @@ Promise.all([
   .catch(e=>{document.getElementById('loading').textContent='Chyba načtení data.json: '+e.message;});
 
 // verze nasazeneho dashboardu (bump pri kazdem deployi index.html); snapshot ji muze prebit (d.version)
-const APP_VER={push:72,commit:'cf1b5a9',repo:'https://github.com/Anamax443/BC_Telemetry'};
+const APP_VER={push:73,commit:'pending',repo:'https://github.com/Anamax443/BC_Telemetry'};
 function render(d){
   DATA=d;
   document.getElementById('loading').hidden=true;
@@ -1581,6 +1583,9 @@ function setupRole(d){
   const names=[...set].sort((a,b)=>String(a).localeCompare(String(b),'cs'));
   list.innerHTML=names.length?names.map(n=>`<label class="role-u"><input type="checkbox" value="${esc(n)}">${esc(n)}</label>`).join(''):'<div class="empty">Žádní uživatelé</div>';
   const cnt=document.getElementById('roleUserCount'); if(cnt)cnt.textContent='('+names.length+')';
+  const comp=document.getElementById('roleCompany');
+  if(comp){ const cs=new Set(); (d.tableAccess||[]).forEach(r=>{ if(r.CompanyName)cs.add(r.CompanyName); }); (d.userActivity||[]).forEach(r=>{ if(r.CompanyName)cs.add(r.CompanyName); });
+    comp.innerHTML='<option value="">— všechny firmy —</option>'+[...cs].sort((a,b)=>a.localeCompare(b,'cs')).map(c=>'<option value="'+esc(c)+'">'+esc(c)+'</option>').join(''); }
   const f=document.getElementById('roleUserFilter');
   if(f&&!f._b){ f._b=1; f.addEventListener('input',()=>{ const q=f.value.toLowerCase(); list.querySelectorAll('.role-u').forEach(l=>{ l.style.display=l.textContent.toLowerCase().includes(q)?'':'none'; }); }); }
   const all=document.getElementById('roleAll'); if(all&&!all._b){ all._b=1; all.addEventListener('click',()=>list.querySelectorAll('.role-u').forEach(l=>{ if(l.style.display!=='none')l.querySelector('input').checked=true; })); }
@@ -1594,21 +1599,23 @@ function roleBuild(){
   if(!sel.length){ msg.className='wl-msg err'; msg.textContent='⚠ vyber aspoň jednoho uživatele'; return; }
   msg.className='wl-msg'; msg.textContent='';
   const selSet=new Set(sel);
+  const comp=(document.getElementById('roleCompany')||{}).value||'';
+  const minOps=+((document.getElementById('roleMin')||{}).value)||0;
   const tmap=new Map();
-  (DATA.tableAccess||[]).forEach(row=>{ if(!selSet.has(row.UserName))return;
+  (DATA.tableAccess||[]).forEach(row=>{ if(!selSet.has(row.UserName))return; if(comp&&row.CompanyName!==comp)return;
     let t=tmap.get(row.TableNo); if(!t){t={TableNo:row.TableNo,TableName:row.TableName||'',R:false,I:false,M:false,D:false,users:new Set(),changes:0,reads:0};tmap.set(row.TableNo,t);}
     if(!t.TableName&&row.TableName)t.TableName=row.TableName;
     if((+row.Reads||0)>0||(+row.Changes||0)>0)t.R=true;
     if((+row.Ins||0)>0)t.I=true; if((+row.Mod||0)>0)t.M=true; if((+row.Del||0)>0)t.D=true;
     t.users.add(row.UserName); t.changes+=(+row.Changes||0); t.reads+=(+row.Reads||0);
   });
-  const tables=[...tmap.values()].sort((a,b)=>(b.changes+b.reads)-(a.changes+a.reads));
+  const tables=[...tmap.values()].filter(t=>(t.changes+t.reads)>=minOps).sort((a,b)=>(b.changes+b.reads)-(a.changes+a.reads));
   const pmap=new Map();
-  (DATA.userActivity||[]).forEach(row=>{ const n=userMap[row.UserName]||row.UserName; if(!selSet.has(n))return; if(String(row.PageId)==='-1')return;
+  (DATA.userActivity||[]).forEach(row=>{ const n=userMap[row.UserName]||row.UserName; if(!selSet.has(n))return; if(String(row.PageId)==='-1')return; if(comp&&row.CompanyName!==comp)return;
     let p=pmap.get(row.PageId); if(!p){p={PageId:row.PageId,PageName:row.PageName||'',hits:0,users:new Set()};pmap.set(row.PageId,p);}
     if(!p.PageName&&row.PageName)p.PageName=row.PageName; p.hits+=(+row.TotalHits||0); p.users.add(n);
   });
-  const pages=[...pmap.values()].sort((a,b)=>b.hits-a.hits);
+  const pages=[...pmap.values()].filter(p=>p.hits>=minOps).sort((a,b)=>b.hits-a.hits);
   renderRole(tables,pages,sel);
 }
 function renderRole(tables,pages,sel){
