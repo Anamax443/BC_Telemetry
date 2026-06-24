@@ -151,65 +151,198 @@ if (-not $send) {
     return
 }
 
-# ── Sestav HTML e-mail ───────────────────────────────────────────────────────
+# ── Sestav HTML report (tisknutelná manažerská zpráva) ───────────────────────
 $enc = [System.Text.Encoding]::UTF8
 function EscH([string]$s) { if ($null -eq $s) { return '' }; ($s -replace '&','&amp;' -replace '<','&lt;' -replace '>','&gt;') }
+function Fmt($n) { if ($null -eq $n -or "$n" -eq '') { return '—' }; try { ('{0:#,0}' -f [long][math]::Round([double]$n)) -replace ',', ' ' } catch { "$n" } }
+$td  = "style='border:1px solid #cbd2dd;padding:4px 8px'"
+$tdR = "style='border:1px solid #cbd2dd;padding:4px 8px;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap'"
+$thS = "style='border:1px solid #cbd2dd;padding:4px 8px;background:#f1f3f7;text-align:left;font-size:9px;text-transform:uppercase;color:#555'"
+function BarRow([string]$label, [double]$value, [double]$max, [string]$sub) {
+    $w = if ($max -gt 0) { [int][math]::Round(100 * $value / $max) } else { 0 }
+    $subHtml = if ($sub) { " <span style='color:#888'>$sub</span>" } else { '' }
+    "<div style='display:flex;align-items:center;gap:8px;margin:3px 0'><div style='width:185px;flex:none;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap' title='$(EscH $label)'>$(EscH $label)</div><div style='flex:1;background:#eef1f6;border-radius:4px;height:14px'><div style='height:14px;background:#1d4ed8;border-radius:4px;width:$w%'></div></div><div style='width:135px;flex:none;text-align:right;font-variant-numeric:tabular-nums'>$(Fmt $value)$subHtml</div></div>"
+}
+function TopBars($rows, [int]$take) {
+    $arr = @($rows | Sort-Object Value -Descending | Select-Object -First $take)
+    if (-not $arr.Count) { return "<div style='color:#999'>—</div>" }
+    $max = ($arr | Measure-Object Value -Maximum).Maximum
+    ($arr | ForEach-Object { BarRow $_.Label $_.Value $max $_.Sub }) -join ''
+}
 
-$kpi  = if ($data) { $data.kpi } else { $null }
-$gen  = if ($data) { $data.generatedUtc } else { '?' }
-$sync = if ($data -and $data.sync) { @($data.sync) } else { @() }
-$db   = if ($data) { $data.dbSize } else { $null }
-$modName = @{ A = 'Využití stránek'; B = 'Audit změn'; C = 'Permission errors' }
+$kpi    = if ($data) { $data.kpi } else { $null }
+$gen    = if ($data) { $data.generatedUtc } else { '?' }
+$sync   = if ($data -and $data.sync) { @($data.sync) } else { @() }
+$dbsz   = if ($data) { $data.dbSize } else { $null }
+$dbInfo = if ($data) { $data.dbInfo } else { $null }
+$ua     = if ($data -and $data.userActivity) { @($data.userActivity) } else { @() }
+$cl     = if ($data -and $data.changeLog) { @($data.changeLog) } else { @() }
+$clc    = if ($data -and $data.changeLogByCompany) { @($data.changeLogByCompany) } else { @() }
+$trend  = if ($data -and $data.trend) { @($data.trend) } else { @() }
+$modName = @{ A = 'A · Využití stránek'; B = 'B · Audit změn'; C = 'C · Permission errors' }
+
+# usermap (GUID → jméno) + sledované firmy modulu B
+$userMap = @{}
+try { $um = Get-Content -Raw (Join-Path $WebDir 'usermap.json') | ConvertFrom-Json; $um.PSObject.Properties | ForEach-Object { $userMap[$_.Name] = $_.Value } } catch {}
+$clCompanies = $null
+try { $cc = Get-Content -Raw (Join-Path $WebDir 'changelog-companies.json') | ConvertFrom-Json; if ($cc.enabled) { $clCompanies = @($cc.enabled) } } catch {}
 
 $manualTag = if ($Manual) { '[RUČNĚ] ' } else { '' }
 $subject   = '[' + $statusKey + '] ' + $manualTag + "BC Telemetrie — stav $today"
 
 $rowsProblems = if ($hasProblems) {
     '<ul style="margin:6px 0 0 0;padding-left:18px;color:#b00020">' + (($problems | ForEach-Object { '<li>' + (EscH $_) + '</li>' }) -join '') + '</ul>'
-} else { '<div style="color:#0a7d33">Bez problémů — vše běží.</div>' }
+} else { '<div style="color:#0a7d33;font-weight:600">Bez problémů — vše běží.</div>' }
 $rowsWarns = if ($warns.Count -gt 0) {
-    '<ul style="margin:6px 0 0 0;padding-left:18px;color:#9a6700">' + (($warns | ForEach-Object { '<li>' + (EscH $_) + '</li>' }) -join '') + '</ul>'
+    '<div style="color:#9a6700;margin-top:6px"><b>Upozornění:</b></div><ul style="margin:2px 0 0 0;padding-left:18px;color:#9a6700">' + (($warns | ForEach-Object { '<li>' + (EscH $_) + '</li>' }) -join '') + '</ul>'
 } else { '' }
 
+# ── Výčet aktivit (kontrola jednotlivých kroků z denního logu) ───────────────
+function LogExit([string]$label) { $m = [regex]::Match($logTxt, "(?im)" + [regex]::Escape($label) + "\s+exit=(\d+)"); if ($m.Success) { [int]$m.Groups[1].Value } else { $null } }
+function StepCell($e) { if ($null -eq $e) { "<span style='color:#999'>— neproběhlo</span>" } elseif ($e -eq 0) { "<span style='color:#0a7d33'>✓ OK</span>" } else { "<span style='color:#b00020'>✗ chyba (exit=$e)</span>" } }
+$steps = @(
+    @{ n = 'Import — Modul A (využití stránek)'; e = (LogExit 'modul A') },
+    @{ n = 'Import — Modul C (RT0031)';          e = (LogExit 'modul C') },
+    @{ n = 'Import — Modul B (audit změn)';      e = (LogExit 'modul B') },
+    @{ n = 'Import — Uživatelé (mapování jmen)'; e = (LogExit 'uzivatele') },
+    @{ n = 'Synchronizace stavu z cloudu';       e = (LogExit 'sync-status') },
+    @{ n = 'Snapshot dat (data.json)';           e = (LogExit 'snapshot') }
+)
+$stepHtml = ($steps | ForEach-Object { "<tr><td $td>$($_.n)</td><td $tdR>$(StepCell $_.e)</td></tr>" }) -join ''
+$aN = Get-NewestDate $ua 'LastUsed'
+$bN = Get-NewestDate $cl 'ChangedAt'
+function FreshCell($d) { if (-not $d) { return "<span style='color:#999'>—</span>" }; $h = [math]::Round(($now - $d).TotalHours, 1); $col = if ($h -gt [double]$cfg.staleHours) { '#b00020' } else { '#0a7d33' }; "<span style='color:$col'>$($d.ToString('yyyy-MM-dd HH:mm')) ($h h)</span>" }
+$stepHtml += "<tr><td $td>Čerstvost — Modul A (poslední záznam)</td><td $tdR>$(FreshCell $aN)</td></tr>"
+$stepHtml += "<tr><td $td>Čerstvost — Modul B (poslední záznam)</td><td $tdR>$(FreshCell $bN)</td></tr>"
+$stepHtml += "<tr><td $td>Snapshot vygenerován</td><td $tdR>$gen UTC</td></tr>"
+
+# ── KPI ──────────────────────────────────────────────────────────────────────
 $kpiHtml = if ($kpi) {
-@"
-<tr><td>Aktivní uživatelé · 30d</td><td style="text-align:right">$($kpi.ActiveUsers30d)</td></tr>
-<tr><td>Použité stránky · 30d</td><td style="text-align:right">$($kpi.DistinctPages30d)</td></tr>
-<tr><td>Otevření · 30d</td><td style="text-align:right">$($kpi.Hits30d)</td></tr>
-<tr><td>RT0031 chyby · 14d</td><td style="text-align:right">$($kpi.AuthFails14d)</td></tr>
-"@
-} else { '<tr><td colspan="2">data.json nedostupné</td></tr>' }
+    "<tr><td $td>Aktivní uživatelé · 30 dní</td><td $tdR>$(Fmt $kpi.ActiveUsers30d)</td></tr>" +
+    "<tr><td $td>Použité stránky · 30 dní</td><td $tdR>$(Fmt $kpi.DistinctPages30d)</td></tr>" +
+    "<tr><td $td>Otevření stránek · 30 dní</td><td $tdR>$(Fmt $kpi.Hits30d)</td></tr>" +
+    "<tr><td $td>Permission errors (RT0031) · 14 dní</td><td $tdR>$(Fmt $kpi.AuthFails14d)</td></tr>"
+} else { "<tr><td $td colspan='2'>data.json nedostupné</td></tr>" }
 
-$syncHtml = ($sync | ForEach-Object {
-    $nm = $modName[[string]$_.Module]; if (-not $nm) { $nm = $_.Module }
-    "<tr><td>$nm</td><td style=`"text-align:right`">$($_.LocalCount) / $($_.CloudCount)</td></tr>"
+# ── Synchronizace (SQL / cloud) — počty, rozsah dat, firmy ───────────────────
+$syncUpdated = if ($sync.Count -and $sync[0].UpdatedAt) { [string]$sync[0].UpdatedAt } else { '' }
+$rangeOf = @{ A = $data.pageRange; B = $data.auditRange }
+$aComp = @($ua | Where-Object { $_.CompanyName } | Select-Object -ExpandProperty CompanyName -Unique)
+$syncRows = ($sync | ForEach-Object {
+    $mk = [string]$_.Module; $nm = $modName[$mk]; if (-not $nm) { $nm = $mk }
+    $cloud = [double]($_.CloudCount); $loc = [double]($_.LocalCount)
+    $pct = if ($cloud -gt 0) { [int][math]::Round(100 * $loc / $cloud) } elseif ($loc -gt 0) { 100 } else { 0 }
+    $rng = $rangeOf[$mk]; $rngTxt = if ($rng -and $rng.MinDate) { "$($rng.MinDate) – $($rng.MaxDate)" } else { '—' }
+    $comp = switch ($mk) {
+        'A' { if ($aComp.Count) { "$($aComp.Count) firem" } else { '—' } }
+        'B' { if ($clCompanies) { $h = (($clCompanies | Select-Object -First 5) -join ', '); if ($clCompanies.Count -gt 5) { $h += " … (+$($clCompanies.Count - 5))" }; "$($clCompanies.Count) firem: $h" } else { '—' } }
+        default { '—' }
+    }
+    "<tr><td $td>$nm</td><td $tdR>$(Fmt $loc)</td><td $tdR>$(Fmt $cloud)</td><td $tdR>$pct %</td><td $td>$rngTxt</td><td $td>$(EscH $comp)</td></tr>"
 }) -join ''
-if (-not $syncHtml) { $syncHtml = '<tr><td colspan="2">—</td></tr>' }
+if (-not $syncRows) { $syncRows = "<tr><td $td colspan='6' style='text-align:center;color:#999'>—</td></tr>" }
 
-$dbHtml = if ($db) { "$($db.DataUsedMB) MB využito / $($db.DataAllocMB) MB alok." } else { '—' }
+# ── Top uživatelé / stránky / firmy (modul A) ────────────────────────────────
+$uByUser = @($ua | Group-Object UserName | ForEach-Object { $g = $_; $nm = if ($userMap[$g.Name]) { $userMap[$g.Name] } else { $g.Name }; [pscustomobject]@{ Label = $nm; Value = [double](($g.Group | Measure-Object TotalHits -Sum).Sum); Sub = '' } })
+$uByPage = @($ua | Group-Object PageName | ForEach-Object { $g = $_; [pscustomobject]@{ Label = $(if ($g.Name) { $g.Name } else { 'Page ?' }); Value = [double](($g.Group | Measure-Object TotalHits -Sum).Sum); Sub = '' } })
+$uByComp = @($ua | Group-Object CompanyName | ForEach-Object { $g = $_; $u = @($g.Group | Select-Object -ExpandProperty UserName -Unique).Count; [pscustomobject]@{ Label = $(if ($g.Name) { $g.Name } else { '?' }); Value = [double](($g.Group | Measure-Object TotalHits -Sum).Sum); Sub = "$u uživ." } })
+$topUsersHtml = TopBars $uByUser 10
+$topPagesHtml = TopBars $uByPage 10
+$byCompanyHtml = TopBars $uByComp 12
+
+# ── Trend (otevření/den + kumulace) ──────────────────────────────────────────
+$cum = 0
+$trendRows = ($trend | ForEach-Object { $cum += [double]$_.Hits; "<tr><td $td>$(EscH $_.DateKey)</td><td $tdR>$(Fmt $_.Hits)</td><td $tdR>$(Fmt $_.Users)</td><td $tdR>$(Fmt $cum)</td></tr>" }) -join ''
+if (-not $trendRows) { $trendRows = "<tr><td $td colspan='4' style='text-align:center;color:#999'>—</td></tr>" }
+
+# ── Audit změn — dle typu a firmy ────────────────────────────────────────────
+$auByType = @($cl | Group-Object ChangeType | ForEach-Object { [pscustomobject]@{ Label = $(if ($_.Name) { $_.Name } else { '?' }); Value = [double]$_.Count; Sub = '' } })
+$auByComp = @($clc | ForEach-Object { [pscustomobject]@{ Label = [string]$_.CompanyName; Value = [double]$_.Rows; Sub = '' } })
+$auTypeHtml = TopBars $auByType 8
+$auCompHtml = TopBars $auByComp 10
+$auRangeTxt = if ($data.auditRange -and $data.auditRange.MinDate) { "$($data.auditRange.MinDate) – $($data.auditRange.MaxDate) · celkem $(Fmt $data.auditRange.Rows) záznamů" } else { '—' }
+
+# ── Databáze ─────────────────────────────────────────────────────────────────
+$srv = if ($dbInfo -and $dbInfo.ServerName) { $dbInfo.ServerName } else { '?' }
+$dbn = if ($dbInfo -and $dbInfo.DbName) { $dbInfo.DbName } else { 'BC_Telemetry' }
+$dbEd = if ($dbInfo) { "$($dbInfo.Version) · $($dbInfo.Edition)" } else { '' }
+$dbState = if ($dbInfo) { "$($dbInfo.State) / $($dbInfo.Recovery)" } else { '' }
+$dbUsed = if ($dbsz) { Fmt $dbsz.DataUsedMB } else { '—' }
+$dbAlloc = if ($dbsz) { Fmt $dbsz.DataAllocMB } else { '—' }
+$dbLog = if ($dbsz -and $null -ne $dbsz.LogAllocMB) { Fmt $dbsz.LogAllocMB } else { '—' }
+
+# ── RT0031 ───────────────────────────────────────────────────────────────────
+$rt = if ($kpi) { [int]$kpi.AuthFails14d } else { 0 }
+$rtHtml = if ($rt -gt 0) { "<div style='color:#b00020'>$rt chyb za 14 dní — uživatelům chybí oprávnění (detail v dashboardu).</div>" } else { "<div style='color:#0a7d33'>Žádné chyby v období — uživatelé mají potřebná oprávnění.</div>" }
+
 $dashUrl = [string]$cfg.dashboardUrl
+$statusColor = if ($hasProblems) { '#b00020' } else { '#0a7d33' }
+$H2 = "style='font-size:15px;margin:22px 0 8px;padding-bottom:5px;border-bottom:1px solid #cbd2dd'"
+$H3 = "style='font-size:12px;margin:0 0 6px'"
+$TBL = "style='border-collapse:collapse;width:100%;font-size:12px'"
 
 $body = @"
-<html><body style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#222;max-width:640px">
-<h2 style="margin:0 0 4px 0">BC Telemetrie — $statusKey</h2>
-<div style="color:#666;margin-bottom:12px">snapshot $gen UTC · $today</div>
+<html><head><meta charset="utf-8"><style>
+@media print{ a.btn{display:none} @page{margin:12mm} h2{break-after:avoid} }
+body{margin:0}
+</style></head>
+<body style="font-family:Segoe UI,Arial,sans-serif;font-size:13px;color:#111;margin:0">
+<div style="max-width:860px;margin:0 auto;padding:22px">
 
-<h3 style="margin:14px 0 4px 0">Problémy</h3>
+<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1d4ed8;padding-bottom:12px">
+  <div>
+    <div style="font-size:20px;font-weight:600">BC Telemetrie — manažerská zpráva</div>
+    <div style="color:#555;font-size:11px;margin-top:4px">Snapshot $gen UTC · stav $today · stav systému: <b style="color:$statusColor">$statusKey</b></div>
+  </div>
+  <a class="btn" href="$dashUrl" style="background:#1d4ed8;color:#fff;padding:8px 14px;border-radius:6px;text-decoration:none;font-size:12px">Otevřít dashboard</a>
+</div>
+
+<h2 $H2>Stav systému</h2>
 $rowsProblems
 $rowsWarns
+<h3 $H3 style="margin-top:12px">Výčet aktivit (poslední běh)</h3>
+<table $TBL><thead><tr><th $thS>Činnost</th><th $thS style="text-align:right">Výsledek</th></tr></thead><tbody>$stepHtml</tbody></table>
 
-<h3 style="margin:16px 0 4px 0">KPI (30 dní)</h3>
-<table style="border-collapse:collapse;width:100%">$kpiHtml</table>
+<h2 $H2>Souhrn (KPI · 30 dní)</h2>
+<table $TBL><tbody>$kpiHtml</tbody></table>
 
-<h3 style="margin:16px 0 4px 0">Synchronizace (SQL / cloud)</h3>
-<div style="color:#666;font-size:12px;margin-bottom:4px">Nižší % je v pořádku — cloud drží vše, lokál jen výřez dle retence.</div>
-<table style="border-collapse:collapse;width:100%">$syncHtml</table>
+<h2 $H2>Synchronizace (SQL / cloud)</h2>
+<div style="color:#666;font-size:11px;margin-bottom:6px">Cloud drží kompletní historii (Azure App Insights / BC), lokální SQL jen výřez dle retence — <b>nižší % je v pořádku</b>. Cloud naposledy změřen: $syncUpdated.</div>
+<table $TBL><thead><tr><th $thS>Modul</th><th $thS style="text-align:right">SQL (lokálně)</th><th $thS style="text-align:right">Cloud (celkem)</th><th $thS style="text-align:right">Zesync.</th><th $thS>Rozsah dat</th><th $thS>Firmy / log</th></tr></thead><tbody>$syncRows</tbody></table>
 
-<h3 style="margin:16px 0 4px 0">Databáze</h3>
-<div>$dbHtml</div>
+<h2 $H2>Databáze</h2>
+<table $TBL><tbody>
+<tr><td $td style="width:200px">Server</td><td $td>$(EscH $srv)</td></tr>
+<tr><td $td>Databáze</td><td $td>$(EscH $dbn)</td></tr>
+<tr><td $td>Verze / edice</td><td $td>$(EscH $dbEd)</td></tr>
+<tr><td $td>Stav / recovery</td><td $td>$(EscH $dbState)</td></tr>
+<tr><td $td>Velikost (data)</td><td $td>$dbUsed MB využito / $dbAlloc MB alokováno · log $dbLog MB</td></tr>
+</tbody></table>
 
-<p style="margin-top:18px"><a href="$dashUrl" style="background:#2563eb;color:#fff;padding:8px 14px;border-radius:6px;text-decoration:none">Otevřít dashboard</a></p>
-<div style="color:#999;font-size:12px;margin-top:16px">Automatická zpráva BC_Telemetry · © Milan Trnka, IT</div>
+<h2 $H2>Trend využití (otevření / den)</h2>
+<table $TBL><thead><tr><th $thS>Datum</th><th $thS style="text-align:right">Otevření</th><th $thS style="text-align:right">Uživatelé</th><th $thS style="text-align:right">Kumulativně</th></tr></thead><tbody>$trendRows</tbody></table>
+
+<h2 $H2>Top 10 uživatelů dle otevření</h2>
+$topUsersHtml
+
+<h2 $H2>Top 10 stránek dle otevření</h2>
+$topPagesHtml
+
+<h2 $H2>Aktivita dle firmy (modul A)</h2>
+$byCompanyHtml
+
+<h2 $H2>Audit změn — dle typu a firmy</h2>
+<div style="color:#666;font-size:11px;margin-bottom:6px">Rozsah auditu v SQL: $auRangeTxt.</div>
+<h3 $H3>Dle typu změny <span style="color:#777;font-weight:400;font-size:10px">(z posledních záznamů ve snapshotu)</span></h3>
+$auTypeHtml
+<h3 $H3 style="margin-top:10px">Dle firmy <span style="color:#777;font-weight:400;font-size:10px">(celkové počty v BC)</span></h3>
+$auCompHtml
+
+<h2 $H2>Permission errors (RT0031)</h2>
+$rtHtml
+
+<div style="color:#999;font-size:11px;margin-top:20px;border-top:1px solid #cbd2dd;padding-top:8px">Automatická zpráva BC_Telemetry · © Milan Trnka, IT · Modul A (využití stránek) · Modul B (audit změn) · Modul C (RT0031)</div>
+</div>
 </body></html>
 "@
 

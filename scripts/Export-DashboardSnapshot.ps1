@@ -76,7 +76,9 @@ FROM sys.database_files
     $dbInfo = $null
     try {
         $dbInfo = (Invoke-Sql $conn @"
-SELECT CONVERT(varchar(30),SERVERPROPERTY('ProductVersion')) AS Version,
+SELECT CONVERT(varchar(128),SERVERPROPERTY('ServerName')) AS ServerName,
+       DB_NAME() AS DbName,
+       CONVERT(varchar(30),SERVERPROPERTY('ProductVersion')) AS Version,
        CONVERT(varchar(80),SERVERPROPERTY('Edition')) AS Edition,
        d.recovery_model_desc AS Recovery, d.state_desc AS State,
        d.collation_name AS Collation, CONVERT(int,d.compatibility_level) AS CompatLevel,
@@ -97,6 +99,12 @@ ORDER BY TotalMB DESC
 "@
     } catch { }
 
+    # Rozsahy dat (od–do + celkový počet) pro modul A (BCPageDaily) a B (BCChangeLog) — do reportu/notifikace.
+    $pageRange = $null
+    try { $pageRange = (Invoke-Sql $conn "SELECT CONVERT(varchar(10),MIN(DateKey),120) AS MinDate, CONVERT(varchar(10),MAX(DateKey),120) AS MaxDate, COUNT_BIG(*) AS Rows FROM dbo.BCPageDaily")[0] } catch { }
+    $auditRange = $null
+    try { $auditRange = (Invoke-Sql $conn "SELECT CONVERT(varchar(19),MIN(ChangedAt),120) AS MinDate, CONVERT(varchar(19),MAX(ChangedAt),120) AS MaxDate, COUNT_BIG(*) AS Rows FROM dbo.BCChangeLog")[0] } catch { }
+
     $snapshot = [ordered]@{
         generatedUtc   = [DateTime]::UtcNow.ToString('yyyy-MM-dd HH:mm:ss')
         kpi            = $kpi
@@ -105,6 +113,8 @@ ORDER BY TotalMB DESC
         dbInfo         = $dbInfo
         dbTables       = $dbTables
         changeLogByCompany = $clByCompany
+        pageRange      = $pageRange
+        auditRange     = $auditRange
         # LastUsed s časem: agregát vw_DashUserActivity má jen DATE (MAX(DateKey)) → čas je jen v raw dbo.BCPageLog.
         # MAX(Timestamp) z raw (covering index IX_BCPageLog_UserName_Timestamp) → CONVERT(...,120) jako string,
         # jinak by ho Invoke-Sql usekl na yyyy-MM-dd. COALESCE na DateKey (půlnoc) pro řádky mimo 6měs. retenci raw.
