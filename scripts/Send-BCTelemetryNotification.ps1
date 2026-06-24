@@ -52,7 +52,7 @@ function Read-Notify {
     $cfg = [ordered]@{}; foreach ($k in $NOTIFY_DEFAULTS.Keys) { $cfg[$k] = $NOTIFY_DEFAULTS[$k] }
     if (Test-Path $f) {
         try {
-            $o = Get-Content -Raw $f | ConvertFrom-Json
+            $o = Get-Content -Raw -Encoding UTF8 $f | ConvertFrom-Json
             foreach ($k in $NOTIFY_DEFAULTS.Keys) {
                 if ($null -ne $o.$k) { $cfg[$k] = $o.$k }
             }
@@ -81,12 +81,12 @@ $warns    = New-Object System.Collections.Generic.List[string]
 
 # data.json
 $data = $null
-try { if (Test-Path $DataJson) { $data = Get-Content -Raw $DataJson | ConvertFrom-Json } } catch {}
+try { if (Test-Path $DataJson) { $data = Get-Content -Raw -Encoding UTF8 $DataJson | ConvertFrom-Json } } catch {}
 
 # Dnešní log (exit kódy + ROLLBACK)
 if (-not $LogFile) { $LogFile = Join-Path $LogDir ('bct-daily-' + $now.ToString('yyyyMMdd') + '.log') }
 $logTxt = ''
-if (Test-Path $LogFile) { try { $logTxt = Get-Content -Raw $LogFile } catch {} }
+if (Test-Path $LogFile) { try { $logTxt = Get-Content -Raw -Encoding UTF8 $LogFile } catch {} }
 
 if ($cfg.alertImportFail -and $logTxt) {
     $bad = @([regex]::Matches($logTxt, '(?im)\bexit=(\d+)') | Where-Object { [int]$_.Groups[1].Value -ne 0 })
@@ -126,7 +126,7 @@ $statusKey   = if ($hasProblems) { 'CHYBA' } else { 'OK' }
 # ── Rozhodni, zda poslat (cadence + stav) ────────────────────────────────────
 $stateFile = Join-Path $WebDir 'ops\notify-state.json'
 $state = $null
-if (Test-Path $stateFile) { try { $state = Get-Content -Raw $stateFile | ConvertFrom-Json } catch {} }
+if (Test-Path $stateFile) { try { $state = Get-Content -Raw -Encoding UTF8 $stateFile | ConvertFrom-Json } catch {} }
 $today        = $now.ToString('yyyy-MM-dd')
 $lastSentDate = if ($state) { [string]$state.lastSentDate } else { '' }
 $lastStatus   = if ($state) { [string]$state.lastStatus }   else { '' }
@@ -158,16 +158,23 @@ function Fmt($n) { if ($null -eq $n -or "$n" -eq '') { return '—' }; try { ('{
 $td  = "style='border:1px solid #cbd2dd;padding:4px 8px'"
 $tdR = "style='border:1px solid #cbd2dd;padding:4px 8px;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap'"
 $thS = "style='border:1px solid #cbd2dd;padding:4px 8px;background:#f1f3f7;text-align:left;font-size:9px;text-transform:uppercase;color:#555'"
+# Pruh = vnořená tabulka (Outlook-robustní; flexbox/div-width Outlook ignoruje).
 function BarRow([string]$label, [double]$value, [double]$max, [string]$sub) {
     $w = if ($max -gt 0) { [int][math]::Round(100 * $value / $max) } else { 0 }
+    if ($w -lt 1 -and $value -gt 0) { $w = 1 }; if ($w -gt 100) { $w = 100 }
+    $rest = 100 - $w
+    $fill = if ($w -gt 0) { "<td bgcolor='#1d4ed8' width='$w%' style='width:$w%;height:12px;font-size:0;line-height:0'>&nbsp;</td>" } else { '' }
+    $empty = if ($rest -gt 0) { "<td bgcolor='#eef1f6' width='$rest%' style='width:$rest%;height:12px;font-size:0;line-height:0'>&nbsp;</td>" } else { '' }
     $subHtml = if ($sub) { " <span style='color:#888'>$sub</span>" } else { '' }
-    "<div style='display:flex;align-items:center;gap:8px;margin:3px 0'><div style='width:185px;flex:none;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap' title='$(EscH $label)'>$(EscH $label)</div><div style='flex:1;background:#eef1f6;border-radius:4px;height:14px'><div style='height:14px;background:#1d4ed8;border-radius:4px;width:$w%'></div></div><div style='width:135px;flex:none;text-align:right;font-variant-numeric:tabular-nums'>$(Fmt $value)$subHtml</div></div>"
+    "<tr><td style='padding:2px 8px 2px 0;font-size:12px;white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis'>$(EscH $label)</td>" +
+    "<td style='padding:2px 0;width:55%'><table role='presentation' cellpadding='0' cellspacing='0' width='100%' style='border-collapse:collapse;table-layout:fixed'><tr>$fill$empty</tr></table></td>" +
+    "<td style='padding:2px 0 2px 8px;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums'>$(Fmt $value)$subHtml</td></tr>"
 }
 function TopBars($rows, [int]$take) {
     $arr = @($rows | Sort-Object Value -Descending | Select-Object -First $take)
     if (-not $arr.Count) { return "<div style='color:#999'>—</div>" }
     $max = ($arr | Measure-Object Value -Maximum).Maximum
-    ($arr | ForEach-Object { BarRow $_.Label $_.Value $max $_.Sub }) -join ''
+    "<table role='presentation' cellpadding='0' cellspacing='0' width='100%' style='border-collapse:collapse;font-size:12px'>" + (($arr | ForEach-Object { BarRow $_.Label $_.Value $max $_.Sub }) -join '') + "</table>"
 }
 
 $kpi    = if ($data) { $data.kpi } else { $null }
@@ -183,9 +190,9 @@ $modName = @{ A = 'A · Využití stránek'; B = 'B · Audit změn'; C = 'C · P
 
 # usermap (GUID → jméno) + sledované firmy modulu B
 $userMap = @{}
-try { $um = Get-Content -Raw (Join-Path $WebDir 'usermap.json') | ConvertFrom-Json; $um.PSObject.Properties | ForEach-Object { $userMap[$_.Name] = $_.Value } } catch {}
+try { $um = Get-Content -Raw -Encoding UTF8 (Join-Path $WebDir 'usermap.json') | ConvertFrom-Json; $um.PSObject.Properties | ForEach-Object { $userMap[$_.Name] = $_.Value } } catch {}
 $clCompanies = $null
-try { $cc = Get-Content -Raw (Join-Path $WebDir 'changelog-companies.json') | ConvertFrom-Json; if ($cc.enabled) { $clCompanies = @($cc.enabled) } } catch {}
+try { $cc = Get-Content -Raw -Encoding UTF8 (Join-Path $WebDir 'changelog-companies.json') | ConvertFrom-Json; if ($cc.enabled) { $clCompanies = @($cc.enabled) } } catch {}
 
 $manualTag = if ($Manual) { '[RUČNĚ] ' } else { '' }
 $subject   = '[' + $statusKey + '] ' + $manualTag + "BC Telemetrie — stav $today"
