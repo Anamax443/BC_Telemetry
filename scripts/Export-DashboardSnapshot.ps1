@@ -105,35 +105,62 @@ ORDER BY TotalMB DESC
     $auditRange = $null
     try { $auditRange = (Invoke-Sql $conn "SELECT CONVERT(varchar(19),MIN(ChangedAt),120) AS MinDate, CONVERT(varchar(19),MAX(ChangedAt),120) AS MaxDate, COUNT_BIG(*) AS Rows FROM dbo.BCChangeLog")[0] } catch { }
 
-    # Čtení tabulek (fáze 2): page-views (BCPageDaily) × mapování PageID→tabulka (ops/pagemap.json);
-    # GUID uživatele se mapuje na jméno přes usermap.json. Bez mapování zůstane prázdné.
-    $tableReads = @()
+    # ── Tabulky (SLOUČENĚ): zápisy (audit, modul B) + čtení (page-views × pagemap) v jedné sadě ──
+    # Identita se sjednocuje na JMÉNO přes dbo.BCUser: audit má BC login (LSOKOL), page-views GUID.
+    # Atribut Access = W/R/RW. Bez pagemap chybí jen čtení (zápisy se zobrazí vždy).
+    $tableAccess = @()
     $pageMapCount = 0
     try {
+        $byLogin = @{}; $byGuid = @{}
+        try {
+            $us = Invoke-Sql $conn "SELECT UserName, TelemetryUserId, FullName FROM dbo.BCUser"
+            foreach ($u in $us) {
+                $fn = if ($u.FullName) { [string]$u.FullName } else { '' }
+                if ($u.UserName) { $byLogin[[string]$u.UserName] = $fn }
+                if ($u.TelemetryUserId) { $byGuid[[string]$u.TelemetryUserId] = $fn }
+            }
+        } catch {}
+        $acc = @{}   # "name|tableNo|company" → ordered metriky (zápisy + čtení)
+        # Zápisy z auditu (klíč identity = BC login)
+        $wr = Invoke-Sql $conn "SELECT UserId, TableNo, MAX(TableName) AS TableName, CompanyName, COUNT_BIG(*) AS Changes, SUM(CASE WHEN ChangeType='Insertion' THEN 1 ELSE 0 END) AS Ins, SUM(CASE WHEN ChangeType='Modification' THEN 1 ELSE 0 END) AS Mod, SUM(CASE WHEN ChangeType='Deletion' THEN 1 ELSE 0 END) AS Del, CONVERT(varchar(19),MAX(ChangedAt),120) AS LastAt FROM dbo.BCChangeLog GROUP BY UserId, TableNo, CompanyName"
+        foreach ($r in $wr) {
+            $login = [string]$r.UserId
+            $nm = if ($byLogin.ContainsKey($login) -and $byLogin[$login]) { $byLogin[$login] } else { $login }
+            $key = '{0}|{1}|{2}' -f $nm, $r.TableNo, $r.CompanyName
+            if (-not $acc.ContainsKey($key)) { $acc[$key] = [ordered]@{ UserName = $nm; TableNo = $r.TableNo; TableName = [string]$r.TableName; CompanyName = [string]$r.CompanyName; Changes = 0; Ins = 0; Mod = 0; Del = 0; Reads = 0; Pages = 0; LastW = ''; LastR = '' } }
+            $a = $acc[$key]
+            $a.Changes += [long]$r.Changes; $a.Ins += [int]$r.Ins; $a.Mod += [int]$r.Mod; $a.Del += [int]$r.Del
+            if (([string]$r.LastAt) -gt $a.LastW) { $a.LastW = [string]$r.LastAt }
+        }
+        # Čtení z page-views × pagemap (klíč identity = GUID→FullName)
         $pmPath = Join-Path $opsDir 'pagemap.json'
         if (Test-Path $pmPath) {
             $pmObj = Get-Content -Raw -Encoding UTF8 $pmPath | ConvertFrom-Json
             $pm = @{}   # PageID(string) → {t,n}; hashtable (dynamický $obj.$var na číselných názvech v PS5.1 selhává)
             $pmObj.PSObject.Properties | ForEach-Object { $pm[[string]$_.Name] = $_.Value }
             $pageMapCount = $pm.Count
-            $um = @{}
-            $umPath = Join-Path (Split-Path $opsDir -Parent) 'usermap.json'
-            if (Test-Path $umPath) { try { $umo = Get-Content -Raw -Encoding UTF8 $umPath | ConvertFrom-Json; $umo.PSObject.Properties | ForEach-Object { $um[$_.Name] = $_.Value } } catch {} }
             $pv = Invoke-Sql $conn "SELECT UserName, PageId, CompanyName, SUM(Hits) AS Hits, CONVERT(varchar(10),MAX(DateKey),120) AS LastDay FROM dbo.BCPageDaily GROUP BY UserName, PageId, CompanyName"
-            $acc = @{}
             foreach ($r in $pv) {
                 $pgid = ([string]$r.PageId).Trim()      # přesný match (NE strip \D — '-1' by kolidovalo s '1')
                 if (-not $pgid) { continue }
-                $mp = $pm[$pgid]
-                if (-not $mp) { continue }
-                $nm = if ($um[$r.UserName]) { $um[$r.UserName] } else { [string]$r.UserName }
+                $mp = $pm[$pgid]; if (-not $mp) { continue }
+                $guid = [string]$r.UserName
+                $nm = if ($byGuid.ContainsKey($guid) -and $byGuid[$guid]) { $byGuid[$guid] } else { $guid }
                 $key = '{0}|{1}|{2}' -f $nm, $mp.t, $r.CompanyName
-                if (-not $acc.ContainsKey($key)) { $acc[$key] = [ordered]@{ UserName = $nm; TableNo = $mp.t; TableName = $mp.n; CompanyName = [string]$r.CompanyName; Reads = 0; Pages = 0; LastUsed = '' } }
-                $a = $acc[$key]; $a.Reads += [int]$r.Hits; $a.Pages += 1; if ($r.LastDay -gt $a.LastUsed) { $a.LastUsed = $r.LastDay }
+                if (-not $acc.ContainsKey($key)) { $acc[$key] = [ordered]@{ UserName = $nm; TableNo = $mp.t; TableName = [string]$mp.n; CompanyName = [string]$r.CompanyName; Changes = 0; Ins = 0; Mod = 0; Del = 0; Reads = 0; Pages = 0; LastW = ''; LastR = '' } }
+                $a = $acc[$key]
+                if (-not $a.TableName) { $a.TableName = [string]$mp.n }
+                $a.Reads += [int]$r.Hits; $a.Pages += 1
+                if (([string]$r.LastDay) -gt $a.LastR) { $a.LastR = [string]$r.LastDay }
             }
-            $tableReads = @($acc.Values | Sort-Object { $_.Reads } -Descending | Select-Object -First $TopRows | ForEach-Object { [pscustomobject]$_ })
         }
-    } catch { Write-Host "tableReads warn: $($_.Exception.Message)" }
+        $tableAccess = @($acc.Values | ForEach-Object {
+                $_.Access = if ($_.Changes -gt 0 -and $_.Reads -gt 0) { 'RW' } elseif ($_.Changes -gt 0) { 'W' } else { 'R' }
+                $_.LastUsed = if (([string]$_.LastW) -gt ([string]$_.LastR)) { $_.LastW } else { $_.LastR }
+                $_.Remove('LastW'); $_.Remove('LastR')
+                [pscustomobject]$_
+            } | Sort-Object { [long]$_.Changes + [long]$_.Reads } -Descending | Select-Object -First $TopRows)
+    } catch { Write-Host "tableAccess warn: $($_.Exception.Message)" }
 
     $snapshot = [ordered]@{
         generatedUtc   = [DateTime]::UtcNow.ToString('yyyy-MM-dd HH:mm:ss')
@@ -163,10 +190,8 @@ ORDER BY a.TotalHits DESC
         trendByCompany = Invoke-Sql $conn 'SELECT DateKey, CompanyName, SUM(Hits) AS Hits, COUNT(DISTINCT UserName) AS Users FROM dbo.BCPageDaily GROUP BY DateKey, CompanyName ORDER BY DateKey'
         authFails      = Invoke-Sql $conn "SELECT TOP ($TopRows) DateKey, UserName, ObjectId, ObjectName, Failures FROM dbo.BCAuthFailDaily ORDER BY DateKey DESC, Failures DESC"
         changeLog      = Invoke-Sql $conn "SELECT TOP ($TopRows) CONVERT(varchar(19),ChangedAt,120) AS ChangedAt, UserId, CompanyName, ChangeType, TableNo, TableName, FieldNo, FieldName, PrimaryKey, OldValue, NewValue FROM dbo.BCChangeLog ORDER BY ChangedAt DESC"
-        # Tabulky pro permission mining: které tabulky uživatel MĚNÍ (zápisy) — agregace auditu po (UserId × TableNo × firma).
-        # UserId = reálné BC jméno. Pozn.: scan BCChangeLog (může být velký); ORDER BY Changes DESC + strop TopRows.
-        tableActivity  = Invoke-Sql $conn "SELECT TOP ($TopRows) UserId AS UserName, TableNo, MAX(TableName) AS TableName, CompanyName, COUNT_BIG(*) AS Changes, SUM(CASE WHEN ChangeType='Insertion' THEN 1 ELSE 0 END) AS Ins, SUM(CASE WHEN ChangeType='Modification' THEN 1 ELSE 0 END) AS Mod, SUM(CASE WHEN ChangeType='Deletion' THEN 1 ELSE 0 END) AS Del, CONVERT(varchar(19),MAX(ChangedAt),120) AS LastAt FROM dbo.BCChangeLog GROUP BY UserId, TableNo, CompanyName ORDER BY COUNT_BIG(*) DESC"
-        tableReads     = $tableReads
+        # Tabulky pro permission mining (sloučené zápisy+čtení, atribut Access=W/R/RW) — viz výpočet $tableAccess výše.
+        tableAccess    = $tableAccess
         pageMapCount   = $pageMapCount
     }
 
