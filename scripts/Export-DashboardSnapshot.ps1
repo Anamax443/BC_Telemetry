@@ -94,7 +94,20 @@ ORDER BY TotalMB DESC
         dbInfo         = $dbInfo
         dbTables       = $dbTables
         changeLogByCompany = $clByCompany
-        userActivity   = Invoke-Sql $conn "SELECT TOP ($TopRows) * FROM dbo.vw_DashUserActivity ORDER BY TotalHits DESC"
+        # LastUsed s časem: agregát vw_DashUserActivity má jen DATE (MAX(DateKey)) → čas je jen v raw dbo.BCPageLog.
+        # MAX(Timestamp) z raw (covering index IX_BCPageLog_UserName_Timestamp) → CONVERT(...,120) jako string,
+        # jinak by ho Invoke-Sql usekl na yyyy-MM-dd. COALESCE na DateKey (půlnoc) pro řádky mimo 6měs. retenci raw.
+        userActivity   = Invoke-Sql $conn @"
+SELECT TOP ($TopRows) a.UserName, a.PageId, a.PageName, a.CompanyName, a.TotalHits,
+  CONVERT(varchar(19), COALESCE(r.LastSeen, CAST(a.LastUsed AS datetime2(0))), 120) AS LastUsed
+FROM dbo.vw_DashUserActivity a
+LEFT JOIN (
+  SELECT UserName, ISNULL(PageId,'?') AS PageId, ISNULL(CompanyName,'?') AS CompanyName, MAX(Timestamp) AS LastSeen
+  FROM dbo.BCPageLog
+  GROUP BY UserName, ISNULL(PageId,'?'), ISNULL(CompanyName,'?')
+) r ON r.UserName = a.UserName AND r.PageId = a.PageId AND r.CompanyName = a.CompanyName
+ORDER BY a.TotalHits DESC
+"@
         trend          = Invoke-Sql $conn 'SELECT * FROM dbo.vw_DashTrend ORDER BY DateKey'
         trendByCompany = Invoke-Sql $conn 'SELECT DateKey, CompanyName, SUM(Hits) AS Hits, COUNT(DISTINCT UserName) AS Users FROM dbo.BCPageDaily GROUP BY DateKey, CompanyName ORDER BY DateKey'
         authFails      = Invoke-Sql $conn "SELECT TOP ($TopRows) DateKey, UserName, ObjectId, ObjectName, Failures FROM dbo.BCAuthFailDaily ORDER BY DateKey DESC, Failures DESC"
