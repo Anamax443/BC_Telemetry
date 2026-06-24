@@ -36,6 +36,7 @@ function logActivity(level, scope, msg) {
   console.log(`[${level}] ${scope}: ${msg}`);
 }
 const LOG_DIR = 'C:\\Apps\\BC_Telemetry\\logs';
+const SCRIPTS_DIR = 'C:\\Apps\\BC_Telemetry\\scripts';   // importní/notifikační .ps1 (svc je odsud spouští)
 const USERMAP_FILE = path.join(__dirname, 'usermap.json');  // mapování pseudonymní GUID → reálné jméno
 const CHANGELOG_COMPANIES_FILE = path.join(__dirname, 'changelog-companies.json');  // výběr firem pro modul B (Audit změn)
 // Ops fronta: web (LocalSystem) zapíše požadavek, denní úloha (svc) ho zpracuje a uklidí.
@@ -47,6 +48,13 @@ const RETENTION_DEFAULTS = { pageLogMonths: 6, changeLogMonths: 24, dailyLogDays
 const SCHEDULE_FILE = path.join(OPS_DIR, 'schedule.json');         // okno + četnost běhu úlohy
 const SNAPSHOT_FILE = path.join(OPS_DIR, 'snapshot.json');         // strop řádků na sekci ve snapshotu (čte Export-DashboardSnapshot.ps1)
 const SNAPSHOT_DEFAULTS = { topRows: 5000 };
+const NOTIFY_FILE = path.join(OPS_DIR, 'notify.json');             // e-mail notifikace (čte Send-BCTelemetryNotification.ps1)
+const NOTIFY_DEFAULTS = {
+  enabled: false, smtpHost: 'axima-cz.mail.protection.outlook.com', smtpPort: 25,
+  from: 'bc-telemetry@axima.cz', recipients: ['mtrnka@axima.cz'], cadence: 'daily',
+  dashboardUrl: 'http://10.8.2.225:8080/', alertImportFail: true, alertStaleModule: true,
+  alertSecretExpiry: true, staleHours: 24, secretExpiry: '2028-06-07', secretWarnDays: 30,
+};
 const SVC_ACCT = 'AXINETWORK\\svc-bc-telemetry';
 
 // Zajisti ops dir + práva pro svc (denní úloha čte/maže request a píše status). LocalSystem to zvládne.
@@ -458,6 +466,59 @@ $out | ConvertTo-Json -Compress -Depth 3
     return;
   }
 
+  // GET/PUT /notify-config — e-mailové notifikace (ops/notify.json, čte Send-BCTelemetryNotification.ps1).
+  if (url === '/notify-config' && req.method === 'GET') {
+    let r = { ...NOTIFY_DEFAULTS };
+    try { const o = JSON.parse(fs.readFileSync(NOTIFY_FILE, 'utf8')); r = { ...r, ...o }; } catch { }
+    if (!Array.isArray(r.recipients)) r.recipients = NOTIFY_DEFAULTS.recipients;
+    return sendJson(res, 200, r);
+  }
+  if (url === '/notify-config' && req.method === 'PUT') {
+    let body = '';
+    req.on('data', (c) => { body += c; if (body.length > 1e5) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const o = JSON.parse(body || '{}');
+        const recips = (Array.isArray(o.recipients) ? o.recipients : String(o.recipients || '').split(/[\s,;]+/))
+          .map((s) => String(s).trim()).filter(Boolean);
+        for (const a of recips) if (!/@axima\.cz$/i.test(a)) throw new Error(`příjemce musí být @axima.cz: ${a}`);
+        if (!/@axima\.cz$/i.test(String(o.from || ''))) throw new Error('odesílatel (From) musí být @axima.cz');
+        const cadence = ['daily', 'perRun', 'onChange'].includes(o.cadence) ? o.cadence : 'daily';
+        const port = Math.round(+o.smtpPort); if (!Number.isFinite(port) || port < 1 || port > 65535) throw new Error('neplatný SMTP port');
+        const staleHours = Math.round(+o.staleHours); if (!Number.isFinite(staleHours) || staleHours < 1 || staleHours > 8760) throw new Error('staleHours 1–8760');
+        const secretWarnDays = Math.round(+o.secretWarnDays); if (!Number.isFinite(secretWarnDays) || secretWarnDays < 1 || secretWarnDays > 3650) throw new Error('secretWarnDays 1–3650');
+        const out = {
+          enabled: !!o.enabled,
+          smtpHost: String(o.smtpHost || NOTIFY_DEFAULTS.smtpHost).trim(),
+          smtpPort: port,
+          from: String(o.from).trim(),
+          recipients: recips.length ? recips : NOTIFY_DEFAULTS.recipients,
+          cadence,
+          dashboardUrl: String(o.dashboardUrl || NOTIFY_DEFAULTS.dashboardUrl).trim(),
+          alertImportFail: !!o.alertImportFail,
+          alertStaleModule: !!o.alertStaleModule,
+          alertSecretExpiry: !!o.alertSecretExpiry,
+          staleHours,
+          secretExpiry: /^\d{4}-\d{2}-\d{2}$/.test(String(o.secretExpiry || '')) ? o.secretExpiry : NOTIFY_DEFAULTS.secretExpiry,
+          secretWarnDays,
+        };
+        ensureOpsDir();
+        fs.writeFileSync(NOTIFY_FILE, JSON.stringify(out, null, 2), 'utf8');
+        logActivity('success', 'notify-config', `notifikace uloženy z ${reqIp(req)}: enabled=${out.enabled} cadence=${out.cadence} → ${out.recipients.join(',')}`);
+        sendJson(res, 200, { ok: true, ...out });
+      } catch (e) { sendJson(res, 500, { error: String(e.message || e) }); }
+    });
+    return;
+  }
+  // POST /notify-test — pošle testovací e-mail HNED (Send-BCTelemetryNotification.ps1 -Manual) podle uložené konfigurace.
+  if (url === '/notify-test' && req.method === 'POST') {
+    const script = path.join(SCRIPTS_DIR, 'Send-BCTelemetryNotification.ps1');
+    const cmd = `& '${script.replace(/'/g, "''")}' -Manual`;
+    return runPs(cmd)
+      .then((o) => { logActivity('info', 'notify-test', `test e-mail z ${reqIp(req)}: ${(o || '').replace(/\s+/g, ' ').slice(0, 200)}`); sendJson(res, 200, { ok: true, output: (o || '').trim() }); })
+      .catch((e) => { logActivity('error', 'notify-test', `test e-mail selhal: ${e.message || e}`); sendJson(res, 500, { error: String(e.message || e) }); });
+  }
+
   // GET/PUT /schedule — okno a četnost běhu úlohy BC_Telemetry_Daily (opakování v okně).
   if (url === '/schedule' && req.method === 'GET') {
     let s = { startTime: '02:00', endTime: '06:00', intervalMinutes: 0, days: [0, 1, 2, 3, 4, 5, 6] };
@@ -537,7 +598,7 @@ if ($t.State -eq 'Running') { 'running' } else { Set-Content -Path '${flag.repla
       .then((o) => { logActivity('info', 'refresh', `manual refresh: ${o.trim()}`); sendJson(res, 200, { status: o.trim() }); })
       .catch((e) => sendJson(res, 500, { error: String(e.message || e) }));
   }
-  if (url.startsWith('/firewall/') || url.startsWith('/api/') || url === '/refresh' || url === '/activity' || url === '/logs' || url === '/logfiles' || url === '/usermap' || url === '/changelog-companies' || url === '/changelog-purge' || url === '/ops-status' || url === '/import-stop' || url === '/restart' || url === '/retention' || url === '/tasks' || url === '/schedule' || url === '/snapshot-config') return sendJson(res, 404, { error: 'unknown endpoint' });
+  if (url.startsWith('/firewall/') || url.startsWith('/api/') || url === '/refresh' || url === '/activity' || url === '/logs' || url === '/logfiles' || url === '/usermap' || url === '/changelog-companies' || url === '/changelog-purge' || url === '/ops-status' || url === '/import-stop' || url === '/restart' || url === '/retention' || url === '/tasks' || url === '/schedule' || url === '/snapshot-config' || url === '/notify-config' || url === '/notify-test') return sendJson(res, 404, { error: 'unknown endpoint' });
   return serveStatic(req, res);
 });
 

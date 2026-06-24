@@ -435,6 +435,14 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
         <div id="snapHost">načítám…</div>
       </div>
       <div class="set-section">
+        <h3>E-mailové notifikace</h3>
+        <p class="set-desc">Stav a alerty e-mailem přes <strong>M365 Direct Send</strong> (odesílá noční úloha jako služba).
+        Příjemci i odesílatel musí být <span class="mono">@axima.cz</span>. Alerty: <strong>selhání importu</strong>,
+        <strong>zastaralý modul</strong> (nejnovější záznam starší než N h), <strong>expirace SP secretu</strong>.
+        Synchronizace ukazuje ~5 % <em>záměrně</em> (cloud drží vše, lokál jen výřez) — proto se hlídá čerstvost, ne total %.</p>
+        <div id="notifyHost">načítám…</div>
+      </div>
+      <div class="set-section">
         <h3>Plán importu (okno + četnost)</h3>
         <p class="set-desc">Kdy a jak často běží úloha <span class="mono">BC_Telemetry_Daily</span>.
         Interval <strong>0</strong> = jednou denně v čase Od. Jinak se opakuje každých N minut v okně Od–Do
@@ -974,6 +982,62 @@ function buildRetention(host){
     .catch(e=>{host.innerHTML='<div class="wl-banner warn"><span>⚠</span><div>Retence nedostupná ('+esc(e.message)+').</div></div>';});
 }
 
+// ── E-mailové notifikace (Nastavení) ─────────────────────────────────────────
+function buildNotify(host){
+  if(!host) return;
+  host.innerHTML='<div class="wl-cur">načítám…</div>';
+  fetch('/notify-config').then(r=>{if(!r.ok)throw new Error(r.status);return r.json();})
+    .then(d=>{
+      const cad=[['daily','Denní souhrn'],['perRun','Po každém běhu'],['onChange','Jen při změně/problému']];
+      const ck=(id,v,lbl)=>'<label class="ck"><input type="checkbox" id="'+id+'"'+(v?' checked':'')+'> '+lbl+'</label>';
+      host.innerHTML='<div class="ret-grid">'
+        +'<label>Zapnuto</label><div>'+ck('nfEn',d.enabled,'posílat notifikace')+'</div>'
+        +'<label>Příjemci (@axima.cz, čárkou)</label><input type="text" id="nfTo" value="'+esc((d.recipients||[]).join(', '))+'">'
+        +'<label>Odesílatel (From)</label><input type="text" id="nfFrom" value="'+esc(d.from||'')+'">'
+        +'<label>SMTP host : port</label><div style="display:flex;gap:6px"><input type="text" id="nfHost" value="'+esc(d.smtpHost||'')+'" style="flex:1"><input type="number" id="nfPort" value="'+esc(d.smtpPort||25)+'" style="width:80px"></div>'
+        +'<label>Perioda hlášení</label><select id="nfCad">'+cad.map(c=>'<option value="'+c[0]+'"'+(d.cadence===c[0]?' selected':'')+'>'+c[1]+'</option>').join('')+'</select>'
+        +'<label>Alerty</label><div>'+ck('nfAF',d.alertImportFail,'selhání importu')+' '+ck('nfAS',d.alertStaleModule,'zastaralý modul')+' '+ck('nfAX',d.alertSecretExpiry,'expirace SP secretu')+'</div>'
+        +'<label>Zastaralý modul po (h)</label><input type="number" id="nfStale" min="1" max="8760" value="'+esc(d.staleHours||24)+'">'
+        +'<label>SP secret expiruje</label><input type="text" id="nfExp" placeholder="RRRR-MM-DD" value="'+esc(d.secretExpiry||'')+'">'
+        +'<label>Varovat předem (dní)</label><input type="number" id="nfWarn" min="1" max="3650" value="'+esc(d.secretWarnDays||30)+'">'
+        +'<label>URL dashboardu</label><input type="text" id="nfUrl" value="'+esc(d.dashboardUrl||'')+'">'
+        +'</div><div class="wl-row"><button class="btn" id="nfSave">Uložit</button> <button class="btn-ghost" id="nfTest">✉ Poslat testovací e-mail</button> <span class="wl-msg" id="nfMsg"></span></div>';
+      const collect=()=>({
+        enabled:document.getElementById('nfEn').checked,
+        recipients:document.getElementById('nfTo').value.split(/[\s,;]+/).filter(Boolean),
+        from:document.getElementById('nfFrom').value.trim(),
+        smtpHost:document.getElementById('nfHost').value.trim(),
+        smtpPort:+document.getElementById('nfPort').value,
+        cadence:document.getElementById('nfCad').value,
+        alertImportFail:document.getElementById('nfAF').checked,
+        alertStaleModule:document.getElementById('nfAS').checked,
+        alertSecretExpiry:document.getElementById('nfAX').checked,
+        staleHours:+document.getElementById('nfStale').value,
+        secretExpiry:document.getElementById('nfExp').value.trim(),
+        secretWarnDays:+document.getElementById('nfWarn').value,
+        dashboardUrl:document.getElementById('nfUrl').value.trim(),
+      });
+      document.getElementById('nfSave').addEventListener('click',()=>{
+        const m=document.getElementById('nfMsg'); m.className='wl-msg'; m.textContent='ukládám…';
+        fetch('/notify-config',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(collect())})
+          .then(r=>r.json().then(j=>({ok:r.ok,j})))
+          .then(({ok,j})=>{ if(!ok)throw new Error(j.error||'chyba'); m.className='wl-msg ok'; m.textContent='✓ uloženo'; })
+          .catch(e=>{ m.className='wl-msg err'; m.textContent='⚠ '+e.message; });
+      });
+      document.getElementById('nfTest').addEventListener('click',()=>{
+        const m=document.getElementById('nfMsg'); m.className='wl-msg'; m.textContent='ukládám + odesílám test…';
+        // nejdřív ulož aktuální formulář, pak pošli test (test čte uloženou konfiguraci)
+        fetch('/notify-config',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(collect())})
+          .then(r=>r.json().then(j=>({ok:r.ok,j}))).then(({ok,j})=>{ if(!ok)throw new Error(j.error||'chyba uložení'); })
+          .then(()=>fetch('/notify-test',{method:'POST'}))
+          .then(r=>r.json().then(j=>({ok:r.ok,j})))
+          .then(({ok,j})=>{ if(!ok)throw new Error(j.error||'chyba'); m.className='wl-msg ok'; m.textContent='✓ test odeslán — zkontroluj schránku'; })
+          .catch(e=>{ m.className='wl-msg err'; m.textContent='⚠ '+e.message; });
+      });
+    })
+    .catch(e=>{host.innerHTML='<div class="wl-banner warn"><span>⚠</span><div>Notifikace nedostupné ('+esc(e.message)+').</div></div>';});
+}
+
 // ── Počet řádků ve snapshotu (Nastavení) ─────────────────────────────────────
 function buildSnapshotCfg(host){
   if(!host) return;
@@ -1134,7 +1198,7 @@ Promise.all([
   .catch(e=>{document.getElementById('loading').textContent='Chyba načtení data.json: '+e.message;});
 
 // verze nasazeneho dashboardu (bump pri kazdem deployi index.html); snapshot ji muze prebit (d.version)
-const APP_VER={push:66,commit:'706fad5',repo:'https://github.com/Anamax443/BC_Telemetry'};
+const APP_VER={push:67,commit:'pending',repo:'https://github.com/Anamax443/BC_Telemetry'};
 function render(d){
   DATA=d;
   document.getElementById('loading').hidden=true;
@@ -1196,7 +1260,7 @@ function render(d){
     t.classList.add('active');
     document.getElementById('panel-'+t.dataset.panel).classList.add('active');
     if(t.dataset.panel==='terminal') loadTerminal();
-    if(t.dataset.panel==='settings'){ loadLogFiles(); loadTasks(); buildRetention(document.getElementById('retHost')); buildSnapshotCfg(document.getElementById('snapHost')); buildSchedule(document.getElementById('schedHost')); }
+    if(t.dataset.panel==='settings'){ loadLogFiles(); loadTasks(); buildRetention(document.getElementById('retHost')); buildSnapshotCfg(document.getElementById('snapHost')); buildNotify(document.getElementById('notifyHost')); buildSchedule(document.getElementById('schedHost')); }
     if(t.dataset.panel==='auditcfg'){ buildCompaniesEditor(document.getElementById('clHost')); buildPurgeEditor(document.getElementById('purgeHost')); }
     if(t.dataset.panel==='users') buildUsers();
   }));

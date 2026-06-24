@@ -41,6 +41,7 @@ $USR= Join-Path $ScriptDir 'BC_Users_Import.ps1'
 $U  = Join-Path $ScriptDir 'Update-SyncStatus.ps1'
 $E  = Join-Path $ScriptDir 'Export-DashboardSnapshot.ps1'
 $P  = Join-Path $ScriptDir 'BC_ChangeLog_Purge.ps1'
+$N  = Join-Path $ScriptDir 'Send-BCTelemetryNotification.ps1'
 
 Log "=== BC_Telemetry daily START (user=$env:USERNAME) ==="
 Log "ScriptDir=$ScriptDir  (A exists=$(Test-Path $A))"
@@ -110,6 +111,11 @@ if ($null -eq $lastSync -or ((Get-Date) - $lastSync).TotalMinutes -ge 60) {
 Log "--- snapshot: Export-DashboardSnapshot.ps1 ---"
 & $ps -NoProfile -ExecutionPolicy Bypass -File $E -SqlServer $SqlServer -OutPath $Snapshot *>> $log
 Log "snapshot exit=$LASTEXITCODE"
+
+# Notifikace o stavu (e-mail; jen kdyz enabled v ops/notify.json, cadence/alerty resi skript sam)
+Log "--- notifikace: Send-BCTelemetryNotification.ps1 ---"
+& $ps -NoProfile -ExecutionPolicy Bypass -File $N -WebDir $WebDir -DataJson $Snapshot -LogDir $LogDir -LogFile $log *>> $log
+Log "notifikace exit=$LASTEXITCODE"
 
 # Planovane opakovani v okne (jen planovany beh; ne jednorazovy /refresh)
 $repeat = $false
