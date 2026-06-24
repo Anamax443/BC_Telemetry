@@ -159,7 +159,7 @@ if (-not $send) {
     return
 }
 
-# ── Sestav HTML report (tisknutelná manažerská zpráva) ───────────────────────
+# ── Sestav HTML report (tisknutelný souhrn stavu) ───────────────────────────
 $enc = [System.Text.Encoding]::UTF8
 function EscH([string]$s) { if ($null -eq $s) { return '' }; ($s -replace '&','&amp;' -replace '<','&lt;' -replace '>','&gt;') }
 function Fmt($n) { if ($null -eq $n -or "$n" -eq '') { return '—' }; try { ('{0:#,0}' -f [long][math]::Round([double]$n)) -replace ',', ' ' } catch { "$n" } }
@@ -306,7 +306,7 @@ body{margin:0}
 
 <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1d4ed8;padding-bottom:12px">
   <div>
-    <div style="font-size:20px;font-weight:600">BC Telemetrie — manažerská zpráva</div>
+    <div style="font-size:20px;font-weight:600">BC Telemetrie — souhrn</div>
     <div style="color:#555;font-size:11px;margin-top:4px">Snapshot $gen UTC · stav $today · stav systému: <b style="color:$statusColor">$statusKey</b></div>
   </div>
   <a class="btn" href="$dashUrl" style="background:#1d4ed8;color:#fff;padding:8px 14px;border-radius:6px;text-decoration:none;font-size:12px">Otevřít dashboard</a>
