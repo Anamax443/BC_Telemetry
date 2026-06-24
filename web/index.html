@@ -341,10 +341,11 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
         <span class="count" id="countMig"></span>
         <span class="exp" data-export="Mig"><button class="btn-ghost exp-trig" type="button" title="Export filtrovaných řádků: CSV / TXT / HTML / PDF">⬇ Export ▾</button></span>
       </div>
+      <p class="set-desc" style="margin:0 0 8px">Kdy a komu <strong>chybělo oprávnění</strong> (vzniká po zúžení práv). „Chybí" = typ přístupu + objekt, „Co chybí" = hláška z BC (firma · zpráva) — <strong>podle ní udělíš právo</strong>.</p>
       <table id="tblMig"><thead><tr>
         <th data-sort="DateKey">Datum</th><th data-sort="UserName">Uživatel</th>
-        <th data-sort="ObjectId">Objekt</th><th data-sort="ObjectName">Název</th>
-        <th data-sort="Failures">RT0031</th>
+        <th data-sort="ObjectId">Chybí (typ · objekt)</th><th data-sort="ObjectName">Co chybí (hláška)</th>
+        <th data-sort="Failures">Počet</th>
       </tr></thead><tbody></tbody></table>
     </section>
 
@@ -1303,7 +1304,7 @@ Promise.all([
   .catch(e=>{document.getElementById('loading').textContent='Chyba načtení data.json: '+e.message;});
 
 // verze nasazeneho dashboardu (bump pri kazdem deployi index.html); snapshot ji muze prebit (d.version)
-const APP_VER={push:73,commit:'cbe5d62',repo:'https://github.com/Anamax443/BC_Telemetry'};
+const APP_VER={push:74,commit:'pending',repo:'https://github.com/Anamax443/BC_Telemetry'};
 function render(d){
   DATA=d;
   document.getElementById('loading').hidden=true;

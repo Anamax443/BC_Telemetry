@@ -36,14 +36,34 @@ try {
     $cmdMax.CommandText = "SELECT ISNULL(MAX(Timestamp),'2000-01-01') FROM dbo.BCAuthFailRaw"
     $lastIso = ([DateTime]$cmdMax.ExecuteScalar()).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
 
-    # AppTraces / Log Analytics schéma; RT0031 = Authorization Failed
+    # Jednorázový re-import (ops/authfail-reset.flag): smaže RT0031 a načte znovu s bohatými poli
+    # (po rozšíření o permissionType/errorMessage). Flag založí operátor/dashboard, skript ho uklidí.
+    $resetFlag = 'C:\Apps\BC_Telemetry_Web\ops\authfail-reset.flag'
+    if (Test-Path $resetFlag) {
+        Write-Host 'RT0031 RESET: mažu BCAuthFailRaw + BCAuthFailDaily, re-import od začátku.'
+        $cmdDel = $conn.CreateCommand(); $cmdDel.CommandText = 'DELETE FROM dbo.BCAuthFailRaw; DELETE FROM dbo.BCAuthFailDaily;'; $cmdDel.ExecuteNonQuery() | Out-Null
+        $lastIso = '2000-01-01T00:00:00.000Z'
+        Remove-Item $resetFlag -Force -ErrorAction SilentlyContinue
+    }
+
+    # AppTraces / Log Analytics; RT0031 = Authorization Failed.
+    # Ověřeno 2026-06-24, že Properties nese: alObjectType, alObjectId, permissionType,
+    # permissionArea, companyName a hlavně errorMessage (= co konkrétně chybí, lokalizovaně).
+    # Napěchujeme do stávajících sloupců (bez DDL): ObjectId = "<permType> · <objType> [id]",
+    #   ObjectName = "<firma> · <errorMessage>" → na dashboardu rovnou vidíš, co udělit.
     $query = @"
 AppTraces
 | where TimeGenerated > datetime($lastIso)
 | where tostring(Properties.eventId) == 'RT0031'
-| extend userId     = tostring(UserId)
-| extend objectId   = tostring(Properties.alObjectId)
-| extend objectName = tostring(Properties.alObjectName)
+| extend userId   = tostring(UserId)
+| extend pType    = tostring(Properties.permissionType)
+| extend oType    = tostring(Properties.alObjectType)
+| extend oId      = tostring(Properties.alObjectId)
+| extend oName    = tostring(Properties.alObjectName)
+| extend company  = tostring(Properties.companyName)
+| extend errMsg   = tostring(Properties.errorMessage)
+| extend objectId   = substring(strcat(coalesce(pType,'?'), ' · ', coalesce(oType,'?'), iff(oId in ('0',''), '', strcat(' ', oId)), iff(isempty(oName), '', strcat(' ', oName))), 0, 50)
+| extend objectName = substring(strcat(iff(isempty(company), '', strcat(company, ' · ')), coalesce(errMsg, oName)), 0, 200)
 | project timestamp = TimeGenerated, userId, objectId, objectName
 | order by timestamp desc
 "@
