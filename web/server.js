@@ -51,7 +51,7 @@ const SNAPSHOT_DEFAULTS = { topRows: 5000 };
 const NOTIFY_FILE = path.join(OPS_DIR, 'notify.json');             // e-mail notifikace (čte Send-BCTelemetryNotification.ps1)
 const NOTIFY_DEFAULTS = {
   enabled: false, smtpHost: 'axima-cz.mail.protection.outlook.com', smtpPort: 25,
-  from: 'bc-telemetry@axima.cz', recipients: ['mtrnka@axima.cz'], cadence: 'daily',
+  from: 'bc-telemetry@axima.cz', recipients: ['mtrnka@axima.cz'], cadence: 'daily', cadenceDays: 7,
   dashboardUrl: 'http://10.8.2.225:8080/', alertImportFail: true, alertStaleModule: true,
   alertSecretExpiry: true, staleHours: 24, secretExpiry: '2028-06-07', secretWarnDays: 30,
 };
@@ -483,7 +483,8 @@ $out | ConvertTo-Json -Compress -Depth 3
           .map((s) => String(s).trim()).filter(Boolean);
         for (const a of recips) if (!/@axima\.cz$/i.test(a)) throw new Error(`příjemce musí být @axima.cz: ${a}`);
         if (!/@axima\.cz$/i.test(String(o.from || ''))) throw new Error('odesílatel (From) musí být @axima.cz');
-        const cadence = ['daily', 'perRun', 'onChange'].includes(o.cadence) ? o.cadence : 'daily';
+        const cadence = ['daily', 'everyNDays', 'perRun', 'onChange'].includes(o.cadence) ? o.cadence : 'daily';
+        const cadenceDays = Math.round(+o.cadenceDays); if (!Number.isFinite(cadenceDays) || cadenceDays < 1 || cadenceDays > 365) throw new Error('cadenceDays 1–365');
         const port = Math.round(+o.smtpPort); if (!Number.isFinite(port) || port < 1 || port > 65535) throw new Error('neplatný SMTP port');
         const staleHours = Math.round(+o.staleHours); if (!Number.isFinite(staleHours) || staleHours < 1 || staleHours > 8760) throw new Error('staleHours 1–8760');
         const secretWarnDays = Math.round(+o.secretWarnDays); if (!Number.isFinite(secretWarnDays) || secretWarnDays < 1 || secretWarnDays > 3650) throw new Error('secretWarnDays 1–3650');
@@ -494,6 +495,7 @@ $out | ConvertTo-Json -Compress -Depth 3
           from: String(o.from).trim(),
           recipients: recips.length ? recips : NOTIFY_DEFAULTS.recipients,
           cadence,
+          cadenceDays,
           dashboardUrl: String(o.dashboardUrl || NOTIFY_DEFAULTS.dashboardUrl).trim(),
           alertImportFail: !!o.alertImportFail,
           alertStaleModule: !!o.alertStaleModule,

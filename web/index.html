@@ -170,6 +170,11 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
 .ret-grid label{font-size:13px;color:var(--text2);}
 .ret-grid input{width:90px;font-family:var(--mono);font-size:13px;padding:6px 9px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);text-align:right;}
 .ret-grid input:focus{outline:none;border-color:var(--accent);}
+.nf-grid{display:grid;grid-template-columns:170px 1fr;gap:8px 14px;align-items:center;max-width:580px;margin-bottom:12px;}
+.nf-grid label{font-size:13px;color:var(--text2);}
+.nf-grid input[type=text],.nf-grid select{width:100%;font-size:13px;padding:6px 9px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);}
+.nf-grid input[type=number]{width:90px;font-size:13px;padding:6px 9px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);text-align:right;}
+.nf-grid input:focus,.nf-grid select:focus{outline:none;border-color:var(--accent);}
 .sched-days{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:2px 0 12px;font-size:13px;color:var(--text2);}
 .sched-days .cl-item{gap:5px;}
 .dbinfo{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:6px 18px;margin-bottom:18px;}
@@ -988,20 +993,23 @@ function buildNotify(host){
   host.innerHTML='<div class="wl-cur">načítám…</div>';
   fetch('/notify-config').then(r=>{if(!r.ok)throw new Error(r.status);return r.json();})
     .then(d=>{
-      const cad=[['daily','Denní souhrn'],['perRun','Po každém běhu'],['onChange','Jen při změně/problému']];
+      const cad=[['daily','Denní souhrn'],['everyNDays','Po N dnech'],['perRun','Po každém běhu'],['onChange','Jen při změně/problému']];
       const ck=(id,v,lbl)=>'<label class="ck"><input type="checkbox" id="'+id+'"'+(v?' checked':'')+'> '+lbl+'</label>';
-      host.innerHTML='<div class="ret-grid">'
+      host.innerHTML='<div class="nf-grid">'
         +'<label>Zapnuto</label><div>'+ck('nfEn',d.enabled,'posílat notifikace')+'</div>'
         +'<label>Příjemci (@axima.cz, čárkou)</label><input type="text" id="nfTo" value="'+esc((d.recipients||[]).join(', '))+'">'
         +'<label>Odesílatel (From)</label><input type="text" id="nfFrom" value="'+esc(d.from||'')+'">'
         +'<label>SMTP host : port</label><div style="display:flex;gap:6px"><input type="text" id="nfHost" value="'+esc(d.smtpHost||'')+'" style="flex:1"><input type="number" id="nfPort" value="'+esc(d.smtpPort||25)+'" style="width:80px"></div>'
-        +'<label>Perioda hlášení</label><select id="nfCad">'+cad.map(c=>'<option value="'+c[0]+'"'+(d.cadence===c[0]?' selected':'')+'>'+c[1]+'</option>').join('')+'</select>'
+        +'<label>Perioda hlášení</label><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><select id="nfCad" style="flex:1;min-width:160px">'+cad.map(c=>'<option value="'+c[0]+'"'+(d.cadence===c[0]?' selected':'')+'>'+c[1]+'</option>').join('')+'</select><span id="nfDaysWrap" style="white-space:nowrap">à <input type="number" id="nfDays" min="1" max="365" value="'+esc(d.cadenceDays||7)+'"> dní</span></div>'
         +'<label>Alerty</label><div>'+ck('nfAF',d.alertImportFail,'selhání importu')+' '+ck('nfAS',d.alertStaleModule,'zastaralý modul')+' '+ck('nfAX',d.alertSecretExpiry,'expirace SP secretu')+'</div>'
         +'<label>Zastaralý modul po (h)</label><input type="number" id="nfStale" min="1" max="8760" value="'+esc(d.staleHours||24)+'">'
         +'<label>SP secret expiruje</label><input type="text" id="nfExp" placeholder="RRRR-MM-DD" value="'+esc(d.secretExpiry||'')+'">'
         +'<label>Varovat předem (dní)</label><input type="number" id="nfWarn" min="1" max="3650" value="'+esc(d.secretWarnDays||30)+'">'
         +'<label>URL dashboardu</label><input type="text" id="nfUrl" value="'+esc(d.dashboardUrl||'')+'">'
         +'</div><div class="wl-row"><button class="btn" id="nfSave">Uložit</button> <button class="btn-ghost" id="nfTest">✉ Poslat testovací e-mail</button> <span class="wl-msg" id="nfMsg"></span></div>';
+      const nfCad=document.getElementById('nfCad'), nfDaysWrap=document.getElementById('nfDaysWrap');
+      const toggleDays=()=>{ nfDaysWrap.style.display = (nfCad.value==='everyNDays')?'':'none'; };
+      nfCad.addEventListener('change',toggleDays); toggleDays();
       const collect=()=>({
         enabled:document.getElementById('nfEn').checked,
         recipients:document.getElementById('nfTo').value.split(/[\s,;]+/).filter(Boolean),
@@ -1009,6 +1017,7 @@ function buildNotify(host){
         smtpHost:document.getElementById('nfHost').value.trim(),
         smtpPort:+document.getElementById('nfPort').value,
         cadence:document.getElementById('nfCad').value,
+        cadenceDays:+document.getElementById('nfDays').value,
         alertImportFail:document.getElementById('nfAF').checked,
         alertStaleModule:document.getElementById('nfAS').checked,
         alertSecretExpiry:document.getElementById('nfAX').checked,
@@ -1198,7 +1207,7 @@ Promise.all([
   .catch(e=>{document.getElementById('loading').textContent='Chyba načtení data.json: '+e.message;});
 
 // verze nasazeneho dashboardu (bump pri kazdem deployi index.html); snapshot ji muze prebit (d.version)
-const APP_VER={push:67,commit:'fa625fa',repo:'https://github.com/Anamax443/BC_Telemetry'};
+const APP_VER={push:68,commit:'pending',repo:'https://github.com/Anamax443/BC_Telemetry'};
 function render(d){
   DATA=d;
   document.getElementById('loading').hidden=true;

@@ -37,7 +37,8 @@ $NOTIFY_DEFAULTS = [ordered]@{
     smtpPort          = 25
     from              = 'bc-telemetry@axima.cz'
     recipients        = @('mtrnka@axima.cz')
-    cadence           = 'daily'              # daily | perRun | onChange
+    cadence           = 'daily'              # daily | everyNDays | perRun | onChange
+    cadenceDays       = 7                    # perioda pro 'everyNDays'
     dashboardUrl      = 'http://10.8.2.225:8080/'
     alertImportFail   = $true
     alertStaleModule  = $true
@@ -139,6 +140,13 @@ if ($Manual) {
     switch ([string]$cfg.cadence) {
         'perRun'   { $send = $true }
         'onChange' { $send = $stateChanged }
+        'everyNDays' {
+            $n = [int]$cfg.cadenceDays; if ($n -lt 1) { $n = 1 }
+            $diff = 999
+            if ($lastSentDate) { try { $diff = ($now.Date - [datetime]::ParseExact($lastSentDate, 'yyyy-MM-dd', $null)).Days } catch { $diff = 999 } }
+            if ($diff -ge $n) { $send = $true }                        # uplynulo N dní od posledního souhrnu
+            elseif ($hasProblems -and $stateChanged) { $send = $true } # nový problém i mezi souhrny
+        }
         default    { # daily
             if ($lastSentDate -ne $today) { $send = $true }       # denní souhrn 1×/den
             elseif ($hasProblems -and $stateChanged) { $send = $true } # nový problém i v rámci dne
