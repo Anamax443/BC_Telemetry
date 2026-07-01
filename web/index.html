@@ -1353,6 +1353,8 @@ function render(d){
   }
 
   setupTable('Activity',d.userActivity||[],activityRow,['UserName','PageName'],maxHits(d.userActivity),{key:'LastUsed',dir:-1});
+  // Mapa Tab.č.→název z už stažených dat (audit + Tabulky) — pro čitelnost RT0031 (číslo tabulky je jen v textu hlášky).
+  TNAME={}; (d.changeLog||[]).concat(d.tableAccess||[]).forEach(x=>{ if(x&&x.TableNo!=null&&x.TableName){ TNAME[String(x.TableNo)]=x.TableName; } });
   setupTable('Mig',d.authFails||[],migRow,['UserName','ObjectName'],null,{key:'DateKey',dir:-1});
   setupTable('Audit',d.changeLog||[],auditRow,['UserId','CompanyName','TableNo','TableName','FieldNo','FieldName','PrimaryKey','OldValue','NewValue'],null,{key:'ChangedAt',dir:-1});
   setupTable('Tables',d.tableAccess||[],tablesRow,['UserName','TableName','TableNo','CompanyName','Access'],null,{key:'Changes',dir:-1});
@@ -1664,9 +1666,29 @@ function activityRow(r,max){
   <td class="num"><div class="bar" data-pct="${Math.round(100*(r.TotalHits||0)/(max||1))}"><span>${fmt(r.TotalHits)}</span></div></td>
   <td class="num">${esc(fdate(r.LastUsed))}</td></tr>`;
 }
+let TNAME={};
+// RT0031: z textu hlášky určí typ problému (licence × chybí role) a vytáhne číslo tabulky.
+function parseRt0031(r){
+  const msg=String(r.ObjectName||'');
+  let kind='other';
+  if(/licenc/i.test(msg)) kind='license';                       // "Vaše licence vám neuděluje…" → NELZE spravit rolí
+  else if(/nem[aá]te|opr[aá]vn|pr[aá]v/i.test(msg)) kind='perm'; // "Nemáte následující práva…" → udělíš permission setem
+  let tno=null; const m=msg.match(/Table(?:Data)?\s+(\d+)/i);
+  if(m) tno=m[1];
+  return {kind,tno,tname:(tno?TNAME[tno]:null)||null};
+}
 function migRow(r){
+  const p=parseRt0031(r);
+  const badge = p.kind==='license'
+    ? '<span class="pill pill-red" title="Licenční limit — NELZE spravit rolí/permission setem, jen změnou licence">LICENCE</span>'
+    : p.kind==='perm'
+    ? '<span class="pill pill-blue" title="Chybí permission set — udělíš uživateli rolí">CHYBÍ ROLE</span>'
+    : '<span class="pill pill-gray">JINÉ</span>';
+  const tbl = p.tno
+    ? `<div class="uid-sub">tab. <span class="mono">${esc(p.tno)}</span>${p.tname?' · '+esc(p.tname):' <span title="název není v auditu — nejspíš tabulka z rozšíření">(?)</span>'}</div>`
+    : '';
   return `<tr><td class="num">${esc(fdate(r.DateKey))}</td><td>${unameHtml(r.UserName)}</td>
-  <td><span class="mono">${esc(r.ObjectId)}</span></td><td>${esc(r.ObjectName)}</td>
+  <td>${badge} <span class="mono">${esc(r.ObjectId)}</span>${tbl}</td><td>${esc(r.ObjectName)}</td>
   <td class="num"><span class="pill pill-red">${fmt(r.Failures)}</span></td></tr>`;
 }
 function auditRow(r){
