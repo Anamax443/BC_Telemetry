@@ -36,14 +36,16 @@ try {
     $cmdMax.CommandText = "SELECT ISNULL(MAX(Timestamp),'2000-01-01') FROM dbo.BCAuthFailRaw"
     $lastIso = ([DateTime]$cmdMax.ExecuteScalar()).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
 
-    # Jednorázový re-import (ops/authfail-reset.flag): smaže RT0031 a načte znovu s bohatými poli
-    # (po rozšíření o permissionType/errorMessage). Flag založí operátor/dashboard, skript ho uklidí.
-    $resetFlag = 'C:\Apps\BC_Telemetry_Web\ops\authfail-reset.flag'
-    if (Test-Path $resetFlag) {
-        Write-Host 'RT0031 RESET: mažu BCAuthFailRaw + BCAuthFailDaily, re-import od začátku.'
-        $cmdDel = $conn.CreateCommand(); $cmdDel.CommandText = 'DELETE FROM dbo.BCAuthFailRaw; DELETE FROM dbo.BCAuthFailDaily;'; $cmdDel.ExecuteNonQuery() | Out-Null
+    # Jednorázový RE-PULL (ops/authfail-repull.flag): NEMAŽE nic — jen posune watermark na začátek,
+    # takže se znovu stáhne celé retenční okno cloudu (~31 dní). MERGE níže existující řádky ponechá
+    # (jen obnoví ObjectName), chybějící doplní. Historii mimo retenci nechává být → žádná ztráta.
+    # Nahrazuje dřívější destruktivní 'authfail-reset.flag' (ten DELETE-oval celé BCAuthFail*).
+    # Flag založí operátor ručně, skript ho uklidí (jednorázové).
+    $repullFlag = 'C:\Apps\BC_Telemetry_Web\ops\authfail-repull.flag'
+    if (Test-Path $repullFlag) {
+        Write-Host 'RT0031 RE-PULL: watermark na začátek, doplnění celého retenčního okna (BEZ mazání).'
         $lastIso = '2000-01-01T00:00:00.000Z'
-        Remove-Item $resetFlag -Force -ErrorAction SilentlyContinue
+        Remove-Item $repullFlag -Force -ErrorAction SilentlyContinue
     }
 
     # AppTraces / Log Analytics; RT0031 = Authorization Failed.
@@ -71,9 +73,18 @@ AppTraces
     Write-Host "RT0031 staženo: $($rows.Count)"
     foreach ($r in $rows) {
         $c = $conn.CreateCommand()
+        # Upsert na plný unikátní klíč (Timestamp,UserId,ObjectId) = idempotentní.
+        # Existující řádek se jen obnoví (ObjectName), nikdy nemaže → re-pull je bezpečný.
         $c.CommandText = @"
-IF NOT EXISTS (SELECT 1 FROM dbo.BCAuthFailRaw WHERE Timestamp=@t AND UserId=@u AND ISNULL(ObjectId,'')=ISNULL(@o,''))
-INSERT INTO dbo.BCAuthFailRaw (Timestamp,UserId,ObjectId,ObjectName) VALUES (@t,@u,@o,@n)
+MERGE dbo.BCAuthFailRaw AS t
+USING (SELECT @t AS Timestamp, @u AS UserId, @o AS ObjectId) AS s
+   ON  t.Timestamp = s.Timestamp
+   AND t.UserId    = s.UserId
+   AND ISNULL(t.ObjectId,'') = ISNULL(s.ObjectId,'')
+WHEN MATCHED THEN
+    UPDATE SET ObjectName = @n
+WHEN NOT MATCHED THEN
+    INSERT (Timestamp, UserId, ObjectId, ObjectName) VALUES (@t, @u, @o, @n);
 "@
         $oVal = [DBNull]::Value; if ($r.objectId)   { $oVal = $r.objectId }
         $nVal = [DBNull]::Value; if ($r.objectName) { $nVal = $r.objectName }
