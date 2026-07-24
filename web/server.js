@@ -79,6 +79,35 @@ function runPs(script) {
   });
 }
 
+// Zařadí požadavek na smazání audit záznamů (modul B) do ops fronty a kopne do denní úlohy (svc).
+// Web (LocalSystem) na SQL nesahá — samotný DELETE provede BC_ChangeLog_Purge.ps1 v purge-only běhu.
+// Merge s případným už čekajícím requestem, ať dřív zařazené firmy nepropadnou. Sdílí ho ruční
+// mazání (POST /changelog-purge) i automatické mazání dat odebrané firmy (PUT /changelog-companies).
+async function queuePurge(companies, ip, reason) {
+  const clean = [...new Set((companies || [])
+    .filter((c) => typeof c === 'string' && c.trim()).map((c) => c.trim()))];
+  if (!clean.length) return { status: 'noop', companies: [] };
+  ensureOpsDir();
+  let existing = [];
+  try {
+    if (fs.existsSync(OPS_REQUEST_FILE)) {
+      const prev = JSON.parse(fs.readFileSync(OPS_REQUEST_FILE, 'utf8'));
+      if (prev && prev.action === 'purge' && Array.isArray(prev.companies)) existing = prev.companies.map(String);
+    }
+  } catch { }
+  const merged = [...new Set([...existing, ...clean])];
+  const reqObj = { action: 'purge', companies: merged, requestedAt: new Date().toISOString() };
+  fs.writeFileSync(OPS_REQUEST_FILE, JSON.stringify(reqObj, null, 2), 'utf8');
+  try { fs.unlinkSync(OPS_STATUS_FILE); } catch { }   // ať UI nečte předchozí výsledek
+  const ps = `
+$t = Get-ScheduledTask -TaskName 'BC_Telemetry_Daily' -ErrorAction Stop
+if ($t.State -eq 'Running') { 'running' } else { Start-ScheduledTask -TaskName 'BC_Telemetry_Daily'; 'started' }
+`;
+  const status = (await runPs(ps)).trim();
+  logActivity('info', 'changelog-purge', `purge (${reason}) naplánován pro ${clean.length} firem (${status})${ip ? ' z ' + ip : ''}: ${clean.join(', ')}`);
+  return { status, companies: merged };
+}
+
 // ── PORT z firewall.ts ───────────────────────────────────────────────────────
 async function getAllowedIPs() {
   const ps = `
@@ -324,24 +353,38 @@ else { '{"file":null,"text":""}' }
   //   { all:[...vsechny firmy z importu...], enabled:[...vybrane...] | null (=vse, default) }
   if (url === '/changelog-companies' && req.method === 'GET') {
     return fs.readFile(CHANGELOG_COMPANIES_FILE, 'utf8', (err, data) => {
-      if (err) return sendJson(res, 200, { all: [], enabled: null });
-      try { const o = JSON.parse(data); sendJson(res, 200, { all: Array.isArray(o.all) ? o.all : [], enabled: Array.isArray(o.enabled) ? o.enabled : null }); }
-      catch { sendJson(res, 200, { all: [], enabled: null }); }
+      if (err) return sendJson(res, 200, { all: [], enabled: null, autoPurgeOnRemove: false });
+      try { const o = JSON.parse(data); sendJson(res, 200, { all: Array.isArray(o.all) ? o.all : [], enabled: Array.isArray(o.enabled) ? o.enabled : null, autoPurgeOnRemove: !!o.autoPurgeOnRemove }); }
+      catch { sendJson(res, 200, { all: [], enabled: null, autoPurgeOnRemove: false }); }
     });
   }
   if (url === '/changelog-companies' && req.method === 'PUT') {
     let body = '';
     req.on('data', (c) => { body += c; if (body.length > 1e6) req.destroy(); });
-    req.on('end', () => {
+    req.on('end', async () => {
       try {
         const obj = JSON.parse(body || '{}');
         if (!Array.isArray(obj.enabled)) throw new Error('expected { enabled: [] }');
         const enabled = obj.enabled.filter((x) => typeof x === 'string' && x.trim()).map((x) => x.trim());
         let cur = {}; try { cur = JSON.parse(fs.readFileSync(CHANGELOG_COMPANIES_FILE, 'utf8')); } catch { }
-        const out = { all: Array.isArray(cur.all) ? cur.all : [], enabled };
+        const all = Array.isArray(cur.all) ? cur.all : [];
+        const autoPurgeOnRemove = !!obj.autoPurgeOnRemove;
+        const out = { all, enabled, autoPurgeOnRemove };
         fs.writeFileSync(CHANGELOG_COMPANIES_FILE, JSON.stringify(out, null, 2), 'utf8');
-        logActivity('success', 'changelog-companies', `uloženo ${enabled.length} firem`);
-        sendJson(res, 200, { ok: true, count: enabled.length });
+        logActivity('success', 'changelog-companies', `uloženo ${enabled.length} firem (auto-smazání=${autoPurgeOnRemove})`);
+        // Auto-smazání dat odebrané firmy: firma, která BYLA sledovaná a teď už není, se (jen když je
+        // volba zapnutá) zařadí do purge fronty → denní úloha smaže její audit záznamy z DB.
+        let purgeQueued = false, purgeCompanies = [], purgeStatus = null;
+        if (autoPurgeOnRemove) {
+          const prevEnabled = Array.isArray(cur.enabled) ? cur.enabled : all;  // enabled=null (=vše) → dřív sledované všechny
+          const nowSet = new Set(enabled);
+          const removed = [...new Set(prevEnabled)].filter((c) => all.includes(c) && !nowSet.has(c));
+          if (removed.length) {
+            const r = await queuePurge(removed, reqIp(req), 'auto-remove');
+            purgeQueued = true; purgeCompanies = removed; purgeStatus = r.status;
+          }
+        }
+        sendJson(res, 200, { ok: true, count: enabled.length, autoPurgeOnRemove, purgeQueued, purgeCompanies, purgeStatus });
       } catch (e) { sendJson(res, 500, { error: String(e.message || e) }); }
     });
     return;
@@ -369,18 +412,8 @@ else { '{"file":null,"text":""}' }
             if (bad.length) throw new Error(`neznámé firmy: ${bad.join(', ')}`);
           }
         } catch (e) { if (/neznámé firmy/.test(String(e.message))) throw e; }
-        ensureOpsDir();
-        const reqObj = { action: 'purge', companies, requestedAt: new Date().toISOString() };
-        fs.writeFileSync(OPS_REQUEST_FILE, JSON.stringify(reqObj, null, 2), 'utf8');
-        // smaž starý status, ať UI nepoll-ne na předchozí výsledek
-        try { fs.unlinkSync(OPS_STATUS_FILE); } catch { }
-        const ps = `
-$t = Get-ScheduledTask -TaskName 'BC_Telemetry_Daily' -ErrorAction Stop
-if ($t.State -eq 'Running') { 'running' } else { Start-ScheduledTask -TaskName 'BC_Telemetry_Daily'; 'started' }
-`;
-        const o = (await runPs(ps)).trim();
-        logActivity('info', 'changelog-purge', `purge naplánován pro ${companies.length} firem (${o}): ${companies.join(', ')}`);
-        sendJson(res, 200, { status: o, queued: o === 'running', companies });
+        const r = await queuePurge(companies, reqIp(req), 'manual');
+        sendJson(res, 200, { status: r.status, queued: r.status === 'running', companies });
       } catch (e) { sendJson(res, 500, { error: String(e.message || e) }); }
     });
     return;

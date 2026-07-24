@@ -124,6 +124,8 @@ html[data-theme="dark"] .spark .col{background:rgba(96,165,250,.35);}
 .cl-tools{display:flex;gap:14px;align-items:center;margin:6px 0 4px;flex-wrap:wrap;}
 .cl-link{font-size:12px;color:var(--accent2);background:none;border:none;cursor:pointer;font-family:var(--sans);padding:0;}
 .cl-link:hover{text-decoration:underline;}
+.cl-autopurge{display:flex;gap:8px;align-items:center;margin:12px 0 2px;font-size:13px;color:var(--red);cursor:pointer;}
+.cl-autopurge input{cursor:pointer;}
 /* ── Danger zone (mazání audit záznamů) ── */
 .danger{border:1px solid rgba(239,68,68,.35);border-radius:10px;padding:16px 18px;margin-top:26px;background:rgba(239,68,68,.04);}
 .danger h3{color:var(--red);font-size:15px;margin-bottom:4px;}
@@ -450,7 +452,9 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
         <h3>Protokol změn — sledované firmy</h3>
         <p class="set-desc">Whitelist firem, u kterých se provádí <span class="mono">Audit změn</span> (modul B — BC Change Log).
         Zaškrtnuté firmy se importují, odškrtnuté se přestanou stahovat — užitečné u extrémně velkých
-        (např. ESHOP s miliony záznamů). Projeví se při dalším běhu importu. Nenastaveno = sledují se všechny.</p>
+        (např. ESHOP s miliony záznamů). Projeví se při dalším běhu importu. Nenastaveno = sledují se všechny.
+        Se zapnutým <strong>automatickým mazáním</strong> se navíc při odebrání firmy (odškrtnutí + Uložit)
+        nevratně smažou i její už naimportované audit záznamy z databáze.</p>
         <div id="clHost">načítám…</div>
       </div>
       <div class="set-section danger">
@@ -459,7 +463,7 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
         u zaškrtnutých firem — užitečné pro úklid bobtnající DB. Mazání proběhne přes denní úlohu
         (pár minut). <strong>Pozor:</strong> pokud firma zůstává <em>sledovaná</em> (zaškrtnutá výše),
         začnou se její záznamy při příštím importu natahovat znovu od nejstarších — pro trvalé odstranění
-        ji nahoře odškrtni a ulož.</p>
+        ji nahoře odškrtni a ulož (nebo zapni <em>automatické mazání</em> a odškrtni ji).</p>
         <div id="purgeHost">načítám…</div>
       </div>
     </section>
@@ -1386,27 +1390,37 @@ function buildCompaniesEditor(host){
   if(!host) return;
   host.innerHTML='<div class="wl-cur">načítám…</div>';
   fetch('/changelog-companies').then(r=>{if(!r.ok)throw new Error(r.status);return r.json();})
-    .then(d=>renderCompaniesEditor(host, d.all||[], d.enabled))
+    .then(d=>renderCompaniesEditor(host, d.all||[], d.enabled, !!d.autoPurgeOnRemove))
     .catch(e=>{host.innerHTML='<div class="wl-banner warn"><span>⚠</span><div>Konfigurace firem není dostupná ('+esc(e.message)+'). Služba BC_Telemetry_Web neběží, nebo je stránka otevřená staticky.</div></div>';});
 }
 function clCounts(){ const m={}; (state.clByCompany||[]).forEach(r=>m[r.CompanyName]=r.Rows); return m; }
-function renderCompaniesEditor(host, all, enabled){
+function renderCompaniesEditor(host, all, enabled, autoPurge){
   if(!all.length){ host.innerHTML='<div class="cl-tools"><button class="cl-link" id="clRefresh">↻ Aktualizovat seznam firem</button> <span class="wl-msg" id="clRefreshMsg"></span></div><div class="wl-cur">Seznam firem zatím není — naběhne po prvním běhu importu modulu B.</div>'; wireRefresh(host); return; }
   const isAll = !Array.isArray(enabled);              // enabled chybí → default vše
-  const set = new Set(isAll ? all : enabled);
+  const set = new Set(isAll ? all : enabled);        // dosud sledované firmy = baseline pro výpočet odebraných
   const cnt = clCounts();
   host.innerHTML = '<div class="cl-tools"><button class="cl-link" id="clRefresh">↻ Aktualizovat seznam firem</button> <span class="wl-msg" id="clRefreshMsg"></span></div>'
     + (isAll?'<div class="wl-cur">Zatím nenastaveno → sledují se <strong>všechny</strong> firmy.</div>':'')
     + '<div class="cl-list">'+ all.map(c=>'<label class="cl-item"><input type="checkbox" value="'+esc(c)+'"'+(set.has(c)?' checked':'')+'> '+esc(c)+'<span class="cnt">'+(cnt[c]!=null?fmt(cnt[c])+' zázn.':'—')+'</span></label>').join('') +'</div>'
+    + '<label class="cl-autopurge" title="Když firmu odškrtneš a uložíš, její už naimportované audit záznamy se nevratně smažou z databáze.">'
+      + '<input type="checkbox" id="clAutoPurge"'+(autoPurge?' checked':'')+'> 🗑 Po odebrání firmy automaticky smazat i její audit záznamy z databáze</label>'
     + '<div class="wl-row"><button class="btn" id="clApply">Uložit</button> <span class="wl-msg" id="clMsg"></span></div>';
   wireRefresh(host);
-  const btn=document.getElementById('clApply'), msg=document.getElementById('clMsg');
+  const btn=document.getElementById('clApply'), msg=document.getElementById('clMsg'), ap=document.getElementById('clAutoPurge');
   btn.addEventListener('click',()=>{
     const enabled=[...host.querySelectorAll('.cl-list .cl-item input:checked')].map(i=>i.value);
+    const autoPurgeOnRemove=ap.checked;
+    const removed=[...set].filter(c=>all.includes(c) && !enabled.includes(c));   // sledované → nyní odškrtnuté
+    if(autoPurgeOnRemove && removed.length){
+      if(!confirm('Automatické mazání je zapnuté.\n\nKromě zastavení sledování se NEVRATNĚ smažou audit záznamy těchto firem z databáze:\n\n'+removed.join(', ')+'\n\nPokračovat?')) return;
+    }
     btn.disabled=true; msg.className='wl-msg'; msg.textContent='ukládám…';
-    fetch('/changelog-companies',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled})})
+    fetch('/changelog-companies',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled, autoPurgeOnRemove})})
       .then(r=>r.json().then(j=>({ok:r.ok,j})))
-      .then(({ok,j})=>{ if(!ok)throw new Error(j.error||'chyba'); msg.className='wl-msg ok'; msg.textContent='✓ uloženo ('+j.count+' firem) — projeví se při dalším importu'; btn.disabled=false; })
+      .then(({ok,j})=>{ if(!ok)throw new Error(j.error||'chyba');
+        if(j.purgeQueued){ msg.className='wl-msg'; msg.textContent='✓ uloženo — mažu data '+((j.purgeCompanies||removed).length)+' odebraných firem, čekám…'; pollOps(msg); }
+        else { msg.className='wl-msg ok'; msg.textContent='✓ uloženo ('+j.count+' firem) — projeví se při dalším importu'; btn.disabled=false; }
+      })
       .catch(e=>{ msg.className='wl-msg err'; msg.textContent='⚠ '+e.message; btn.disabled=false; });
   });
 }
@@ -1919,9 +1933,13 @@ function buildMgmtReportHtml(){
   const compHits=_sumBy(ua,r=>r.CompanyName||'(bez firmy)',r=>r.TotalHits);
   const compUsers=new Map(); ua.forEach(r=>{const c=r.CompanyName||'(bez firmy)'; if(!compUsers.has(c))compUsers.set(c,new Set()); if(r.UserName)compUsers.get(c).add(r.UserName);});
   const byCompany=[...compHits.entries()].map(([label,value])=>({label,value,sub:(compUsers.get(label)?compUsers.get(label).size:0)+' uživ.'})).sort((a,b)=>b.value-a.value);
+  // Kumulace se počítá přes CELOU řadu vzestupně (aby seděla), pak se zobrazí jen posledních 10 dní
+  // s nejnovějším datem nahoře (max 10 detailních záznamů).
   const tr=trend.slice().sort((a,b)=>String(a.DateKey).localeCompare(String(b.DateKey)));
-  let cum=0; const trendRows=tr.map(t=>{cum+=(t.Hits||0); return [fdate(t.DateKey),fmt(t.Hits),fmt(t.Users),fmt(cum)];});
-  const trendBars=tr.map(t=>({label:fdate(t.DateKey),value:t.Hits||0,sub:(t.Users||0)+' uživ.'}));
+  let cum=0; const trendAllRows=tr.map(t=>({date:fdate(t.DateKey),hits:t.Hits||0,users:t.Users||0,cum:(cum+=(t.Hits||0))}));
+  const trendRecent=trendAllRows.slice(-10).reverse();
+  const trendRows=trendRecent.map(r=>[r.date,fmt(r.hits),fmt(r.users),fmt(r.cum)]);
+  const trendBars=trendRecent.map(r=>({label:r.date,value:r.hits,sub:r.users+' uživ.'}));
   const auditByType=[..._sumBy(cl,r=>r.ChangeType||'?',()=>1).entries()].map(([label,value])=>({label,value})).sort((a,b)=>b.value-a.value);
   const auditByCompany=clc.map(c=>({label:c.CompanyName,value:c.Rows||0})).sort((a,b)=>b.value-a.value).slice(0,12);
   const topRt=[..._sumBy(af,r=>r.ObjectName||('Obj '+r.ObjectId),r=>r.Failures).entries()].map(([label,value])=>({label,value})).sort((a,b)=>b.value-a.value).slice(0,10);
@@ -1956,7 +1974,7 @@ function buildMgmtReportHtml(){
       <p class="mr-meta">Snapshot ${esc(state.generatedUtc||'?')} UTC · vygenerováno ${esc(_nowStamp())} · podklad pro řízení oprávnění (least-privilege)</p></div>
       <div class="mr-actions"><button id="mrPrint">🖨 Tisk / PDF</button><button class="sec" id="mrSave">⬇ Uložit HTML</button></div></div>
     <h2>Souhrn</h2><div class="mr-kpis">${kpiCards}</div><div class="mr-strip">${synHtml} ${ds}</div>
-    <h2>Trend využití (otevření / den) + kumulace</h2>
+    <h2>Trend využití (otevření / den) + kumulace <span class="mr-note">(posledních 10 dní, nejnovější nahoře)</span></h2>
     <div class="mr-grid"><div>${_barRows(trendBars)}</div><div>${_mrTbl([{t:'Datum'},{t:'Otevření',num:1},{t:'Uživatelé',num:1},{t:'Kumulativně',num:1}],trendRows)}</div></div>
     <h2>Top 10 uživatelů dle otevření</h2>${_barRows(topUsers)}
     <h2>Top 10 stránek dle otevření</h2>${_barRows(topPages)}
