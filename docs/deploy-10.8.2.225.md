@@ -200,6 +200,18 @@ schtasks /Change /tn "BC_Telemetry_Daily" /RI 60 /DU 16:00 /RU "AXINETWORK\svc-b
 Editace z dashboardu přes `PUT /retention`; ad-hoc purge change logu přes `POST /changelog-purge`
 (zapíše request do `ops/ops-request.json`, svc provede při dalším běhu).
 
+**Chování vůči BC API** je v `ops/bcapi.json` (nepovinný — bez souboru platí defaulty ze skriptu
+[`BCApi.psm1`](../scripts/BCApi.psm1)):
+```json
+{ "requestsPerMinute": 90, "maxAttempts": 6, "timeoutSeconds": 300,
+  "maxWaitSeconds": 120, "readOnlyIntent": true, "useSelect": true, "tokenMinutes": 45 }
+```
+- `requestsPerMinute` — vlastní brzda; limit BC je 6000 požadavků / 5 min **na identitu**
+- `readOnlyIntent` — čtení z read-only repliky (`Data-Access-Intent: ReadOnly`)
+- `maxAttempts` / `maxWaitSeconds` — kolikrát a jak dlouho čekat při 429 / dočasné chybě
+
+Pravidla pro další aplikace nad BC → [bc-api-integrace-standard.md](bc-api-integrace-standard.md).
+
 **Whitelist** zůstává **jedna Windows Firewall rule** (`remoteip`) editovatelná přes
 `/firewall/whitelist` — viz §1. Konfigurace = firewall rule + JSON soubory; žádná DB konfigurace.
 

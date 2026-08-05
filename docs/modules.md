@@ -105,5 +105,6 @@ omezených rolí — teď (pod plným přístupem) žádné nejsou. Ingest reuse
 
 ## Společné
 - **Auth:** moduly A/C přes Service Principal + Log Analytics Reader (workspace). Modul B přes SP + BC API access (Entra Apps v BC Admin Center) — jiné oprávnění, stejná App registration.
+- **Volání BC API jde výhradně přes [`scripts/BCApi.psm1`](../scripts/BCApi.psm1)** (modul B, Users, sync-status): obnova tokenu, brzda na počet požadavků/min, opakování při 429 (`Retry-After`) a 5xx, `Data-Access-Intent: ReadOnly`, `$select`, degradace místo pádu, souhrn v logu. Důvod: prostředí BC je sdílené s dalšími aplikacemi a limit **6000 požadavků / 5 min** platí na identitu. Pravidla pro nové integrace → [bc-api-integrace-standard.md](bc-api-integrace-standard.md).
 - **Hosting/dashboard:** vše do SQL na 10.8.2.225, snapshot → dashboard se záložkami A/B/C.
 - **Retence:** raw moduly mažeme (A 6 měs.), agregáty/audit držíme dle potřeby (audit může mít delší retenci kvůli compliance).

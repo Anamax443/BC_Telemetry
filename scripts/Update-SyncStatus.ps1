@@ -28,6 +28,11 @@ param(
 $ErrorActionPreference = 'Stop'
 Import-Module CredentialManager
 
+# Odolna vrstva pro volani BC API (brzda, opakovani pri 429/5xx, read-only replika) — viz BCApi.psm1.
+$bcApiModule = Join-Path $PSScriptRoot 'BCApi.psm1'
+if (-not (Test-Path $bcApiModule)) { $bcApiModule = 'C:\Apps\BC_Telemetry\scripts\BCApi.psm1' }
+Import-Module $bcApiModule -Force
+
 $conn = New-Object System.Data.SqlClient.SqlConnection "Server=$SqlServer;Database=$SqlDatabase;Integrated Security=True;TrustServerCertificate=True"
 $conn.Open()
 function Set-Sync([string]$m, $cloud, $local) {
@@ -62,23 +67,31 @@ try {
 
     # ── BC API (modul B) — součet OData $count přes firmy ────────────────────
     try {
-        $plain = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR((Get-StoredCredential -Target $SecretTargetBC).Password))
-        $tok = Invoke-RestMethod -Method Post -Uri "https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token" -Body @{
-            client_id = $ClientId; client_secret = $plain; scope = 'https://api.businesscentral.dynamics.com/.default'; grant_type = 'client_credentials' }
-        $h = @{ Authorization = "Bearer $($tok.access_token)" }
+        Initialize-BCApiSession -TenantId $TenantId -ClientId $ClientId -SecretTarget $SecretTargetBC -Label 'sync-status (modul B)'
         $base = "https://api.businesscentral.dynamics.com/v2.0/$TenantId/$Environment/ODataV4"
-        $companies = (Invoke-RestMethod -Headers $h -Uri "$base/Company?`$select=Name").value.Name
+        $companies = (Invoke-BCApiGet -Uri "$base/Company?`$select=Name").value.Name
         $sum = [int64]0
+        $failed = 0
         foreach ($co in $companies) {
             try {
-                $r = Invoke-RestMethod -Headers $h -Uri "$base/Company('$co')/ChangelogEntry?`$top=0&`$count=true"
+                $r = Invoke-BCApiGet -Uri "$base/Company('$co')/ChangelogEntry?`$top=0&`$count=true"
                 $sum += [int64]$r.'@odata.count'
-            } catch { }
+            } catch {
+                $failed++
+                Write-Host "  firma ${co}: počet v cloudu se nepodařilo zjistit — $($_.Exception.Message)"
+            }
         }
         $localB = Get-Local 'BCChangeLog'
+        # Když se část firem nespočítala, je součet zavádějící (vypadal by jako chybějící data)
+        # → radši ukaž lokální počet a napiš proč, ať dashboard netvrdí nesmysl.
+        if ($failed -gt 0) {
+            Write-Host "  pozor: u $failed z $($companies.Count) firem se cloudový počet nezjistil (BC odmítal požadavky) → sync-status modulu B ukazuje lokální stav."
+            $sum = $localB
+        }
         # fallback: když $count není podporován (sum 0) ale lokálně data máme, ukaž alespoň lokál
         if ($sum -eq 0 -and $localB -gt 0) { $sum = $localB }
         Set-Sync 'B' $sum $localB
+        Write-BCApiSummary
     } catch { Write-Host "B chyba: $($_.Exception.Message)" }
 
     Write-Host 'Sync-status aktualizován.'

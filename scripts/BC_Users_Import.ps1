@@ -1,4 +1,4 @@
-# BC_Users_Import.ps1
+﻿# BC_Users_Import.ps1
 # Zavede BC uzivatele z Users web service (OData) do SQL dbo.BCUser a z DB
 # pregeneruje web/usermap.json (telemetricky GUID -> jmeno).
 #
@@ -26,6 +26,11 @@ param(
 $ErrorActionPreference = 'Stop'
 Import-Module CredentialManager
 
+# Odolna vrstva pro volani BC API (brzda, opakovani pri 429/5xx, read-only replika) — viz BCApi.psm1.
+$bcApiModule = Join-Path $PSScriptRoot 'BCApi.psm1'
+if (-not (Test-Path $bcApiModule)) { $bcApiModule = 'C:\Apps\BC_Telemetry\scripts\BCApi.psm1' }
+Import-Module $bcApiModule -Force
+
 # usermap.json patri tam, odkud ho cte dashboard (web sluzba), NE vedle skriptu.
 if (-not $UserMapFile) {
     $served = 'C:\Apps\BC_Telemetry_Web\usermap.json'
@@ -33,20 +38,13 @@ if (-not $UserMapFile) {
     else { $UserMapFile = (Join-Path $PSScriptRoot '..\web\usermap.json') }
 }
 
-# -- OAuth2 client-credentials -> token (1:1 jako BC_ChangeLog_Import) --------
-$secret = (Get-StoredCredential -Target $SecretTarget).Password
-$plain  = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($secret))
-$tok = Invoke-RestMethod -Method Post -Uri "https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token" -Body @{
-    client_id     = $ClientId
-    client_secret = $plain
-    scope         = 'https://api.businesscentral.dynamics.com/.default'
-    grant_type    = 'client_credentials'
-}
-$headers = @{ Authorization = "Bearer $($tok.access_token)" }
+# -- Prihlaseni k BC API (1:1 jako BC_ChangeLog_Import) -----------------------
+Initialize-BCApiSession -TenantId $TenantId -ClientId $ClientId -SecretTarget $SecretTarget -Label 'uzivatele (BC Users)'
 
 # -- GET Users ----------------------------------------------------------------
+# Bez $select — skript si nazvy poli auto-detekuje z prvniho zaznamu (lisi se dle verze/jazyka).
 $base = "https://api.businesscentral.dynamics.com/v2.0/$TenantId/$Environment/ODataV4"
-$resp = Invoke-RestMethod -Headers $headers -Uri "$base/Company('$Company')/$ServiceName"
+$resp = Invoke-BCApiGet -Uri "$base/Company('$Company')/$ServiceName"
 $users = $resp.value
 if (-not $users -or $users.Count -eq 0) { throw "Users vratil 0 zaznamu" }
 
@@ -128,5 +126,6 @@ SELECT @@ROWCOUNT;
     $enc = New-Object System.Text.UTF8Encoding($false)   # UTF-8 bez BOM (Node JSON.parse)
     [IO.File]::WriteAllText($UserMapFile, ($map | ConvertTo-Json -Depth 2), $enc)
     Write-Host "OK -> $UserMapFile ($($map.Count) jmen z dbo.vw_UserMap)"
+    Write-BCApiSummary
 }
 finally { $conn.Close() }

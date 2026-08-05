@@ -15,6 +15,11 @@
 
     ⚠ Názvy OData polí (entryNo, changeType, oldValue, primaryKeyField1…) se liší dle verze/
     web service — OVĚŘIT proti reálnému $metadata před produkčním během (otevři OData URL v prohlížeči).
+
+    Veškerá komunikace s BC jde přes modul BCApi.psm1 (brzda, opakování při 429/5xx, read-only
+    replika, obnova tokenu). Důvod: vedle telemetrie budou z BC tahat i další aplikace a BI —
+    prostředí je sdílené, takže odmítnutí kvůli limitu rychlosti je normální provozní stav,
+    ne důvod k pádu importu.
 #>
 [CmdletBinding()]
 param(
@@ -32,6 +37,14 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 Import-Module CredentialManager
+
+# Odolna vrstva pro volani BC API (brzda, opakovani pri 429/5xx, read-only replika).
+$bcApiModule = Join-Path $PSScriptRoot 'BCApi.psm1'
+if (-not (Test-Path $bcApiModule)) { $bcApiModule = 'C:\Apps\BC_Telemetry\scripts\BCApi.psm1' }
+Import-Module $bcApiModule -Force
+
+# Sloupce, ktere import realne uklada — zbytek (Old_Value_Local, Primary_Key_Field_*) netahame.
+$SelectFields = 'Entry_No,Date_and_Time,User_ID,Table_No,Table_Caption,Field_No,Field_Caption,Type_of_Change,Primary_Key,Old_Value,New_Value'
 
 # Retence change logu z dashboardu (ops/retention.json), default 24 mesicu
 $ChangeLogRetentionMonths = 24
@@ -100,26 +113,9 @@ if (-not $CompaniesFile) {
     else { $CompaniesFile = (Join-Path $PSScriptRoot '..\web\changelog-companies.json') }
 }
 
-# ── OAuth2 client-credentials → token pro BC API ─────────────────────────────
-$secret = (Get-StoredCredential -Target $SecretTarget).Password
-$plain  = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($secret))
-# Token se sam obnovuje (dlouhy backfill velke firmy > 1h -> jinak vyprsi -> 401 Unauthorized).
-$script:bcTokenTime = $null
-$script:bcHeaders = $null
-function Get-BCHeaders {
-    if (-not $script:bcTokenTime -or ((Get-Date) - $script:bcTokenTime).TotalMinutes -ge 45) {
-        $t = Invoke-RestMethod -Method Post -Uri "https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token" -Body @{
-            client_id     = $ClientId
-            client_secret = $plain
-            scope         = 'https://api.businesscentral.dynamics.com/.default'
-            grant_type    = 'client_credentials'
-        }
-        $script:bcHeaders = @{ Authorization = "Bearer $($t.access_token)" }
-        $script:bcTokenTime = Get-Date
-    }
-    return $script:bcHeaders
-}
-$headers = Get-BCHeaders
+# ── Prihlaseni k BC API (token, brzda, opakovani) ────────────────────────────
+# Token se obnovuje sam (dlouhy backfill velke firmy > 1 h -> jinak 401 Unauthorized).
+Initialize-BCApiSession -TenantId $TenantId -ClientId $ClientId -SecretTarget $SecretTarget -Label 'modul B (audit zmen)'
 
 # ── SQL watermark ────────────────────────────────────────────────────────────
 $conn = New-Object System.Data.SqlClient.SqlConnection
@@ -132,7 +128,7 @@ try {
     if ($Companies.Count) {
         $companyList = $Companies
     } else {
-        $allNames = @((Invoke-RestMethod -Headers $headers -Uri "$base/Company?`$select=Name").value | ForEach-Object { $_.Name })
+        $allNames = @((Invoke-BCApiGet -Uri "$base/Company?`$select=Name").value | ForEach-Object { $_.Name })
         # nacti vyber z dashboardu (Nastaveni) + persistuj seznam VSECH firem (pro UI checkboxy)
         $cfg = $null
         if (Test-Path $CompaniesFile) { try { $cfg = Get-Content -Raw -Path $CompaniesFile | ConvertFrom-Json } catch {} }
@@ -175,7 +171,7 @@ try {
 
         # Phase 0 — prazdna firma: seed nejnovejsim blokem
         if ($mm.Count -eq 0) {
-            $resp = Invoke-RestMethod -Headers (Get-BCHeaders) -Uri "$svc`?`$orderby=Entry_No desc&`$top=5000"
+            $resp = Invoke-BCApiGet -Uri "$svc`?`$orderby=Entry_No desc&`$top=5000&`$select=$SelectFields"
             [void](Add-StagePage $conn @($resp.value) $company)
             $inserted += (Invoke-FlushStaging $conn)   # flush hned, aby min/max sedely pro Phase A/B
             $mm = Get-MinMax $conn $company
@@ -184,7 +180,7 @@ try {
         # Phase A — dosync k soucasnosti (vzestupne nad MAX), bounded (pojistka proti zaseknuti)
         $cursor = $mm.Max; $fwd = 0
         while ($fwd -lt $ForwardRowsPerRun) {
-            $resp = Invoke-RestMethod -Headers (Get-BCHeaders) -Uri "$svc`?`$filter=Entry_No gt $cursor&`$orderby=Entry_No&`$top=5000"
+            $resp = Invoke-BCApiGet -Uri "$svc`?`$filter=Entry_No gt $cursor&`$orderby=Entry_No&`$top=5000&`$select=$SelectFields"
             $page = @($resp.value); if (-not $page.Count) { break }
             [void](Add-StagePage $conn $page $company); $fwd += $page.Count
             $cursor = [int64]($page | Measure-Object -Property Entry_No -Maximum).Maximum
@@ -195,7 +191,7 @@ try {
         if ($BackfillRowsPerRun -gt 0 -and $mm.Min -gt 1) {
             $cursor = $mm.Min
             while ($bf -lt $BackfillRowsPerRun) {
-                $resp = Invoke-RestMethod -Headers (Get-BCHeaders) -Uri "$svc`?`$filter=Entry_No lt $cursor&`$orderby=Entry_No desc&`$top=5000"
+                $resp = Invoke-BCApiGet -Uri "$svc`?`$filter=Entry_No lt $cursor&`$orderby=Entry_No desc&`$top=5000&`$select=$SelectFields"
                 $page = @($resp.value); if (-not $page.Count) { break }
                 [void](Add-StagePage $conn $page $company); $bf += $page.Count
                 $cursor = [int64]($page | Measure-Object -Property Entry_No -Minimum).Minimum
@@ -206,6 +202,7 @@ try {
         Write-Host "  $company : forward +$fwd, backfill +$bf, vlozeno +$ins (max=$($mm.Max), min=$($mm.Min))"
     }
     Write-Host "Change Log: vloženo $inserted nových záznamů napříč $($companyList.Count) firmami."
+    Write-BCApiSummary
 
     $cmdP = $conn.CreateCommand(); $cmdP.CommandText = 'EXEC dbo.usp_BCChangeLog_Purge @RetentionMonths=@rm'
     $cmdP.Parameters.AddWithValue('@rm', $ChangeLogRetentionMonths) | Out-Null
