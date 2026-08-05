@@ -17,7 +17,8 @@ param(
     [string] $ScriptPath = 'C:\Apps\BC_Telemetry\scripts\Invoke-BCTelemetryDaily.ps1',
     [string] $RunAs      = 'AXINETWORK\svc-bc-telemetry',
     [string] $LogDir     = 'C:\Apps\BC_Telemetry\logs',
-    [string] $At         = '02:00'
+    [string] $At         = '02:00',
+    [int]    $LimitHours = 18
 )
 $ErrorActionPreference = 'Stop'
 
@@ -34,8 +35,13 @@ $action = New-ScheduledTaskAction `
 
 $trigger = New-ScheduledTaskTrigger -Daily -At $At
 
+# ⚠ ExecutionTimeLimit musí POKRÝT CELÉ okno importu z ops\schedule.json (default 02:00–18:00).
+# Wrapper Invoke-BCTelemetryDaily.ps1 se v okně sám opakuje á intervalMinutes a skončí v endTime;
+# OS limit je jen pojistka proti zaseknutí. Původní 2 h úlohu KAŽDÝ DEN zabily ve 04:00
+# (result 0x41306 = terminated, log utnutý uprostřed snapshotu) → z okna do 18:00 reálně
+# proběhly jen ~2 cykly. Když zkrátíš okno v dashboardu, tenhle limit zkracovat nemusíš.
 $settings = New-ScheduledTaskSettingsSet `
-    -ExecutionTimeLimit (New-TimeSpan -Hours 2) `
+    -ExecutionTimeLimit (New-TimeSpan -Hours $LimitHours) `
     -RestartCount 2 `
     -RestartInterval (New-TimeSpan -Minutes 15) `
     -StartWhenAvailable
