@@ -27,8 +27,9 @@ Sdílená je i výkonnost prostředí — těžký report běžící přes den z
 3. **Klient musí umět 429 a 5xx** — respektovat `Retry-After`, exponenciální backoff, konečný počet
    pokusů a **čitelnou hlášku** do logu. Vzor: [`scripts/BCApi.psm1`](../scripts/BCApi.psm1).
 4. **Čti z read-only repliky** — na GET posílej hlavičku `Data-Access-Intent: ReadOnly`.
-   Odlehčí to primární databázi BC. (Dokumentované pro API pages/queries; jinde se hlavička ignoruje,
-   takže neuškodí — jen ověř, že endpoint nevrací 400.)
+   Odlehčí to primární databázi BC. Microsoft ji dokumentuje pro API pages/queries; **ověřeno
+   2026-08-05, že ji přijme i publikovaná UI stránka** (Page 405 přes OData V4) — telemetrie s ní
+   jede v produkci.
 5. **Stahuj jen co potřebuješ** — `$select` na sloupce, `$filter` na straně BC, ne až v Power Query.
 6. **Přírůstkově, ne pořád znovu** — watermark (`systemModifiedAt`, `Entry_No`, …) a stránkování přes
    `@odata.nextLink` / `$top`. Plný pull tabulky patří leda do prvního naplnění.
