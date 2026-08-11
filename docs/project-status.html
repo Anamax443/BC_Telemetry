@@ -80,7 +80,7 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
 <div class="wrap">
   <header class="top">
     <div class="controls">
-      <a class="push" id="pushLink" target="_blank" rel="noreferrer" title="Otevřít commit na GitHubu"></a>
+      <span class="push" id="verBadge" title="Verze nasazeného dashboardu"></span>
       <button class="tbtn" id="themeBtn" title="Přepnout světlý / tmavý motiv">🌙</button>
     </div>
     <span class="tag" id="brand"></span>
@@ -122,12 +122,10 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
   "brand": "AXIMA · interní projekt",
   "subtitle": "3 moduly nad Business Central: A) využití stránek (Permission Set mining), B) audit změn — kdo co vytvořil/změnil/smazal (reálné jméno), C) permission errors RT0031. → SQL → admin dashboard.",
   "repo": "Anamax443/BC_Telemetry",
-  "repoUrl": "https://github.com/Anamax443/BC_Telemetry",
   "host": "10.8.2.225 (B-S-W-SQL-04)",
-  "version": "1.2",
-  "generated": "2026-06-16",
-  "commit": "a4c3c46",
-  "pushNo": 65,
+  "version": "1.3",
+  "generated": "2026-08-11",
+  "appVersion": "78",
   "milestones": [
     {
       "id": "M0", "title": "Azure + BC onboarding (LIVE rozjezd)", "status": "done",
@@ -190,10 +188,12 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
         {"s":"done","t":"👤 Uživatelé: mapování pseudonymní GUID → reálné jméno (usermap.json /usermap) + nápověda; jméno se aplikuje všude → podklad pro permission sety"},
         {"s":"done","t":"GUID→jméno zdroj vyřešen 2026-06-10: = BC „Telemetry User ID\"; usermap.json naplněn 38 jmény"},
         {"s":"done","t":"Users z BC web service → SQL dbo.BCUser → vw_UserMap → usermap.json (denní wrapper); LIVE 2026-06-10, 63 jmen na dashboardu"},
-        {"s":"done","t":"Verze (Push # + commit) v hlavičce dashboardu — proklik na GitHub commit"},
+        {"s":"done","t":"Verze v hlavičce dashboardu — od v78 jen číslo verze, bez odkazů ven (dřív proklik na GitHub commit)"},
         {"s":"done","t":"Sync-status (pruh pod KPI): kolik cloud obsahuje vs zesynchronizováno per modul (Update-SyncStatus → BCSyncStatus → snapshot)"},
         {"s":"done","t":"Sync pruh: součtové „Celkem SQL / cloud (%)\" přes všechny moduly (celkový počet záznamů cloud vs SQL)"},
-        {"s":"todo","t":"⏰ Monitor expirace SP secretu/certifikátu — KPI/alert (current 2028-06-07)"}
+        {"s":"done","t":"⏰ Monitor expirace SP secretu — e-mailový alert (Push #67, secretExpiry 2028-06-07 + warnDays)"},
+        {"s":"done","t":"Indikátor spojení s BC tenantem v hlavičce + sekce v Nastavení (v78) — zelená/žlutá >26 h/červená s důvodem"},
+        {"s":"done","t":"Dvojjazyčný dashboard CS/EN vč. dokumentace (v78) — přepínač v hlavičce, 396 klíčů, přepnutí bez reloadu"}
       ]
     },
     {
@@ -251,6 +251,23 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
       ]
     },
     {
+      "id": "M11", "title": "Provozní čitelnost: stav spojení s BC + dvojjazyčnost (v78)", "status": "done",
+      "desc": "2026-08-11. Dashboard uměl říct „služba běží\", což o Business Centralu nevypovídá nic. Nově prokazatelně ukazuje, jestli jsme napojení na tenant — a celá aplikace včetně dokumentace je česky i anglicky.",
+      "items": [
+        {"s":"done","t":"ops/bc-status.json — BCApi.psm1 (Write-BCApiStatus) po sobě nechá stopu při každém sezení proti BC API, úspěch i selhání; dashboard jen čte soubor → indikátor nestojí volání navíc"},
+        {"s":"done","t":"Indikátor v hlavičce: zelená = napojeno a čerstvé, žlutá = >26 h bez úspěšného kontaktu (vynechaný noční běh), červená = poslední pokus selhal + důvod v nápovědě"},
+        {"s":"done","t":"⚙ Nastavení → Spojení s Business Central: tenant/prostředí, service principal, kdy ověřeno, počet firem, endpoint, důvod selhání"},
+        {"s":"done","t":"GET /bc-status (dopočítá stáří a stale) + POST /bc-check (živý test na vyžádání)"},
+        {"s":"done","t":"Živý test dělá servisní účet přes úlohu BC_Telemetry_BCCheck (Test-BCConnection.ps1) — web běží jako LocalSystem a secret SP v Credential Manageru svc nepřečte; bez úlohy tlačítko rovnou vysvětlí proč"},
+        {"s":"done","t":"i18n CS/EN: přepínač v hlavičce (localStorage bct-lang, default dle navigator.language), slovník 396 klíčů v obou jazycích, ověřená parita klíčů i placeholderů"},
+        {"s":"done","t":"Přeloženo vše: záložky, tabulky, filtry, stránkovač, 9 sekcí Nastavení, Návrh role, Terminál, whitelist, dialogy, chybové hlášky, exporty CSV/TXT/HTML/PDF i manažerská zpráva"},
+        {"s":"done","t":"Dokumentace v aplikaci dvojjazyčně — dva paralelní bloky .lang-block, EN má vlastní kotvy en-* (nekříží se ID); přepnutí bez reloadu (redrawForLang)"},
+        {"s":"done","t":"Hlavička bez odkazů ven: jen „snapshot … UTC · verze 78\" (dřív proklik na GitHub commit)"},
+        {"s":"done","t":"Ověřeno headless Edge v obou jazycích + nasazeno a ověřeno živě 2026-08-11"},
+        {"s":"todo","t":"Zaregistrovat úlohu BC_Telemetry_BCCheck na .225 (Register-BCCheckTask.ps1, chce heslo svc) — bez ní chybí jen tlačítko „Ověřit teď\""}
+      ]
+    },
+    {
       "id": "M9", "title": "Modul C — Permission errors (RT0031)", "status": "prog",
       "desc": "Kdo narazil na chybějící oprávnění — z AppTraces (reuse App Insights infra).",
       "items": [
@@ -276,9 +293,10 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
     }
   ],
   "decisions": [
-    {"h":"GPO AllSigned","p":"Jak spustit PS import/export na doménovém serveru s AllSigned.","o":"A: podepsat skripty · B: běh z jiného boxu · C: GPO výjimka"}
+    {"h":"Registrace úlohy BC_Telemetry_BCCheck","p":"Tlačítko „Ověřit teď\" u spojení s BC potřebuje úlohu běžící jako svc (web jako LocalSystem secret nepřečte). Registrace se dělá jednou na .225 a chce heslo servisního účtu, takže ji musí spustit operátor. Bez ní indikátor funguje normálně z nočního běhu, jen chybí ověření na vyžádání.","o":"Spustit elevovaně: scripts\\Register-BCCheckTask.ps1"},
+    {"h":"Backfill obřích firem (modul B)","p":"BC OData strop 50000/firma/běh, ESHOP má EntryNo ~814M → ascending backfill je nereálný. Zatím řešeno výběrem sledovaných firem.","o":"A: nechat vypnuté · B: desc + TRUNCATE dosavadních · C: vlastní AL API page"}
   ],
-  "arch": "BC Cloud ──telemetrie──▶ Azure App Insights / Log Analytics\n                          │  DCR filtr: clientType == \"Web\"\n                          ▼\n   wrapper Invoke-BCTelemetryDaily.ps1 (jako svc; OS úloha 1× ve startTime,\n     loop á intervalMinutes do endTime; okno+četnost+dny z ops/schedule.json)\n                          ▼  Service Principal, inkrementálně; modul B bulk insert\n   SQL 10.8.2.225:  dbo.BCPageLog (raw, miliony, retence dle ops/retention.json)\n                          │  usp_BCPageLog_Rollup\n                          ▼\n   dbo.BCPageDaily + vw_Dash*  (agregáty — malé, kumulují navždy)\n                          │  Export-DashboardSnapshot.ps1\n                          ▼\n   data.json ──▶ služba BC_Telemetry_Web (Node+NSSM, LocalSystem — NEsahá na SQL/BC)\n                 ├─ dashboard (anonymně, bez loginu) + záložka 🗄 Databáze\n                 ├─ ⚙ Nastavení → whitelist (firewall rule, port ITDashboard)\n                 └─ ⚙ Nastavení → Správa služby a úloh: /restart (exit→NSSM nahodí),\n                       /import-stop, /tasks, /schedule, /retention, /changelog-purge\n                          │  web zapíše do ops fronty   ▲ svc čte/zpracuje\n                          ▼                              │\n   C:\\Apps\\BC_Telemetry_Web\\ops\\  (ops-request.json / ops-status.json /\n     retention.json / schedule.json / oneshot.flag; ACL nastaví služba na bootu)",
+  "arch": "BC Cloud ──telemetrie──▶ Azure App Insights / Log Analytics\n                          │  DCR filtr: clientType == \"Web\"\n                          ▼\n   wrapper Invoke-BCTelemetryDaily.ps1 (jako svc; OS úloha 1× ve startTime,\n     loop á intervalMinutes do endTime; okno+četnost+dny z ops/schedule.json)\n                          ▼  Service Principal, inkrementálně; modul B bulk insert\n   SQL 10.8.2.225:  dbo.BCPageLog (raw, miliony, retence dle ops/retention.json)\n                          │  usp_BCPageLog_Rollup\n                          ▼\n   dbo.BCPageDaily + vw_Dash*  (agregáty — malé, kumulují navždy)\n                          │  Export-DashboardSnapshot.ps1\n                          ▼\n   data.json ──▶ služba BC_Telemetry_Web (Node+NSSM, LocalSystem — NEsahá na SQL/BC)\n                 ├─ dashboard (anonymně, bez loginu) + záložka 🗄 Databáze\n                 ├─ ⚙ Nastavení → whitelist (firewall rule, port ITDashboard)\n                 └─ ⚙ Nastavení → Správa služby a úloh: /restart (exit→NSSM nahodí),\n                       /import-stop, /tasks, /schedule, /retention, /changelog-purge\n                          │  web zapíše do ops fronty   ▲ svc čte/zpracuje\n                          ▼                              │\n   C:\\Apps\\BC_Telemetry_Web\\ops\\  (ops-request.json / ops-status.json /\n     retention.json / schedule.json / oneshot.flag / bc-status.json;\n     ACL nastaví služba na bootu)\n\n   Stav spojení s BC: každé sezení proti BC API zapíše výsledek (i selhání) do\n     ops/bc-status.json → dashboard ho jen čte (GET /bc-status), takže indikátor\n     nestojí žádné volání navíc. Živý test na vyžádání (POST /bc-check) spouští\n     úloha BC_Telemetry_BCCheck jako svc — LocalSystem secret SP nepřečte.",
   "timeline": [
     {"sha":"787544b","msg":"chore: initial scaffold"},
     {"sha":"815cb8a","msg":"feat: BC telemetry pipeline + admin dashboard (v1.1)"},
@@ -300,7 +318,16 @@ h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:1px;text-transform:
     {"sha":"8d317ab","msg":"Import cloudu desc (A/C nejnovější první) + dashboard 'Celkem SQL/cloud' v sync pruhu"},
     {"sha":"26de258","msg":"Uživatelské mapování LIVE (63 jmen z dbo.BCUser); svc právo na usermap.json; verze Push#+commit v hlavičce dashboardu"},
     {"sha":"1560caa","msg":"Modul B: výběr sledovaných firem v Nastavení (changelog-companies.json) — lze vypnout obří ESHOP; diagnóza backfillu (50000 strop / ESHOP ~814M)"},
-    {"sha":"37c430b","msg":"Push #58 (2026-06-16): operativa dashboardu + výkon + záložka Databáze. Ops fronta C:\\Apps\\...\\ops\\ (web zapíše, svc zpracuje); restart služby přes /restart→exit→NSSM (self-service deploy server.js); Správa služby a úloh v Nastavení (/restart, /import-stop, /tasks, /ops-status). Plán importu /schedule (okno+četnost+dny) řízen wrapperem Invoke-BCTelemetryDaily (trigger OS úlohy nejde z LocalSystem bez hesla svc — HRESULT 0x8007052e). Retence /retention (pageLog 6m / changeLog 24m / dailyLog 30d), /changelog-purge. Výkon: modul B bulk insert (SqlBulkCopy→#Staging→dedup) + token-refresh 45 min, modul A dedup fix"}
+    {"sha":"37c430b","msg":"Push #58 (2026-06-16): operativa dashboardu + výkon + záložka Databáze. Ops fronta C:\\Apps\\...\\ops\\ (web zapíše, svc zpracuje); restart služby přes /restart→exit→NSSM (self-service deploy server.js); Správa služby a úloh v Nastavení (/restart, /import-stop, /tasks, /ops-status). Plán importu /schedule (okno+četnost+dny) řízen wrapperem Invoke-BCTelemetryDaily (trigger OS úlohy nejde z LocalSystem bez hesla svc — HRESULT 0x8007052e). Retence /retention (pageLog 6m / changeLog 24m / dailyLog 30d), /changelog-purge. Výkon: modul B bulk insert (SqlBulkCopy→#Staging→dedup) + token-refresh 45 min, modul A dedup fix"},
+    {"sha":"cbe5d62","msg":"Push #73: Návrh role — per-firma scope + práh min. operací"},
+    {"sha":"2e5c766","msg":"Push #74: RT0031 obohacení — permissionType + errorMessage (co konkrétně chybí)"},
+    {"sha":"d38f3e5","msg":"Push #75: všechny varianty počtu řádků snapshotu (až 1M) + timeout dotazu 15 min"},
+    {"sha":"90280f2","msg":"RT0031 import: re-pull místo destruktivního resetu — nemaže, jen doplňuje (MERGE)"},
+    {"sha":"ee9a75e","msg":"Push #76: RT0031 badge LICENCE vs CHYBÍ ROLE + vytažení čísla tabulky z hlášky"},
+    {"sha":"5530d22","msg":"Push #77: auto-smazání dat odebrané firmy + trend v manažerské zprávě (10 dní, newest-first)"},
+    {"sha":"6a8a167","msg":"BCApi.psm1: odolná vrstva pro volání BC API (retry 429/5xx, brzda 90/min, read-only replika, $select, degradace místo pádu) + standard pro nové integrace"},
+    {"sha":"8e9c7be","msg":"Scheduler: ExecutionTimeLimit musí pokrýt celé okno importu (úloha se denně zabíjela ve 04:00 → z ~16 cyklů proběhly 2) + nasazen modul C"},
+    {"sha":"0587e5b","msg":"v78 (2026-08-11): dvojjazyčnost CS/EN vč. dokumentace, kontrola spojení s BC tenantem (ops/bc-status.json, /bc-status, /bc-check), hlavička bez odkazů ven"}
   ]
 }
 </script>
@@ -312,10 +339,9 @@ const PILLTXT = {done:'Hotovo',prog:'Probíhá',block:'Blokováno',todo:'Plánov
 const ISTAT = {done:'i-done',prog:'i-prog',block:'i-block',todo:'i-todo'};
 const esc = s => (s==null?'':String(s)).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 
-// Push číslo + commit (jako topbar v ITDashboardu)
-const pushLink = document.getElementById('pushLink');
-pushLink.href = D.repoUrl + '/commit/' + D.commit;
-pushLink.innerHTML = '⬆ Push <b>#' + D.pushNo + '</b> · ' + esc(D.commit);
+// Verze nasazeného dashboardu — bez odkazů ven (stejně jako hlavička dashboardu).
+const verBadge = document.getElementById('verBadge');
+verBadge.innerHTML = 'verze <b>' + esc(D.appVersion) + '</b>';
 
 // Dark / light přepínač (perzistentní v localStorage)
 const themeBtn = document.getElementById('themeBtn');
@@ -331,11 +357,10 @@ themeBtn.addEventListener('click', ()=>{
 document.getElementById('brand').textContent = D.brand;
 document.getElementById('subtitle').textContent = D.subtitle;
 document.getElementById('meta').innerHTML =
-  `<span><b>Repo:</b> <a href="${D.repoUrl}">${esc(D.repo)}</a></span>`+
+  `<span><b>Repo:</b> ${esc(D.repo)}</span>`+
   `<span><b>Host:</b> ${esc(D.host)}</span>`+
-  `<span><b>Verze:</b> ${esc(D.version)}</span>`+
-  `<span><b>Push:</b> <a href="${D.repoUrl}/commit/${esc(D.commit)}">#${esc(D.pushNo)}</a></span>`+
-  `<span><b>Commit:</b> <a href="${D.repoUrl}/commit/${esc(D.commit)}">${esc(D.commit)}</a></span>`+
+  `<span><b>Verze dokumentu:</b> ${esc(D.version)}</span>`+
+  `<span><b>Verze dashboardu:</b> ${esc(D.appVersion)}</span>`+
   `<span><b>Aktualizováno:</b> ${esc(D.generated)}</span>`;
 
 const ms = D.milestones;

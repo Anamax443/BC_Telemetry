@@ -23,6 +23,8 @@ běží proti `localhost` SQL — žádný síťový hop, žádný file share.
         ├── /restart (POST)               ← process.exit() → NSSM nahodí (self-service deploy)
         ├── /retention (GET/PUT)          ← ops/retention.json (čtou importní skripty)
         ├── /schedule (GET/PUT)           ← ops/schedule.json (okno+četnost+dny pro wrapper)
+        ├── /bc-status (GET)              ← jsme napojení na BC tenant? (ops/bc-status.json)
+        ├── /bc-check (POST)              ← živý test spojení → úloha BC_Telemetry_BCCheck (svc)
         └── ops fronta C:\Apps\BC_Telemetry_Web\ops\ (web zapíše, svc zpracuje)
         http://10.8.2.225:8080/
 ```
@@ -91,8 +93,16 @@ Služba na `10.8.2.225:8080` poskytuje (Push #58):
 | `/snapshot-config` | GET/PUT | strop řádků na sekci ve snapshotu (`ops/snapshot.json`, čte `Export-DashboardSnapshot.ps1`) |
 | `/notify-config` | GET/PUT | e-mailové notifikace (`ops/notify.json`, čte `Send-BCTelemetryNotification.ps1`) |
 | `/notify-test` | POST | pošle testovací e-mail hned (`Send-BCTelemetryNotification.ps1 -Manual`) |
+| `/bc-status` | GET | stav spojení s BC tenantem z `ops/bc-status.json` + dopočet stáří a `stale` (>26 h) |
+| `/bc-check` | POST | živé ověření na vyžádání → `Start-ScheduledTask BC_Telemetry_BCCheck`; když úloha není zaregistrovaná, vrátí **501 s vysvětlením** |
 
 Statické: `index.html`, `data.json`, `exports/*`.
+
+> ⚠ **Pozor na cestu:** `index.html` a `data.json` se servírují z **`C:\Apps\BC_Telemetry_Web\public\`**
+> (`PUBLIC_DIR` = `__dirname\public`, přebitelné `BCT_PUBLIC`), zatímco `server.js` a `ops\` leží
+> o úroveň výš v kořeni. Přes share to znamená `\\10.8.2.225\BCT_Web\public\index.html` vs
+> `\\10.8.2.225\BCT_Web\server.js`. V kořeni share je i **stará nepoužívaná kopie `index.html`** —
+> ta se neservíruje, jen mate; nasazovat vždy do `public\`.
 
 ## 1c · Ops fronta (web zapíše, svc zpracuje)
 
@@ -110,6 +120,26 @@ ho při dalším běhu **zpracuje**. ACL na adresáři nastaví **služba na boo
 | `snapshot.json`    | strop řádků na sekci ve snapshotu (`{topRows}`, čte `Export-DashboardSnapshot.ps1`) |
 | `notify.json`      | konfigurace e-mailových notifikací (čte `Send-BCTelemetryNotification.ps1`) |
 | `notify-state.json`| last-sent/last-status notifikací (zapisuje notifikační skript) |
+| `bc-status.json`   | výsledek posledního spojení s BC (zapisuje `BCApi.psm1` při **každém** sezení, i při selhání; čte `/bc-status`) |
+
+### Stav spojení s BC — proč to takhle
+
+Web (LocalSystem) **nemůže** spojení s BC ověřit sám: secret service principalu je v Credential
+Manageru **servisního účtu**, kam LocalSystem nevidí. Jediný, kdo s tenantem prokazatelně mluví,
+jsou importní skripty — tak po sobě nechávají stopu v `ops/bc-status.json`. Dashboard tedy říká
+**„kdy jsme naposledy prokazatelně mluvili s tenantem"**, ne „zrovna to zkouším", a nestojí to
+žádné volání BC navíc.
+
+Ověření **na vyžádání** (tlačítko *Ověřit teď*) proto spouští samostatná úloha
+**`BC_Telemetry_BCCheck`** běžící jako svc — [`Test-BCConnection.ps1`](../scripts/Test-BCConnection.ps1),
+token + jeden levný `Company?$select=Name`. Registrace jednorázově:
+
+```powershell
+# na 10.8.2.225, elevovaně (chce heslo svc účtu)
+C:\Apps\BC_Telemetry\scripts\Register-BCCheckTask.ps1
+```
+
+Bez registrace indikátor funguje normálně (z nočního běhu) a tlačítko vrátí **501** s vysvětlením.
 
 ## 1d · Restart služby z dashboardu (self-service deploy)
 

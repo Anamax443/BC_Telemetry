@@ -2,8 +2,12 @@
 
 > Interní dokumentace · AXIMA spol. s r.o.
 > Verze BC: 27.5 · Prostředí: Production / CZ · Vytvořeno: 2026-04 · Autor: Milan Trnka
-> **Dokument v1.2** — zapracována oponentura 2026-06-08 (viz [oponentury/](oponentury/)) + provozní změny
-> Push #41→#58 (2026-06-16). Aktuální provozní stav vždy viz [HANDOFF.md](HANDOFF.md).
+> **Dokument v1.3** — zapracována oponentura 2026-06-08 (viz [oponentury/](oponentury/)) + provozní změny
+> Push #41→#58 (2026-06-16) a v78 (2026-08-11). Aktuální provozní stav vždy viz [HANDOFF.md](HANDOFF.md).
+>
+> Pravidla pro **volání BC API** (limity, retry, read-only replika, registr integrací) mají vlastní
+> dokument: [bc-api-integrace-standard.md](bc-api-integrace-standard.md) — platí pro každou aplikaci,
+> která na BC sahá, ne jen pro telemetrii.
 
 Sledování aktivity uživatelů v BC Cloud přes Azure Application Insights — sběr, import do SQL
 a analýza pro sestavení Permission Setů. Praktické kroky zprovoznění viz [BUILD.md](../BUILD.md).
@@ -26,11 +30,18 @@ Log Analytics Workspace
    │  PowerShell job (denně 02:00) — Invoke-AzOperationalInsightsQuery
    │  watermark přes MAX(Timestamp) → žádné duplicity
    ▼
-SQL Server — BSWNAV01
+SQL Server — 10.8.2.225 (B-S-W-SQL-04), co-located s dashboardem; skripty se připojují na `localhost`
   databáze: BC_Telemetry · raw: dbo.BCPageLog · agregáty: dbo.BCPageDaily
+   │  Export-DashboardSnapshot.ps1 → data.json (jen agregáty)
+   ▼
+Dashboard — služba BC_Telemetry_Web (Node+NSSM, LocalSystem, port 8080)
+  NEsahá na SQL ani BC; požadavky z UI jdou přes ops frontu, kterou vyřizuje svc účet
+  dvojjazyčný CS/EN · indikátor spojení s BC (ops/bc-status.json)
 ```
 
-> ⚠ **Restart prostředí:** Nastavení Connection String v BC Admin Center vyžaduje restart BC prostředí. Provádět mimo pracovní dobu.
+> ⚠ **Restart prostředí:** starší verze BC vyžadovaly po nastavení Connection String restart prostředí.
+> V aktuální verzi BC to **není potřeba** — data tečou do ~5 min při reálné aktivitě uživatelů
+> (ověřeno při nasazení, viz [SETUP-STEP-BY-STEP.md](SETUP-STEP-BY-STEP.md) fáze 2).
 
 ## 02 · Náklady
 

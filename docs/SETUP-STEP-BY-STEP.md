@@ -125,5 +125,21 @@ OData: `GET …/v2.0/<tenant>/<environment>/ODataV4/Company('<company>')/Changel
 4. **Spustit importy** + scheduler:
    [BC_PageLog_Import](../scripts/BC_PageLog_Import.ps1), [BC_ChangeLog_Import](../scripts/BC_ChangeLog_Import.ps1),
    [BC_AuthFail_Import](../scripts/BC_AuthFail_Import.ps1) → [Register-ScheduledTask](../scripts/Register-ScheduledTask.ps1).
-   (Importní `.ps1` v Task Scheduleru AllSigned ŘEŠÍ samostatně — viz [deploy-10.8.2.225.md](deploy-10.8.2.225.md) §2.)
+   (Importní `.ps1` v Task Scheduleru AllSigned ŘEŠÍ samostatně — viz [deploy-10.8.2.225.md](deploy-10.8.2.225.md) §2.
+   Na 10.8.2.225 je politika **RemoteSigned** a úlohy jedou s `-ExecutionPolicy Bypass`, takže
+   nasazené skripty **nejsou podepsané** — ověřeno 2026-08-11.)
 5. **Dashboard** — Node služba (`scripts/install-service.cmd`).
+   ⚠ `index.html` + `data.json` patří do **`C:\Apps\BC_Telemetry_Web\public\`**, `server.js` a `ops\`
+   do kořene (`PUBLIC_DIR` = `__dirname\public`). Přes share: `\\<server>\BCT_Web\public\index.html`
+   vs `\\<server>\BCT_Web\server.js`. V kořeni share leží i stará nepoužívaná kopie `index.html` — mate,
+   ale neservíruje se.
+6. **Kontrola spojení s BC** (nepovinné, ale doporučené) — aby dashboard uměl ověřit napojení na tenant
+   i na vyžádání:
+   ```powershell
+   # na serveru, ELEVOVANĚ (chce heslo svc účtu; registruje úlohu bez triggeru)
+   C:\Apps\BC_Telemetry\scripts\Register-BCCheckTask.ps1
+   Start-ScheduledTask -TaskName 'BC_Telemetry_BCCheck'   # test → ops\bc-status.json
+   ```
+   Bez toho indikátor funguje taky — stav se obnovuje při každém běhu importu (zapisuje `BCApi.psm1`),
+   chybí jen tlačítko „Ověřit teď". Proč to nedělá web: běží jako **LocalSystem**, ale secret service
+   principalu je v Credential Manageru **svc účtu** (krok 3), kam LocalSystem nevidí.

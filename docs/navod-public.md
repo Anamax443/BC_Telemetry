@@ -177,6 +177,16 @@ Dashboard hostuj jako **malou Node službu** (přes NSSM), aby šel whitelist ed
 - **Terminál** — aktivita služby + log posledního importu (živé sledování běhu).
 - **Ruční obnova** — tlačítko vynutí import + snapshot mimo plán.
 - **Údržba logů** — automatická retence (denní logy) + rotace logů služby; v UI ověříš seznam souborů.
+- **Stav spojení s ERP** — indikátor v hlavičce říká, jestli jsme **reálně napojení na tenant**, ne jen že
+  běží web. Zdrojem je poslední skutečné volání API: importní skript po sobě nechá výsledek (úspěch
+  i selhání) v souboru, dashboard ho jen čte — kontrola tedy nestojí žádné volání navíc. Zelená =
+  ověřeno nedávno, žlutá = delší dobu bez úspěšného kontaktu (typicky vynechaný noční běh), červená =
+  poslední pokus selhal a v nápovědě je důvod. Tenhle rozdíl stojí za zdůraznění: **„služba běží"
+  o dostupnosti zdrojového systému nevypovídá nic.**
+  Pozn.: živé ověření na vyžádání musí spustit servisní účet, ne web — přihlašovací tajemství je
+  v jeho úložišti, kam účet webové služby nevidí.
+- **Dvojjazyčnost** — přepínač jazyka v hlavičce přepne celé UI **i vestavěnou dokumentaci** (bez reloadu,
+  volba se pamatuje v prohlížeči).
 - UX: dark mode, default řazení od nejnovějších, proklikávací KPI dlaždice.
 
 > **Honest poznámka k bezpečnosti:** IP whitelist přes firewall *allow* rule je *visibility gate*, ne tvrdá

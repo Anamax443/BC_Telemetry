@@ -912,7 +912,9 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
           nedostupný (timeout) i pro povolené IP. Náprava na serveru:
           <code>Set-NetFirewallRule -DisplayName "BC Telemetry Dashboard (8080)" -Profile Any -Enabled True</code>.</li>
         <li><strong>Nasazení změn:</strong> <code>index.html</code> = no-store, stačí Ctrl+F5 (bez restartu).
-          <code>server.js</code> = vyžaduje restart služby → self-service v ⚙ Nastavení → Restartovat službu.</li>
+          <code>server.js</code> = vyžaduje restart služby → self-service v ⚙ Nastavení → Restartovat službu.
+          <br><em>Pozor na cestu:</em> <code>index.html</code> a <code>data.json</code> se servírují z podsložky
+          <code>public\</code>, <code>server.js</code> a <code>ops\</code> jsou o úroveň výš v kořeni.</li>
         <li><strong>Endpointy:</strong> <code>/access-check</code>, <code>/firewall/whitelist</code>,
           <code>/firewall/domain-profile</code>, <code>/refresh</code>, <code>/usermap</code>,
           <code>/changelog-companies</code>, <code>/changelog-purge</code>, <code>/ops-status</code>,
@@ -1269,7 +1271,9 @@ footer.foot{border-top:1px solid var(--border);margin-top:8px;padding:18px 32px;
           <code>Set-NetFirewallRule -DisplayName "BC Telemetry Dashboard (8080)" -Profile Any -Enabled True</code>.</li>
         <li><strong>Deploying changes:</strong> <code>index.html</code> is served no-store, so Ctrl+F5 is
           enough (no restart). <code>server.js</code> needs a service restart → self-service in ⚙ Settings →
-          Restart service.</li>
+          Restart service. <br><em>Mind the path:</em> <code>index.html</code> and <code>data.json</code> are
+          served from the <code>public\</code> subfolder, while <code>server.js</code> and <code>ops\</code>
+          live one level up in the root.</li>
         <li><strong>Endpoints:</strong> <code>/access-check</code>, <code>/firewall/whitelist</code>,
           <code>/firewall/domain-profile</code>, <code>/refresh</code>, <code>/usermap</code>,
           <code>/changelog-companies</code>, <code>/changelog-purge</code>, <code>/ops-status</code>,
