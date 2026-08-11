@@ -62,6 +62,50 @@ function Get-BCApiConfig {
     return $cfg
 }
 
+<#
+.SYNOPSIS
+    Zapise vysledek spojeni s BC do ops\bc-status.json (cte ho dashboard).
+.DESCRIPTION
+    PROC: web sluzba bezi jako LocalSystem a NEMA secret service principalu (ten je v Credential
+    Manageru servisniho uctu), takze si spojeni s BC sama overit nemuze. Jediny, kdo s tenantem
+    prokazatelne mluvi, jsou tyhle skripty — tak at po sobe necha stopu. Dashboard pak umi rict
+    "napojeno, overeno v 06:57" misto "sluzba bezi" (coz o BC nevypovida nic).
+    Zapisuje se i NEUSPECH, jinak by vypadek vypadal jako by se nic nedelo.
+#>
+function Write-BCApiStatus {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][bool] $Ok,
+        [string] $WebDir      = 'C:\Apps\BC_Telemetry_Web',
+        [string] $TenantId,
+        [string] $Environment,
+        [string] $ClientId,
+        [string] $Endpoint,
+        [string] $ErrorText,
+        [Nullable[int]] $Companies,
+        [ValidateSet('import', 'manual')][string] $Source = 'import'
+    )
+    try {
+        $opsDir = Join-Path $WebDir 'ops'
+        if (-not (Test-Path $opsDir)) { New-Item -ItemType Directory -Path $opsDir -Force | Out-Null }
+        $o = [ordered]@{
+            ok          = $Ok
+            checkedAt   = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+            source      = $Source
+            tenantId    = $TenantId
+            environment = $Environment
+            clientId    = $ClientId
+            endpoint    = $Endpoint
+            companies   = $Companies
+            error       = $ErrorText
+        }
+        $o | ConvertTo-Json -Compress | Set-Content -Path (Join-Path $opsDir 'bc-status.json') -Encoding UTF8
+    } catch {
+        # stav je jen informace pro dashboard — nikdy kvuli nemu neshazuj import
+        Write-Host "BC API: stav spojeni se nepodarilo zapsat ($($_.Exception.Message))."
+    }
+}
+
 # Odstrani $select z URL (pouziva se, kdyz ho endpoint neprijme).
 function Remove-BCApiSelect {
     param([string] $Uri)
@@ -186,12 +230,21 @@ function Initialize-BCApiSession {
         [Parameter(Mandatory)][string] $ClientId,
         [Parameter(Mandatory)][string] $SecretTarget,
         [string] $WebDir = 'C:\Apps\BC_Telemetry_Web',
-        [string] $Label  = 'BC API'
+        [string] $Label  = 'BC API',
+        [string] $Environment,                                   # jen pro stav spojeni v dashboardu
+        [string] $Endpoint,                                      # dtto (napr. .../Production/ODataV4)
+        [ValidateSet('import', 'manual')][string] $StatusSource = 'import'
     )
+    # spolecne udaje pro zapis stavu (at se nemusi opakovat u kazdeho volani)
+    $stArgs = @{ WebDir = $WebDir; TenantId = $TenantId; Environment = $Environment
+                 ClientId = $ClientId; Endpoint = $Endpoint; Source = $StatusSource }
+
     Import-Module CredentialManager -ErrorAction Stop
     $cred = Get-StoredCredential -Target $SecretTarget
     if (-not $cred) {
-        throw "BC API: v Credential Manageru chybi zaznam '$SecretTarget' (secret service principalu). Musi byt ulozeny v profilu uctu, pod kterym uloha bezi."
+        $msg = "BC API: v Credential Manageru chybi zaznam '$SecretTarget' (secret service principalu). Musi byt ulozeny v profilu uctu, pod kterym uloha bezi."
+        Write-BCApiStatus -Ok $false -ErrorText $msg @stArgs
+        throw $msg
     }
     $secret = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
         [Runtime.InteropServices.Marshal]::SecureStringToBSTR($cred.Password))
@@ -212,7 +265,15 @@ function Initialize-BCApiSession {
     $script:Bc.ReadOnlyIntent = [bool]$script:Bc.Config.readOnlyIntent
     $script:Bc.SelectEnabled  = [bool]$script:Bc.Config.useSelect
 
-    [void](Get-BCApiHeaders)   # over hned, ze prihlaseni funguje (jinak spadne tady, ne uprostred importu)
+    # Over hned, ze prihlaseni funguje (jinak spadne tady, ne uprostred importu) — a vysledek
+    # rovnou zapis, at dashboard vi, jestli jsme na tenant napojeni.
+    try {
+        [void](Get-BCApiHeaders)
+    } catch {
+        Write-BCApiStatus -Ok $false -ErrorText $_.Exception.Message @stArgs
+        throw
+    }
+    Write-BCApiStatus -Ok $true @stArgs
 
     $ro = 'ne'; if ($script:Bc.ReadOnlyIntent) { $ro = 'ano' }
     Write-Host ("BC API [{0}]: prihlaseno jako aplikace, brzda {1} pozadavku/min, cteni z read-only repliky: {2}, opakovani az {3}x." -f `
@@ -326,4 +387,4 @@ function Get-BCApiSummary {
 function Write-BCApiSummary { Write-Host (Get-BCApiSummary) }
 
 Export-ModuleMember -Function Initialize-BCApiSession, Invoke-BCApiGet, Get-BCApiSummary,
-    Write-BCApiSummary, Get-BCApiConfig, Get-BCApiHeaders
+    Write-BCApiSummary, Get-BCApiConfig, Get-BCApiHeaders, Write-BCApiStatus

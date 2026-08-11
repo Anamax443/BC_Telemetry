@@ -46,6 +46,9 @@ const OPS_STATUS_FILE = path.join(OPS_DIR, 'ops-status.json');     // výsledek 
 const RETENTION_FILE = path.join(OPS_DIR, 'retention.json');       // retenční politika (čtou importní skripty)
 const RETENTION_DEFAULTS = { pageLogMonths: 6, changeLogMonths: 24, dailyLogDays: 30 };
 const SCHEDULE_FILE = path.join(OPS_DIR, 'schedule.json');         // okno + četnost běhu úlohy
+const BC_STATUS_FILE = path.join(OPS_DIR, 'bc-status.json');       // výsledek posledního spojení s BC (píše BCApi.psm1)
+const BC_CHECK_TASK = 'BC_Telemetry_BCCheck';                      // nepovinná úloha pro ruční „Ověřit teď" (běží jako svc)
+const BC_STALE_MINUTES = 26 * 60;                                  // 26 h bez úspěšného kontaktu = vynechaný noční běh
 const SNAPSHOT_FILE = path.join(OPS_DIR, 'snapshot.json');         // strop řádků na sekci ve snapshotu (čte Export-DashboardSnapshot.ps1)
 const SNAPSHOT_DEFAULTS = { topRows: 5000 };
 const PAGEMAP_FILE = path.join(OPS_DIR, 'pagemap.json');           // PageID → {t:TableNo, n:TableName} (čte Export-DashboardSnapshot.ps1 pro „čtení tabulek")
@@ -434,6 +437,60 @@ $out | ConvertTo-Json -Compress -Depth 3
 `;
     return runPs(ps)
       .then((o) => { let j = []; try { j = JSON.parse(o || '[]'); if (!Array.isArray(j)) j = [j]; } catch { } sendJson(res, 200, { tasks: j }); })
+      .catch((e) => sendJson(res, 500, { error: String(e.message || e) }));
+  }
+  // GET /bc-status — jsme napojení na BC tenant? Čte ops/bc-status.json, který zapisuje
+  //   BCApi.psm1 při každém sezení proti BC API (úspěch i selhání). Web sám na BC nesahá:
+  //   secret service principalu je v Credential Manageru servisního účtu, LocalSystem ho nevidí.
+  //   Proto tohle odpovídá na „kdy jsme naposledy prokazatelně mluvili s tenantem".
+  if (url === '/bc-status' && req.method === 'GET') {
+    let s = null;
+    try { s = JSON.parse(fs.readFileSync(BC_STATUS_FILE, 'utf8')); } catch { }
+    if (!s || typeof s !== 'object') return sendJson(res, 200, { present: false });
+    let ageMinutes = null;
+    const ts = Date.parse(s.checkedAt || '');
+    if (!Number.isNaN(ts)) ageMinutes = Math.max(0, Math.round((Date.now() - ts) / 60000));
+    return sendJson(res, 200, {
+      present: true,
+      ok: s.ok === true ? true : (s.ok === false ? false : null),
+      checkedAt: s.checkedAt || null,
+      source: s.source || null,
+      tenantId: s.tenantId || null,
+      environment: s.environment || null,
+      clientId: s.clientId || null,
+      companies: Number.isFinite(+s.companies) ? +s.companies : null,
+      endpoint: s.endpoint || null,
+      error: s.error || null,
+      ageMinutes,
+      stale: s.ok === true && ageMinutes != null && ageMinutes > BC_STALE_MINUTES,
+    });
+  }
+  // POST /bc-check — vyžádá živé ověření spojení. Provést ho musí servisní účet (má secret),
+  //   takže kopneme do samostatné úlohy BC_Telemetry_BCCheck. Když zaregistrovaná není,
+  //   řekneme to rovnou i s příkazem — místo tichého nic.
+  if (url === '/bc-check' && req.method === 'POST') {
+    const ps = `
+$OutputEncoding = [System.Text.Encoding]::UTF8
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$t = Get-ScheduledTask -TaskName '${BC_CHECK_TASK}' -ErrorAction SilentlyContinue
+if (-not $t) { 'missing' }
+elseif ($t.State -eq 'Running') { 'running' }
+else { Start-ScheduledTask -TaskName '${BC_CHECK_TASK}'; 'started' }
+`;
+    return runPs(ps)
+      .then((o) => {
+        const status = String(o).trim();
+        if (status === 'missing') {
+          logActivity('warn', 'bc-check', `ruční ověření BC vyžádáno z ${reqIp(req)}, ale úloha ${BC_CHECK_TASK} není zaregistrovaná`);
+          return sendJson(res, 501, {
+            error: `Úloha ${BC_CHECK_TASK} není na serveru zaregistrovaná, takže živé ověření na vyžádání nejde spustit `
+              + `(web běží jako LocalSystem a nemá secret service principalu). Stav se obnoví při nejbližším běhu importu. `
+              + `Registrace úlohy: scripts\\Register-BCCheckTask.ps1 (spouští se jednou, jako správce, s heslem svc účtu).`,
+          });
+        }
+        logActivity('info', 'bc-check', `ruční ověření spojení s BC z ${reqIp(req)} (${status})`);
+        sendJson(res, 200, { status });
+      })
       .catch((e) => sendJson(res, 500, { error: String(e.message || e) }));
   }
   // POST /import-stop — zastaví běžící (i zaseknutý) import (úloha BC_Telemetry_Daily).

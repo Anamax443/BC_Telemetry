@@ -41,6 +41,38 @@ Sdílená je i výkonnost prostředí — těžký report běžící přes den z
 10. **Provozní okno** — dávkové pully plánuj mimo pracovní dobu. Telemetrie jede v okně z
     `ops/schedule.json`.
 
+## Proč telemetrie čte přes ODataV4, a ne přes API v2.0
+
+Rozhodnuto 2026-08-11 — ať se to příště neřeší znovu.
+
+Telemetrie (modul B, Users, sync-status) volá
+`https://api.businesscentral.dynamics.com/v2.0/<tenant>/<env>/**ODataV4**`, tedy **publikované UI
+stránky** (`Company('<firma>')/ChangelogEntry`, `Users`), ne `/api/v2.0`. Není to provizorium:
+
+| | ODataV4 (publikovaná stránka) | API v2.0 |
+|---|---|---|
+| Change Log Entry (Page 405) | ✅ publikováno jako web service | ❌ **entita neexistuje** |
+| BC Users (Page 9800) | ✅ | ❌ **entita neexistuje** |
+| Adresace firmy | `Company('NÁZEV')` | `companies({guid})` |
+| Názvy polí | z AL (`Entry_No`, `Date_and_Time`) | camelCase (`number`, `displayName`) |
+| `$count=true` | funguje | nespolehlivé (proto má sync-status fallback) |
+| `Data-Access-Intent: ReadOnly` | funguje (ověřeno 2026-08-05) | dokumentované Microsoftem |
+
+Standardní APIv2 prostě data Change Logu ani seznam uživatelů nenabízí, takže přepis URL nic neřeší.
+Durable náhrada (až Microsoft publikování UI stránek dorazí — viz pravidlo 8) je **vlastní API page
+v AL** na `/api/<publisher>/<group>/<version>`, ne přechod na standardní `/api/v2.0`.
+
+**Pro nové integrace ale platí opak:** standardní data (zákazníci, položky, faktury, GL, dimenze…)
+čti přes `/api/v2.0`. Vrstva [`scripts/BCApi.psm1`](../scripts/BCApi.psm1) je na endpointu nezávislá —
+`Invoke-BCApiGet` bere celou URL, scope tokenu je pro obojí stejný. Změní se jen `$base`:
+
+```powershell
+$base = "https://api.businesscentral.dynamics.com/v2.0/$TenantId/Production/api/v2.0"
+$companies = (Invoke-BCApiGet -Uri "$base/companies").value
+```
+
+Podle pravidla 1 ale nová integrace = **vlastní service principal**, ne `BC_Telemetry_SP`.
+
 ## Registrace nové integrace — checklist
 
 1. Entra → **App registrations → New registration** (název `BC_<aplikace>_SP`, single tenant).

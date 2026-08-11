@@ -39,11 +39,12 @@ if (-not $UserMapFile) {
 }
 
 # -- Prihlaseni k BC API (1:1 jako BC_ChangeLog_Import) -----------------------
-Initialize-BCApiSession -TenantId $TenantId -ClientId $ClientId -SecretTarget $SecretTarget -Label 'uzivatele (BC Users)'
+$base = "https://api.businesscentral.dynamics.com/v2.0/$TenantId/$Environment/ODataV4"
+Initialize-BCApiSession -TenantId $TenantId -ClientId $ClientId -SecretTarget $SecretTarget -Label 'uzivatele (BC Users)' `
+    -Environment $Environment -Endpoint $base
 
 # -- GET Users ----------------------------------------------------------------
 # Bez $select — skript si nazvy poli auto-detekuje z prvniho zaznamu (lisi se dle verze/jazyka).
-$base = "https://api.businesscentral.dynamics.com/v2.0/$TenantId/$Environment/ODataV4"
 $resp = Invoke-BCApiGet -Uri "$base/Company('$Company')/$ServiceName"
 $users = $resp.value
 if (-not $users -or $users.Count -eq 0) { throw "Users vratil 0 zaznamu" }

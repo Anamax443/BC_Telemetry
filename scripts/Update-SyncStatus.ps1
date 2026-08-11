@@ -67,9 +67,12 @@ try {
 
     # ── BC API (modul B) — součet OData $count přes firmy ────────────────────
     try {
-        Initialize-BCApiSession -TenantId $TenantId -ClientId $ClientId -SecretTarget $SecretTargetBC -Label 'sync-status (modul B)'
         $base = "https://api.businesscentral.dynamics.com/v2.0/$TenantId/$Environment/ODataV4"
+        Initialize-BCApiSession -TenantId $TenantId -ClientId $ClientId -SecretTarget $SecretTargetBC -Label 'sync-status (modul B)' `
+            -Environment $Environment -Endpoint $base
         $companies = (Invoke-BCApiGet -Uri "$base/Company?`$select=Name").value.Name
+        Write-BCApiStatus -Ok $true -TenantId $TenantId -Environment $Environment -ClientId $ClientId `
+            -Endpoint $base -Companies ([int]@($companies).Count)
         $sum = [int64]0
         $failed = 0
         foreach ($co in $companies) {

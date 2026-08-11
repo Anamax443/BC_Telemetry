@@ -115,14 +115,16 @@ if (-not $CompaniesFile) {
 
 # ── Prihlaseni k BC API (token, brzda, opakovani) ────────────────────────────
 # Token se obnovuje sam (dlouhy backfill velke firmy > 1 h -> jinak 401 Unauthorized).
-Initialize-BCApiSession -TenantId $TenantId -ClientId $ClientId -SecretTarget $SecretTarget -Label 'modul B (audit zmen)'
+$bcBase = "https://api.businesscentral.dynamics.com/v2.0/$TenantId/$Environment/ODataV4"
+Initialize-BCApiSession -TenantId $TenantId -ClientId $ClientId -SecretTarget $SecretTarget -Label 'modul B (audit zmen)' `
+    -Environment $Environment -Endpoint $bcBase
 
 # ── SQL watermark ────────────────────────────────────────────────────────────
 $conn = New-Object System.Data.SqlClient.SqlConnection
 $conn.ConnectionString = "Server=$SqlServer;Database=$SqlDatabase;Integrated Security=True;TrustServerCertificate=True"
 $conn.Open()
 try {
-    $base = "https://api.businesscentral.dynamics.com/v2.0/$TenantId/$Environment/ODataV4"
+    $base = $bcBase
 
     # Seznam firem — prázdný param = VŠECHNY (Change Log je per-firma, EntryNo je per-firma sekvence)
     if ($Companies.Count) {
@@ -145,6 +147,9 @@ try {
         }
     }
     Write-Host "Firmy ($($companyList.Count)): $($companyList -join ', ')"
+    # doplnit pocet firem do stavu spojeni (dashboard ukazuje "Firem v BC")
+    Write-BCApiStatus -Ok $true -TenantId $TenantId -Environment $Environment -ClientId $ClientId `
+        -Endpoint $bcBase -Companies ([int]$companyList.Count)
 
     # Strategie (newest-first + backfill, gap-free, bez nutnosti resetu):
     #   Phase 0: prazdna firma -> seed NEJNOVEJSIM blokem (orderby desc), aby se dnesek ukazal hned.
