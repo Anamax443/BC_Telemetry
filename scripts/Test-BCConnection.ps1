@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Overi, ze jsme napojeni na BC tenant, a vysledek zapise do ops\bc-status.json.
 

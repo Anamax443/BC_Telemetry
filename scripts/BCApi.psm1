@@ -99,7 +99,11 @@ function Write-BCApiStatus {
             companies   = $Companies
             error       = $ErrorText
         }
-        $o | ConvertTo-Json -Compress | Set-Content -Path (Join-Path $opsDir 'bc-status.json') -Encoding UTF8
+        # POZOR: Set-Content -Encoding UTF8 pridava v PS 5.1 BOM a Node JSON.parse na nem spadne
+        # (dashboard by pak porad hlasil "neovereno"). Ostatni ops JSON se pisou taky bez BOM.
+        [IO.File]::WriteAllText((Join-Path $opsDir 'bc-status.json'),
+            ($o | ConvertTo-Json -Compress),
+            (New-Object System.Text.UTF8Encoding($false)))
     } catch {
         # stav je jen informace pro dashboard — nikdy kvuli nemu neshazuj import
         Write-Host "BC API: stav spojeni se nepodarilo zapsat ($($_.Exception.Message))."

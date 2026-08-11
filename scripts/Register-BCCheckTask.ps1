@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Zaregistruje ulohu BC_Telemetry_BCCheck — rucni overeni spojeni s BC z dashboardu.
 
@@ -30,8 +30,9 @@ if (-not (Test-Path $ScriptPath)) {
     throw "Skript $ScriptPath na serveru neni - nejdriv nasad obsah scripts\ na \\10.8.2.225\BC_Telemetry."
 }
 
+# Stejny rezim jako BC_Telemetry_Daily (Register-ScheduledTask.ps1) — skripty na .225 nejsou podepsane.
 $action = New-ScheduledTaskAction -Execute 'powershell.exe' `
-    -Argument "-NoProfile -ExecutionPolicy AllSigned -File `"$ScriptPath`""
+    -Argument "-NonInteractive -NoProfile -ExecutionPolicy Bypass -File `"$ScriptPath`""
 
 # Bez triggeru: ulohu spousti vyhradne dashboard (POST /bc-check -> Start-ScheduledTask).
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
@@ -40,7 +41,7 @@ $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoi
 $cred = Get-Credential -UserName $ServiceAcct -Message "Heslo uctu $ServiceAcct (potrebne jen pro registraci ulohy)"
 
 Register-ScheduledTask -TaskName $TaskName -Action $action -Settings $settings `
-    -User $cred.UserName -Password $cred.GetNetworkCredential().Password -RunLevel Limited -Force | Out-Null
+    -User $cred.UserName -Password $cred.GetNetworkCredential().Password -RunLevel Highest -Force | Out-Null
 
 Write-Host "Uloha $TaskName zaregistrovana (bezi jako $ServiceAcct, bez triggeru)."
 Write-Host "Test:  Start-ScheduledTask -TaskName '$TaskName'  ->  pak zkontroluj ops\bc-status.json"

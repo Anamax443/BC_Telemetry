@@ -445,7 +445,8 @@ $out | ConvertTo-Json -Compress -Depth 3
   //   Proto tohle odpovídá na „kdy jsme naposledy prokazatelně mluvili s tenantem".
   if (url === '/bc-status' && req.method === 'GET') {
     let s = null;
-    try { s = JSON.parse(fs.readFileSync(BC_STATUS_FILE, 'utf8')); } catch { }
+    // BOM se toleruje — PowerShell 5.1 ho umí přidat a JSON.parse by na něm spadl.
+    try { s = JSON.parse(fs.readFileSync(BC_STATUS_FILE, 'utf8').replace(/^﻿/, '')); } catch { }
     if (!s || typeof s !== 'object') return sendJson(res, 200, { present: false });
     let ageMinutes = null;
     const ts = Date.parse(s.checkedAt || '');
