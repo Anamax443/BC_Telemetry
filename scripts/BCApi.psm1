@@ -88,6 +88,21 @@ function Write-BCApiStatus {
     try {
         $opsDir = Join-Path $WebDir 'ops'
         if (-not (Test-Path $opsDir)) { New-Item -ItemType Directory -Path $opsDir -Force | Out-Null }
+        $file = Join-Path $opsDir 'bc-status.json'
+
+        # Pocet firem zna jen skript, ktery ho fakt zjistoval. Zapis pri prihlaseni ho nezna —
+        # kdyby ho prepsal na prazdno, dashboard by behem kazdeho cyklu blikal "Firem: 0".
+        # Proto ho prebereme z predchoziho zapisu (jen kdyz sedi tenant i prostredi).
+        if ($null -eq $Companies -and (Test-Path $file)) {
+            try {
+                $prev = Get-Content -Raw -Path $file | ConvertFrom-Json
+                if ($prev -and $null -ne $prev.companies -and
+                    $prev.tenantId -eq $TenantId -and $prev.environment -eq $Environment) {
+                    $Companies = [int]$prev.companies
+                }
+            } catch { }
+        }
+
         $o = [ordered]@{
             ok          = $Ok
             checkedAt   = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
@@ -101,8 +116,7 @@ function Write-BCApiStatus {
         }
         # POZOR: Set-Content -Encoding UTF8 pridava v PS 5.1 BOM a Node JSON.parse na nem spadne
         # (dashboard by pak porad hlasil "neovereno"). Ostatni ops JSON se pisou taky bez BOM.
-        [IO.File]::WriteAllText((Join-Path $opsDir 'bc-status.json'),
-            ($o | ConvertTo-Json -Compress),
+        [IO.File]::WriteAllText($file, ($o | ConvertTo-Json -Compress),
             (New-Object System.Text.UTF8Encoding($false)))
     } catch {
         # stav je jen informace pro dashboard — nikdy kvuli nemu neshazuj import

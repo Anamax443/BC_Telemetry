@@ -459,7 +459,9 @@ $out | ConvertTo-Json -Compress -Depth 3
       tenantId: s.tenantId || null,
       environment: s.environment || null,
       clientId: s.clientId || null,
-      companies: Number.isFinite(+s.companies) ? +s.companies : null,
+      // null/prázdné musí zůstat null — jinak by se z „nevím" stala nula a dashboard by tvrdil „0 firem"
+      companies: (s.companies === null || s.companies === undefined || s.companies === '')
+        ? null : (Number.isFinite(+s.companies) ? +s.companies : null),
       endpoint: s.endpoint || null,
       error: s.error || null,
       ageMinutes,
